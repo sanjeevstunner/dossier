@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useId } from "react";
+import { useRouter } from "next/navigation";
+import { useId, useState, useTransition } from "react";
 
 import { FactList } from "@/components/fact-list";
+import { toastResult } from "@/components/toast";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { MatchRows } from "@/components/match-rows";
 import type { Match, Requirement } from "@/lib/application-data";
 import type { FactItem } from "@/lib/profile";
 
 import { sectionHref } from "../../profile/sections";
+
+import { savePosting } from "./actions";
 
 /** The Job posting tab's posting, as saved with the application. */
 export type PostingData = {
@@ -42,6 +48,8 @@ export function PostingTab({
   onAddSkill,
   facts,
   setFacts,
+  matching,
+  onMatch,
 }: {
   applicationId: string;
   posting: PostingData;
@@ -50,8 +58,13 @@ export function PostingTab({
   onAddSkill: (index: number, skill: string) => void;
   facts: FactItem[];
   setFacts: (change: (facts: FactItem[]) => FactItem[]) => void;
+  /** "How you match" is being written. */
+  matching: boolean;
+  /** "Generate 'How you match'", for an application added without reading its posting. */
+  onMatch: () => void;
 }) {
   const factsHint = useId();
+  const hasMatch = match !== null && match.items.length > 0;
   return (
     <div className="@container flex flex-1 flex-col items-center gap-4 overflow-auto bg-canvas px-10 pt-11 pb-16">
       <section
@@ -100,16 +113,56 @@ export function PostingTab({
         <span>Pasted {posting.pasted}</span>
       </div>
       <div className="flex w-full max-w-[640px] flex-col gap-[22px] rounded-panel border border-line-card bg-card px-[30px] py-7">
-        {match && match.items.length > 0 && <MatchRows match={match} requirements={requirements} onAddSkill={onAddSkill} />}
-        <div className={match && match.items.length > 0 ? "flex flex-col gap-2.5 border-t border-line pt-5" : "flex flex-col gap-2.5"}>
+        {hasMatch ? (
+          <MatchRows match={match} requirements={requirements} onAddSkill={onAddSkill} />
+        ) : (
+          // Never read (added by hand), or read before matching existed: offered once there's a posting.
+          match === null &&
+          posting.text.trim() && (
+            <div className="flex flex-col items-start gap-2.5">
+              <h2 className="text-[15px] font-medium">How you match</h2>
+              <p className="text-sm text-muted">I&apos;ll read the posting and check each requirement against your profile.</p>
+              <Button aria-disabled={matching || undefined} onClick={() => !matching && onMatch()}>
+                {matching ? "Checking…" : "Generate “How you match”"}
+              </Button>
+            </div>
+          )
+        )}
+        <div className={hasMatch || (match === null && posting.text.trim()) ? "flex flex-col gap-2.5 border-t border-line pt-5" : "flex flex-col gap-2.5"}>
           <h2 className="text-[15px] font-medium">Original posting</h2>
           {posting.text.trim() ? (
             <p className="text-sm leading-[1.65] whitespace-pre-wrap text-document">{posting.text}</p>
           ) : (
-            <p className="text-sm text-muted">No posting was saved with this application.</p>
+            <AddPosting applicationId={applicationId} />
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A posting for an application saved without one, so the AI has something to tailor to. */
+function AddPosting({ applicationId }: { applicationId: string }) {
+  const router = useRouter();
+  const [text, setText] = useState("");
+  const [saving, startSaving] = useTransition();
+  const save = () =>
+    startSaving(async () => {
+      if (toastResult(await savePosting({ id: applicationId, posting: text })).ok) router.refresh();
+    });
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-muted">No posting was saved with this application. Paste it here so the AI can match and tailor to it.</p>
+      <Textarea
+        label="Job posting"
+        rows={8}
+        placeholder="Paste the full posting: title, company, requirements, the lot."
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+      />
+      <Button className="self-start" aria-disabled={saving || !text.trim() || undefined} onClick={() => !saving && text.trim() && save()}>
+        {saving ? "Saving…" : "Save posting"}
+      </Button>
     </div>
   );
 }

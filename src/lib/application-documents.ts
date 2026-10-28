@@ -8,6 +8,7 @@ import { cache } from "react";
 import type { z } from "zod";
 
 import { DocumentKind } from "@/generated/prisma/enums";
+import type { FileInfo } from "@/lib/application-files";
 import { extractedSchema, trimmedSchema, unitsSchema, type Trimmed, type Unit } from "@/lib/application-data";
 import { prisma } from "@/lib/prisma";
 import { loadProfile } from "@/lib/profile-data";
@@ -29,6 +30,8 @@ export const loadApplication = cache(async (id: string) => {
       notes: true,
       events: { select: { id: true, to: true, at: true } },
       facts: { select: { id: true, text: true }, orderBy: [{ sort: "asc" }, { createdAt: "asc" }] },
+      // The user's own files, without their bytes.
+      files: { select: { kind: true, name: true, type: true, size: true } },
     },
   });
   if (!application) notFound();
@@ -66,6 +69,10 @@ export async function loadDocuments(id: string) {
     return document && units ? { units, theme: document.theme ?? baseTheme, ...(trimmed?.length ? { trimmed } : {}) } : null;
   };
   const extracted = readJson(extractedSchema, application.extracted);
+  const fileInfo = (kind: DocumentKind): FileInfo | null => {
+    const file = application.files.find((entry) => entry.kind === kind);
+    return file ? { name: file.name, type: file.type, size: file.size } : null;
+  };
   return {
     application,
     profile,
@@ -73,6 +80,8 @@ export async function loadDocuments(id: string) {
     extracted,
     resume: documentData(DocumentKind.RESUME),
     letter: documentData(DocumentKind.COVER_LETTER),
+    /** The resume and cover letter the user uploaded, as they sent them. */
+    files: { resume: fileInfo(DocumentKind.RESUME), letter: fileInfo(DocumentKind.COVER_LETTER) },
     /** The email's units, once it's been written (Email tab). */
     email: documentData(DocumentKind.EMAIL)?.units ?? null,
     /** Settings → "Include references", when the posting asks for them (SET-9). */

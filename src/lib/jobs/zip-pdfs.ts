@@ -33,10 +33,10 @@ function folderName(company: string): string {
   return name || "No company";
 }
 
-/** Adds " (2)", " (3)"… before ".pdf" while a name is taken. */
+/** Adds " (2)", " (3)"… before ".pdf" (or ".docx") while a name is taken. */
 function unique(name: string, taken: Set<string>): string {
   let candidate = name;
-  for (let n = 2; taken.has(candidate.toLocaleLowerCase()); n++) candidate = name.replace(/\.pdf$/, ` (${n}).pdf`);
+  for (let n = 2; taken.has(candidate.toLocaleLowerCase()); n++) candidate = name.replace(/(\.(pdf|docx))$/, ` (${n})$1`);
   taken.add(candidate.toLocaleLowerCase());
   return candidate;
 }
@@ -62,9 +62,19 @@ export async function deleteAllDownloads(): Promise<void> {
 /** The documents that are printed: an application's email isn't. */
 const PRINTED = [DocumentKind.RESUME, DocumentKind.COVER_LETTER];
 
-/** The tailored documents there are to zip. */
+/** The user's own files that stand in for a document the AI hasn't written. */
+async function ownFiles() {
+  const files = await prisma.applicationFile.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { kind: true, name: true, data: true, application: { select: { id: true, company: true, role: true, documents: { select: { kind: true } } } } },
+  });
+  return files.filter((file) => !file.application.documents.some((document) => document.kind === file.kind));
+}
+
+/** The tailored documents there are to zip, with the user's own files that stand in for one. */
 export async function countTailoredDocuments(): Promise<number> {
-  return prisma.document.count({ where: { kind: { in: PRINTED } } });
+  const [documents, files] = await Promise.all([prisma.document.count({ where: { kind: { in: PRINTED } } }), ownFiles()]);
+  return documents + files.length;
 }
 
 /**
@@ -111,20 +121,22 @@ export const zipPdfsJob = defineJob({
     await step("Zipping");
     const files: Zippable = {};
     const taken = new Map<string, Set<string>>();
-    for (const { application, kind, pdf } of rendered) {
-      const folder = folderName(application.company);
+    const add = (company: string, fileName: string, data: Uint8Array) => {
+      const folder = folderName(company);
       const names = taken.get(folder.toLocaleLowerCase()) ?? new Set<string>();
       taken.set(folder.toLocaleLowerCase(), names);
-      const fileName = unique(
-        resolveFileName(settings.fileNamePattern, { name, company: application.company, role: application.role, doc: kind, date: now }),
-        names,
-      );
-      // PDFs are compressed already: store them as they are.
-      files[`${folder}/${fileName}`] = [pdf, { level: 0 }];
+      // PDFs and .docx files are compressed already: store them as they are.
+      files[`${folder}/${unique(fileName, names)}`] = [data, { level: 0 }];
+    };
+    for (const { application, kind, pdf } of rendered) {
+      add(application.company, resolveFileName(settings.fileNamePattern, { name, company: application.company, role: application.role, doc: kind, date: now }), pdf);
     }
+    // The user's own files, under the names they uploaded them with.
+    const own = await ownFiles();
+    for (const file of own) add(file.application.company, file.name, new Uint8Array(file.data));
     await mkdir(downloadsDir(), { recursive: true });
     const file = `${randomUUID()}.zip`;
     await writeFile(path.join(downloadsDir(), file), zipSync(files));
-    return { file, fileName: zipFileName(now), documents: documents.length };
+    return { file, fileName: zipFileName(now), documents: documents.length + own.length };
   },
 });

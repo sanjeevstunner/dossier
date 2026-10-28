@@ -139,7 +139,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       const themeIds = new Set((await tx.theme.findMany({ select: { id: true } })).map((theme) => theme.id));
       await tx.application.createMany({
         data: applications.map((application) => ({
-          ...omit(application, "events", "documents", "messages", "notes", "facts", "userNote"),
+          ...omit(application, "events", "documents", "messages", "notes", "facts", "files", "userNote"),
           extracted: json(application.extracted),
           match: json(application.match),
         })),
@@ -182,6 +182,11 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
             : []),
           ...application.facts,
         ].map((fact) => ({ ...fact, applicationId: application.id }))),
+      });
+      await tx.applicationFile.createMany({
+        data: applications.flatMap((application) =>
+          application.files.map((file) => ({ ...file, applicationId: application.id, data: Buffer.from(file.data, "base64") })),
+        ),
       });
       // A posting's application that isn't in the file leaves it unlinked.
       const applicationIds = new Set(applications.map((application) => application.id));

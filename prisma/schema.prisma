@@ -446,6 +446,8 @@ model Application {
   emails              EmailMessage[]
   events              StatusEvent[]
   documents           Document[]
+  /// The user's own resume and cover letter, uploaded as they sent them.
+  files               ApplicationFile[]
   messages            ChatMessage[]
   notes               Note[]
   /// What the user tells the AI for this application; "Anything I should know?" (NEW-6) becomes the first.
@@ -503,6 +505,25 @@ model Document {
 }
 
 /// Why a tailored document has a version (E8-10, APP-13).
+/// A resume or cover letter the user uploaded as they sent it (PDF or .docx),
+/// kept unchanged. It stands in for the generated document until one is written.
+model ApplicationFile {
+  id            String       @id @default(cuid())
+  applicationId String
+  application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// RESUME or COVER_LETTER.
+  kind          DocumentKind
+  /// The file's name as uploaded, e.g. "Resume.pdf".
+  name          String
+  /// Its media type: application/pdf, or the .docx one.
+  type          String
+  size          Int
+  data          Bytes
+  createdAt     DateTime     @default(now())
+
+  @@unique([applicationId, kind])
+}
+
 enum VersionCause {
   /// The first draft, when the application was created.
   WRITTEN

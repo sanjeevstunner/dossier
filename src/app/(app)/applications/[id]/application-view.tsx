@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Switch } from "radix-ui";
-import { useEffect, useId, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
 
 import { plainUnit, type UnitRenderer } from "@/components/documents/document-page";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { DownloadPdfButton } from "@/components/documents/download-pdf-button";
 import { TailoredLetter, TailoredResume } from "@/components/documents/tailored-documents";
 import { toast, toastResult } from "@/components/toast";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DocumentKind,
@@ -25,10 +25,12 @@ import { documentLabels } from "@/lib/document-labels";
 import { defaultFrame, isFrameUnit, isParagraph, withFrame, WRITTEN_FRAME_UNITS } from "@/lib/letter-frame";
 import type { ActivityEntry } from "@/lib/activity";
 import type { DocumentData } from "@/lib/application-documents";
+import { fileHref, type FileInfo } from "@/lib/application-files";
 import { retry } from "@/lib/jobs/actions";
 import type { RefineResult } from "@/lib/jobs/refine";
 import type { RegenerateUnitResult } from "@/lib/jobs/regenerate-unit";
 import type { JobView } from "@/lib/jobs/runner";
+import type { CatchUpKind } from "@/lib/jobs/write-application-document";
 import type { WriteEmailResult } from "@/lib/jobs/write-email";
 import type { FactItem, ProfileData } from "@/lib/profile";
 import type { RefineSuggestions } from "@/lib/refine-suggestions";
@@ -46,6 +48,7 @@ import {
   setApplicationTheme,
   setFollowThemeLayout,
   setShowPhoto,
+  startCatchingUp,
   startRegenerating,
   startWritingEmail,
   undoEmailRewrite,
@@ -58,6 +61,7 @@ import { EmailTab, type Attachments } from "./email-tab";
 import type { GmailSender } from "./send-with-gmail";
 
 import { JobWatcher } from "./job-watcher";
+import { OwnDocument } from "./own-document";
 import { NotesTab } from "./notes-tab";
 import { PostingTab, type PostingData } from "./posting-tab";
 import { RefinePanel, type ChatEntry } from "./refine-panel";
@@ -129,6 +133,10 @@ export type ApplicationViewProps = {
   meta: string[];
   resume: DocumentData | null;
   letter: DocumentData | null;
+  /** The resume and cover letter the user uploaded, as they sent them. */
+  files: { resume: FileInfo | null; letter: FileInfo | null };
+  /** What the AI is catching up on for it, e.g. since before a reload. */
+  catchingUp: { jobId: string; kind: CatchUpKind } | null;
   /** Every theme, for the Theme menu (#226), and which is the base theme. */
   themes: ThemeData[];
   baseThemeId: string;
@@ -177,6 +185,8 @@ export function ApplicationView({
   activity,
   resume,
   letter,
+  files,
+  catchingUp,
   themes,
   baseThemeId,
   email,
@@ -230,6 +240,11 @@ export function ApplicationView({
     Object.fromEntries(rewritingAtLoad.map(({ jobId, document, unitId }) => [keyOf(document, unitId), { jobId, revision: 0 }])),
   );
   const [emailJob, setEmailJob] = useState<Rewrite | null>(writingEmail ? { jobId: writingEmail, revision: 0 } : null);
+  const [catchUpJob, setCatchUpJob] = useState<(Rewrite & { kind: CatchUpKind }) | null>(catchingUp && { ...catchingUp, revision: 0 });
+
+  // The user's own file stands in for the document on screen until the AI writes one.
+  const ownFileOnScreen =
+    tab === "letter" ? (!letter && files.letter ? "letter" : null) : tab === "resume" && !resume && files.resume ? "resume" : null;
 
   /** The document on screen, which a chat message without a target is most likely about. */
   const onScreen = (): DocumentKind | null =>
@@ -422,6 +437,30 @@ export function ApplicationView({
     }
   };
 
+  /** "Generate 'How you match'", "Generate with AI" and "Tailor with AI": written in the background. */
+  const catchUp = async (kind: CatchUpKind, fromUpload = false) => {
+    if (!aiReady) return needsAi();
+    if (catchUpJob) return toast("One thing at a time: wait for the AI to finish what it's writing.");
+    setCatchUpJob({ jobId: "", revision: 0, kind });
+    const result = await startCatchingUp({ id: application.id, kind, fromUpload });
+    if (result.ok) setCatchUpJob({ jobId: result.data, revision: 0, kind });
+    else {
+      setCatchUpJob(null);
+      toast(result.error);
+    }
+  };
+
+  const catchUpChanged = (job: JobView<unknown>) => {
+    if (job.status === "FAILED") {
+      setCatchUpJob(null);
+      toast(job.error ?? "That didn't work. Try again.");
+      return;
+    }
+    if (job.status !== "DONE") return;
+    setCatchUpJob(null);
+    startTransition(() => router.refresh());
+  };
+
   const emailChanged = (job: JobView<WriteEmailResult>) => {
     if (job.status === "FAILED") {
       setEmailJob(null);
@@ -612,6 +651,9 @@ export function ApplicationView({
         ) : null,
       )}
       {reply && <JobWatcher<RefineResult> key={reply.jobId} id={reply.jobId} revision={reply.revision} onChange={replyChanged} />}
+      {catchUpJob?.jobId && (
+        <JobWatcher key={catchUpJob.jobId} id={catchUpJob.jobId} revision={catchUpJob.revision} onChange={catchUpChanged} />
+      )}
       {emailJob?.jobId && (
         <JobWatcher<WriteEmailResult> key={emailJob.jobId} id={emailJob.jobId} revision={emailJob.revision} onChange={emailChanged} />
       )}
@@ -627,7 +669,11 @@ export function ApplicationView({
               </Link>
             )}
             <StatusControl id={application.id} status={application.status} interviewAt={application.nextInterviewAt} timeZone={timeZone} />
-            {(resume || letter) && (
+            {ownFileOnScreen ? (
+              <a href={fileHref(application.id, ownFileOnScreen, true)} className={buttonClassName("secondary", "md")}>
+                Download
+              </a>
+            ) : (resume || letter) && (
               // The document on screen; from the Job posting tab, the resume (E8-8).
               <DownloadPdfButton
                 variant="secondary"
@@ -691,7 +737,15 @@ export function ApplicationView({
               />
             </DocumentPreview>
           ) : (
-            <MissingDocument>This application has no tailored resume.</MissingDocument>
+            <OwnDocument
+              applicationId={application.id}
+              kind="resume"
+              file={files.resume}
+              hasPosting={posting.text.trim() !== ""}
+              writing={catchUpJob?.kind === "resume"}
+              onWrite={(fromUpload) => void catchUp("resume", fromUpload)}
+              onAddPosting={() => selectTab("posting")}
+            />
           )}
         </TabsContent>
 
@@ -722,7 +776,15 @@ export function ApplicationView({
               />
             </DocumentPreview>
           ) : (
-            <MissingDocument>This application has no cover letter.</MissingDocument>
+            <OwnDocument
+              applicationId={application.id}
+              kind="letter"
+              file={files.letter}
+              hasPosting={posting.text.trim() !== ""}
+              writing={catchUpJob?.kind === "letter"}
+              onWrite={(fromUpload) => void catchUp("letter", fromUpload)}
+              onAddPosting={() => selectTab("posting")}
+            />
           )}
         </TabsContent>
 
@@ -754,6 +816,8 @@ export function ApplicationView({
             onAddSkill={(index) => addSkill(index)}
             facts={facts}
             setFacts={setFacts}
+            matching={catchUpJob !== null}
+            onMatch={() => void catchUp("match")}
           />
         </TabsContent>
 
@@ -852,11 +916,3 @@ function PreviewSwitch({ label, checked, onCheckedChange }: { label: string; che
   );
 }
 
-/** The canvas with a note in place of a document the application doesn't have. */
-function MissingDocument({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex flex-1 justify-center overflow-auto bg-canvas px-10 pt-16 pb-16">
-      <p className="max-w-[420px] text-center text-muted">{children}</p>
-    </div>
-  );
-}

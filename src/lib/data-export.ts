@@ -40,10 +40,10 @@ import { appVersion } from "@/lib/version";
 // behind: they belong to the server or the mailbox, not the user's data.
 
 export const EXPORT_FORMAT = "dossier-export";
-/** Bump when the file's shape changes; imports refuse versions they don't know. 2 added Find jobs' postings and keys (E14-9), 3 projects (PRO-13) and the job agent (E16), 4 facts (PRO-14, APP-15), 5 publications (#218), the profile photo's theme and application options (#224) and Startups (#222). */
-export const EXPORT_SCHEMA_VERSION = 5;
+/** Bump when the file's shape changes; imports refuse versions they don't know. 2 added Find jobs' postings and keys (E14-9), 3 projects (PRO-13) and the job agent (E16), 4 facts (PRO-14, APP-15), 5 publications (#218), the profile photo's theme and application options (#224) and Startups (#222), 6 the user's own resume and cover letter files. */
+export const EXPORT_SCHEMA_VERSION = 6;
 /** The versions imports can read. */
-export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
+export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6];
 
 /** The setting that holds the encrypted API key, which only this server can read. */
 const API_KEY_SETTING = "apiKeyEnc";
@@ -183,6 +183,16 @@ const chatMessage = z.object({
   createdAt: date,
 });
 const note = z.object({ id: text, body: text, createdAt: date, updatedAt: date });
+/** The user's own resume or cover letter, its bytes in base64. */
+const applicationFile = z.object({
+  id: text,
+  kind: z.enum(DocumentKind),
+  name: text,
+  type: text,
+  size: int,
+  data: z.base64(),
+  createdAt: date,
+});
 const application = z.object({
   id: text,
   title: text,
@@ -223,6 +233,8 @@ const application = z.object({
   notes: z.array(note),
   /** Absent in files before version 4. */
   facts: z.array(fact).default([]),
+  /** Absent in files before version 6. */
+  files: z.array(applicationFile).default([]),
 });
 
 /** A posting the job agent found (E16). */
@@ -318,7 +330,7 @@ const postingSearch = z.object({
 /** An export file as read back (E10-6). */
 export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
-  schemaVersion: z.literal([1, 2, 3, 4, 5]),
+  schemaVersion: z.literal([1, 2, 3, 4, 5, 6]),
   appVersion: text,
   exportedAt: date,
   profile: z.object({
@@ -398,6 +410,7 @@ export async function buildExport(
           messages: { omit: { applicationId: true }, orderBy: { createdAt: "asc" } },
           notes: { omit: { applicationId: true }, orderBy: { createdAt: "asc" } },
           facts: { omit: { applicationId: true }, orderBy: [{ sort: "asc" }, { createdAt: "asc" }] },
+          files: { omit: { applicationId: true }, orderBy: { kind: "asc" } },
         },
       }),
       tx.posting.findMany({ orderBy: { createdAt: "asc" } }),
@@ -444,7 +457,10 @@ export async function buildExport(
       settings: settings.filter((setting) => !SECRET_SETTINGS.includes(setting.key) && !INSTALL_SETTINGS.includes(setting.key)),
       ...(apiKey ? { apiKey } : {}),
       ...(Object.keys(jobSourceKeys).length > 0 ? { jobSourceKeys } : {}),
-      applications,
+      applications: applications.map((application) => ({
+        ...application,
+        files: application.files.map((file) => ({ ...file, data: Buffer.from(file.data).toString("base64") })),
+      })),
       postings,
       searches,
       agentCandidates,
