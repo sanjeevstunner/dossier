@@ -19,6 +19,8 @@ import { refineJob, refineJobKey } from "@/lib/jobs/refine";
 import { regenerateUnitJob, unitJobKey } from "@/lib/jobs/regenerate-unit";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { emailJobKey, writeEmailJob } from "@/lib/jobs/write-email";
+import { CATCH_UP_KINDS, documentJobKey, writeApplicationDocumentJob } from "@/lib/jobs/write-application-document";
+import { resumeText } from "@/lib/resume-text";
 import { prisma } from "@/lib/prisma";
 import { findOrCreateSkill } from "@/lib/profile-entries";
 import { cleanUnitText, isPublicationUnit, unitName } from "@/lib/unit-text";
@@ -517,3 +519,55 @@ export const undoEmailRewrite = action(z.object({ id: z.string().min(1), jobId: 
   refresh(id);
   return null;
 });
+
+/**
+ * The posting of an application added without one, pasted on its Job
+ * posting tab, so "How you match" and the documents can be written from it.
+ * What was read from an earlier posting goes with it.
+ */
+export const savePosting = action(
+  z.object({ id: z.string().min(1), posting: z.string().trim().min(1, "Paste the job posting first.").max(100_000) }),
+  async ({ id, posting }) => {
+    const { count } = await prisma.application.updateMany({
+      where: { id },
+      data: { postingText: posting, extracted: Prisma.DbNull, extractedWith: null, match: Prisma.DbNull, matchedWith: null },
+    });
+    if (count === 0) throw new ActionError(GONE);
+    refresh(id);
+  },
+);
+
+/**
+ * "Generate 'How you match'", "Generate with AI" and "Tailor with AI" on an
+ * application added by hand: starts writing what it's missing, or returns
+ * the job already doing it. Tailoring reads the uploaded file's text here,
+ * so a file the AI can't read says so right away.
+ */
+export const startCatchingUp = action(
+  z.object({ id: z.string().min(1), kind: z.enum(CATCH_UP_KINDS), fromUpload: z.boolean().default(false) }),
+  async ({ id, kind, fromUpload }) => {
+    const application = await prisma.application.findUnique({
+      where: { id },
+      select: { postingText: true, documents: { select: { kind: true } } },
+    });
+    if (!application) throw new ActionError(GONE);
+    if (!(await isAiConfigured())) throw new ActionError("That needs an AI provider. Choose one in Settings → AI provider.");
+    if (!application.postingText.trim()) throw new ActionError("Add the job posting on the Job posting tab first: it's what the AI tailors to.");
+    const [running] = await findUnfinishedJobs(documentJobKey(id));
+    if (running) return running.id;
+
+    const documentKind = kind === "resume" ? DocumentKind.RESUME : kind === "letter" ? DocumentKind.COVER_LETTER : null;
+    if (documentKind && application.documents.some((document) => document.kind === documentKind)) {
+      throw new ActionError("It's already written. Reload the page to see it.");
+    }
+    let source: string | undefined;
+    if (documentKind && fromUpload) {
+      const file = await prisma.applicationFile.findUnique({ where: { applicationId_kind: { applicationId: id, kind: documentKind } } });
+      if (!file) throw new ActionError("That file is no longer there. Upload it again.");
+      const read = await resumeText(new Uint8Array(file.data));
+      if (!read.ok) throw new ActionError(`The AI can't read that file. ${read.error}`);
+      source = read.text;
+    }
+    return startJob(writeApplicationDocumentJob, { applicationId: id, kind, source }, { key: documentJobKey(id), applicationId: id });
+  },
+);

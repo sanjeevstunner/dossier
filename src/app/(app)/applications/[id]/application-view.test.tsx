@@ -26,6 +26,7 @@ import {
   setApplicationTheme,
   setFollowThemeLayout,
   setShowPhoto,
+  startCatchingUp,
   startRegenerating,
   startWritingEmail,
   undoEmailRewrite,
@@ -54,6 +55,8 @@ vi.mock("./actions", () => ({
   loadVersion: vi.fn(),
   restoreVersion: vi.fn(async () => ({ ok: true, data: null, toast: "Restored the resume as it was then." })),
   startWritingEmail: vi.fn(async () => ({ ok: true, data: "email-1" })),
+  startCatchingUp: vi.fn(async () => ({ ok: true, data: "catch-up-1" })),
+  savePosting: vi.fn(async () => ({ ok: true, data: null })),
   undoEmailRewrite: vi.fn(async () => ({ ok: true, data: null })),
 }));
 vi.mock("@/lib/copy-text", () => ({ copyText: vi.fn(async () => true) }));
@@ -112,7 +115,12 @@ const props: ApplicationViewProps = {
   baseThemeId: "modern",
   email: null,
   writingEmail: null,
-  attachments: { resume: "Jane Doe – Ledgerly – Resume.pdf", letter: "Jane Doe – Ledgerly – Cover letter.pdf" },
+  files: { resume: null, letter: null },
+  catchingUp: null,
+  attachments: {
+    resume: { name: "Jane Doe – Ledgerly – Resume.pdf", href: "/api/pdf?doc=resume&application=app-1" },
+    letter: { name: "Jane Doe – Ledgerly – Cover letter.pdf", href: "/api/pdf?doc=letter&application=app-1" },
+  },
   profile: demoProfile(),
   paper: "A4",
   dateFormat: "DAY_MONTH_YEAR",
@@ -272,10 +280,42 @@ describe("the document tabs (E8-2)", () => {
     expect(screen.getByText(/^Cover letter · about \d+0 words$/)).toBeInTheDocument();
   });
 
-  it("says so when a document is missing", () => {
+  it("offers to upload or write a missing document", () => {
     render(<ApplicationView {...props} resume={null} score={null} />);
-    expect(screen.getByText("This application has no tailored resume.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No resume yet" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose file: Your resume" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate with AI" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Job posting" })).toBeInTheDocument();
+  });
+
+  it("writes a missing document in the background and shows it when it's done", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} letter={null} />);
+    await user.click(screen.getByRole("tab", { name: "Cover letter" }));
+    await user.click(screen.getByRole("button", { name: "Generate with AI" }));
+    expect(startCatchingUp).toHaveBeenCalledWith({ id: "app-1", kind: "letter", fromUpload: false });
+    expect(screen.getByRole("button", { name: "Writing…" })).toHaveAttribute("aria-disabled", "true");
+    report({ id: "catch-up-1", type: "write-application-document", status: "DONE", result: { kind: "letter" } });
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("shows the user's own PDF in place of the document, and tailors it", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} resume={null} files={{ resume: { name: "Resume.pdf", type: "application/pdf", size: 120_000 }, letter: null }} />);
+    expect(screen.getByTitle("Your resume")).toHaveAttribute("src", "/api/applications/app-1/files/resume");
+    expect(screen.getByText(/Your resume · Resume.pdf · 117 KB/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/applications/app-1/files/resume?download");
+    await user.click(screen.getByRole("button", { name: "Tailor with AI" }));
+    expect(startCatchingUp).toHaveBeenCalledWith({ id: "app-1", kind: "resume", fromUpload: true });
+  });
+
+  it("asks for the posting before the AI can write a missing document", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} resume={null} posting={{ text: "", url: "", pasted: "27 Sep" }} />);
+    expect(screen.getByRole("button", { name: "Generate with AI" })).toHaveAttribute("aria-disabled", "true");
+    await user.click(screen.getByRole("button", { name: "Add the job posting" }));
+    expect(screen.getByRole("tab", { name: /^Job posting/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Save posting" })).toBeInTheDocument();
   });
 });
 
@@ -714,10 +754,13 @@ describe("the Job posting tab (E8-7)", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("shows only the posting when it wasn't matched", () => {
+  it("offers to match the posting when it wasn't matched", async () => {
+    const user = userEvent.setup();
     open({ match: null });
-    expect(screen.queryByRole("heading", { name: "How you match" })).not.toBeInTheDocument();
+    expect(screen.queryByText("1 of 2 covered by your profile")).not.toBeInTheDocument();
     expect(within(screen.getByRole("tabpanel")).queryByRole("link", { name: /opens in a new tab/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Generate “How you match”" }));
+    expect(startCatchingUp).toHaveBeenCalledWith({ id: "app-1", kind: "match", fromUpload: false });
   });
 });
 

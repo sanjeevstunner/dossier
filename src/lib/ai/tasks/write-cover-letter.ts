@@ -10,6 +10,7 @@ import { guardSources, guardUnits } from "../fact-guard";
 
 import {
   applicationFacts,
+  ownVersion,
   candidateFacts,
   COVER_LETTER_APPROACH,
   CREATIVITY,
@@ -23,7 +24,7 @@ import {
   type Task,
 } from "./prompt-parts";
 
-export const WRITE_COVER_LETTER_VERSION = "write-cover-letter@5";
+export const WRITE_COVER_LETTER_VERSION = "write-cover-letter@6";
 
 const answerSchema = z.object({
   recipient: z.string(),
@@ -51,6 +52,8 @@ export type CoverLetterInput = {
   facts: string[];
   /** The posting as pasted, for the fact guard. */
   posting: string;
+  /** The candidate's own cover letter, as they sent it, to tailor rather than start from the profile alone. */
+  source?: string;
 };
 
 /**
@@ -59,7 +62,7 @@ export type CoverLetterInput = {
  * "sign-off"), which matches the tone. The sender, date and signature come
  * from the profile when the application is created (src/lib/letter-frame.ts).
  */
-export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider, { profile, extracted, match, tone, facts, posting }, options) => {
+export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider, { profile, extracted, match, tone, facts, posting, source }, options) => {
   const answer = await provider.complete({
     system: system(
       INSTRUCTIONS,
@@ -79,6 +82,7 @@ export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider,
           `The candidate's profile:\n${profileForPrompt(profile)}`,
           `The job:\n${jobForPrompt(extracted, match)}`,
           applicationFacts(facts),
+          ownVersion(source),
         ]
           .filter(Boolean)
           .join("\n\n"),
@@ -104,7 +108,7 @@ export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider,
   ]);
   return {
     // The recipient and greeting aren't claims about the candidate: only the paragraphs are checked.
-    data: options.strict ? guardUnits(units, guardSources(profile, extracted, posting, facts)).map((unit) => (isFrameUnit(unit.id) ? units.find((entry) => entry.id === unit.id)! : unit)) : units,
+    data: options.strict ? guardUnits(units, guardSources(profile, extracted, posting, source ? [...facts, source] : facts)).map((unit) => (isFrameUnit(unit.id) ? units.find((entry) => entry.id === unit.id)! : unit)) : units,
     promptVersion: WRITE_COVER_LETTER_VERSION,
   };
 };

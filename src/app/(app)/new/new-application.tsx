@@ -11,9 +11,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Stepper } from "@/components/ui/stepper";
 import { Textarea } from "@/components/ui/textarea";
-import type { Tone } from "@/generated/prisma/enums";
+import { ApplicationStatus, type Tone } from "@/generated/prisma/enums";
 import { useJob } from "@/hooks/use-job";
 import { withSkillAdded, type Extracted } from "@/lib/application-data";
+import type { EmailParts } from "@/lib/application-email";
+import { uploadFile } from "@/lib/application-files";
 import { cancel, retry } from "@/lib/jobs/actions";
 import { READ_POSTING_STEPS, WRITE_DOCUMENTS_STEPS } from "@/lib/jobs/application-steps";
 import type { ReadPostingResult } from "@/lib/jobs/read-posting";
@@ -23,14 +25,17 @@ import { openPendingTab, sendPendingTab } from "@/lib/claude-tab";
 
 import { addSkill } from "../profile/actions";
 
-import { createApplication, fetchPostingText, handOffToClaude, startReadingPosting, startWritingDocuments } from "./actions";
+import { addManualApplication, createApplication, fetchPostingText, handOffToClaude, startReadingPosting, startWritingDocuments } from "./actions";
 import { DetailsCard } from "./details-card";
 import { createDraftStore } from "./draft-store";
 import { MatchCard } from "./match-card";
 import { TailoringCard } from "./tailoring-card";
 import { JobProgress, jobStep } from "./job-progress";
+import { hasAppliedDate, ManualCard, type OwnFiles, type Tracking } from "./manual-card";
 
 const STEPS = ["Paste the posting", "Check the details", "Tailored documents"] as const;
+/** With the documents added by hand, the last step is the user's own. */
+const MANUAL_STEPS = ["Paste the posting", "Check the details", "Your documents"] as const;
 
 /** The editable details of "The application" (NEW-3). */
 export type Details = {
@@ -46,7 +51,8 @@ export type Details = {
 
 /** Everything the flow knows so far; nothing reaches the server as an application until the end. */
 export type Draft = {
-  step: "paste" | "reading" | "review" | "creating";
+  /** "manual": the user's own documents, with no AI writing them. */
+  step: "paste" | "reading" | "review" | "creating" | "manual";
   posting: string;
   postingUrl: string;
   readJobId: string | null;
@@ -61,6 +67,12 @@ export type Draft = {
   postingId?: string | null;
   /** The startup it was started from with "Write to them" (#222). */
   startupId?: string | null;
+  /** "Continue without reading": the details are entered by hand. Missing in drafts from before. */
+  unread?: boolean;
+  /** The email it was sent with, for an application added by hand. */
+  email?: EmailParts;
+  /** Its status and when it was sent, for an application added by hand. */
+  tracking?: Tracking;
 };
 
 /** A posting handed over by "Start application" on Find jobs (E14-8), or by "Write to them" on Startups (#222). */
@@ -88,6 +100,9 @@ export function detailsFrom(extracted: Extracted): Details {
 }
 
 const EMPTY_DETAILS: Details = { title: "", company: "", role: "", location: "", mode: "", salary: "", deadline: "" };
+const EMPTY_EMAIL: EmailParts = { to: "", subject: "", body: "" };
+const DRAFT_TRACKING: Tracking = { status: ApplicationStatus.DRAFT, appliedOn: "" };
+const NO_FILES: OwnFiles = { resume: null, letter: null };
 
 // One draft per tab, in sessionStorage (E7-7); none while rendering on the server.
 const draftStore = typeof window === "undefined" ? null : createDraftStore<Draft>();
@@ -160,6 +175,9 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
     note: "",
     writeJobId: null,
     postingId: null,
+    unread: false,
+    email: EMPTY_EMAIL,
+    tracking: DRAFT_TRACKING,
   }));
   // The server renders a fresh draft; the tab's own draft takes over once the page is live.
   const stored = useSyncExternalStore(draftStore?.subscribe ?? noStore, () => draftStore?.get() ?? null, () => null);
@@ -197,6 +215,8 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
   const [starting, setStarting] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [readRevision, setReadRevision] = useState(0);
+  // Files can't be kept in the tab's draft: a reload asks for them again.
+  const [files, setFiles] = useState<OwnFiles>(NO_FILES);
 
   // E11-3: a new step replaces the controls of the last one, so focus moves to
   // its heading (or the posting field) instead of getting lost.
@@ -225,14 +245,17 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
     }
     // Back and on again with the same posting: keep what was read and edited.
     if (draft.read && draft.readFor === draft.posting.trim()) {
-      update({ step: "review" });
+      update({ step: "review", unread: false });
       return;
     }
     setStarting(true);
     const result = toastResult(await startReadingPosting({ posting: draft.posting }));
     setStarting(false);
-    if (result.ok) update({ step: "reading", readJobId: result.data, readFor: draft.posting.trim(), read: null });
+    if (result.ok) update({ step: "reading", readJobId: result.data, readFor: draft.posting.trim(), read: null, unread: false });
   };
+
+  // "Continue without reading": the details by hand, and nothing for the AI to do.
+  const continueWithoutReading = () => update({ step: "review", unread: true, details: draft.unread ? draft.details : EMPTY_DETAILS });
 
   // #221: Claude chat writes it on the user's own Claude plan, through the
   // connector, and saves it here as a Draft application.
@@ -319,6 +342,51 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
     update({ step: "creating", writeJobId: result.data });
   };
 
+  // "Add application" with the user's own documents: create it, then upload the files to it.
+  const addManually = async () => {
+    if (saving.current) return;
+    const tracking = draft.tracking ?? DRAFT_TRACKING;
+    if (hasAppliedDate(tracking.status) && !tracking.appliedOn) return toast("Enter the date you applied.");
+    saving.current = true;
+    setStarting(true);
+    const reading = draft.unread ? null : draft.read;
+    const result = toastResult(
+      await addManualApplication({
+        details: draft.details,
+        posting: draft.posting,
+        postingUrl: draft.postingUrl,
+        readJobId: reading ? draft.readJobId : null,
+        match: reading?.match ?? null,
+        email: draft.email ?? EMPTY_EMAIL,
+        status: tracking.status,
+        appliedOn: hasAppliedDate(tracking.status) ? tracking.appliedOn : "",
+        postingId: draft.postingId ?? null,
+        startupId: draft.startupId ?? null,
+      }),
+    );
+    if (!result.ok) {
+      saving.current = false;
+      setStarting(false);
+      return;
+    }
+    const id = result.data;
+    const uploads = [
+      { kind: "resume", file: files.resume, what: "resume" },
+      { kind: "letter", file: files.letter, what: "cover letter" },
+    ] as const;
+    const failed: string[] = [];
+    for (const { kind, file, what } of uploads) {
+      if (file && !(await uploadFile(id, kind, file)).ok) failed.push(what);
+    }
+    toast(
+      failed.length > 0
+        ? `Added the application, but the ${failed.join(" and ")} didn't upload. Add ${failed.length > 1 ? "them" : "it"} from the application.`
+        : "Added the application.",
+    );
+    draftStore?.clear();
+    router.push(`/applications/${id}`);
+  };
+
   // Leaving while the AI works stops it; nothing gets created either way.
   const working =
     (draft.step === "reading" && readJob?.status !== "DONE" && readJob?.status !== "FAILED") ||
@@ -347,8 +415,8 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
       />
       <div className="flex max-w-[816px] flex-col gap-6 px-10 pb-20">
         <Stepper
-          steps={STEPS}
-          current={draft.step === "creating" ? 2 : draft.step === "review" ? 1 : 0}
+          steps={draft.step === "manual" ? MANUAL_STEPS : STEPS}
+          current={draft.step === "creating" || draft.step === "manual" ? 2 : draft.step === "review" ? 1 : 0}
           aria-label="New application steps"
         />
 
@@ -367,10 +435,11 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
                 </p>
               ) : !aiReady && (
                 <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
-                  No AI provider is set up yet, so nothing can read the posting.{" "}
+                  No AI provider is set up yet, so nothing can read the posting. Continue without reading to fill it in yourself, or{" "}
                   <Link href="/settings?section=ai" className="font-medium text-warning underline underline-offset-2">
-                    Choose one in Settings → AI provider
+                    choose one in Settings → AI provider
                   </Link>
+                  .
                 </p>
               )}
               <Card className="flex flex-col gap-5">
@@ -418,12 +487,17 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
                 ) : (
                   <span />
                 )}
-                <Button
-                  aria-disabled={!draft.posting.trim() || starting || undefined}
-                  onClick={() => void (starting ? undefined : writeInClaude ? writeWithClaude() : read())}
-                >
-                  {writeInClaude ? "Write it with Claude →" : "Read the posting →"}
-                </Button>
+                <span className="flex flex-wrap items-center gap-3">
+                  <Button variant="secondary" onClick={continueWithoutReading}>
+                    Continue without reading
+                  </Button>
+                  <Button
+                    aria-disabled={!draft.posting.trim() || starting || undefined}
+                    onClick={() => void (starting ? undefined : writeInClaude ? writeWithClaude() : read())}
+                  >
+                    {writeInClaude ? "Write it with Claude →" : "Read the posting →"}
+                  </Button>
+                </span>
               </div>
             </>
           )}
@@ -439,7 +513,19 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
             />
           )}
 
-          {draft.step === "review" && draft.read && (
+          {draft.step === "review" && draft.unread && (
+            <>
+              <DetailsCard details={draft.details} onChange={(details) => update({ details })} suggested={false} />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Button variant="text" onClick={() => update({ step: "paste" })}>
+                  ← Back to the posting
+                </Button>
+                <Button onClick={() => update({ step: "manual" })}>Add documents manually →</Button>
+              </div>
+            </>
+          )}
+
+          {draft.step === "review" && !draft.unread && draft.read && (
             <>
               <DetailsCard details={draft.details} onChange={(details) => update({ details })} />
               <MatchCard match={draft.read.match} requirements={draft.read.extracted.requirements} onAddSkill={(index, skill) => void addToProfile(index, skill)} />
@@ -448,8 +534,34 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
                 <Button variant="text" onClick={() => update({ step: "paste" })}>
                   ← Back to the posting
                 </Button>
-                <Button aria-disabled={starting || undefined} onClick={() => void create()}>
-                  Create application →
+                <span className="flex flex-wrap items-center gap-3">
+                  <Button variant="secondary" onClick={() => update({ step: "manual" })}>
+                    Add documents manually
+                  </Button>
+                  <Button aria-disabled={starting || undefined} onClick={() => void create()}>
+                    Create application →
+                  </Button>
+                </span>
+              </div>
+            </>
+          )}
+
+          {draft.step === "manual" && (
+            <>
+              <ManualCard
+                files={files}
+                onFiles={setFiles}
+                email={draft.email ?? EMPTY_EMAIL}
+                onEmail={(email) => update({ email })}
+                tracking={draft.tracking ?? DRAFT_TRACKING}
+                onTracking={(tracking) => update({ tracking })}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Button variant="text" onClick={() => update({ step: "review" })}>
+                  ← Back to the details
+                </Button>
+                <Button aria-disabled={starting || undefined} onClick={() => void addManually()}>
+                  {starting ? "Adding…" : "Add application"}
                 </Button>
               </div>
             </>

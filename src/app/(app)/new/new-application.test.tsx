@@ -9,7 +9,9 @@ import { addSkill } from "../profile/actions";
 
 import { cancel } from "@/lib/jobs/actions";
 
-import { createApplication, fetchPostingText, handOffToClaude, startReadingPosting, startWritingDocuments } from "./actions";
+import { uploadFile } from "@/lib/application-files";
+
+import { addManualApplication, createApplication, fetchPostingText, handOffToClaude, startReadingPosting, startWritingDocuments } from "./actions";
 import { NewApplication } from "./new-application";
 
 vi.mock("./actions", () => ({
@@ -18,6 +20,11 @@ vi.mock("./actions", () => ({
   createApplication: vi.fn(),
   fetchPostingText: vi.fn(),
   handOffToClaude: vi.fn(),
+  addManualApplication: vi.fn(),
+}));
+vi.mock("@/lib/application-files", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/application-files")>()),
+  uploadFile: vi.fn(async () => ({ ok: true })),
 }));
 vi.mock("../profile/actions", () => ({ addSkill: vi.fn(async ({ name }: { name: string }) => ({ ok: true, data: { skill: { id: "s9", name }, added: true } })) }));
 vi.mock("@/lib/jobs/actions", () => ({ retry: vi.fn(async () => ({ ok: true, data: null })), cancel: vi.fn(async () => ({ ok: true, data: null })) }));
@@ -117,7 +124,7 @@ describe("the paste step (E7-1)", () => {
 
   it("points to Settings when no AI provider is set up", () => {
     render(<NewApplication {...props} aiReady={false} />);
-    expect(screen.getByRole("link", { name: "Choose one in Settings → AI provider" })).toHaveAttribute("href", "/settings?section=ai");
+    expect(screen.getByRole("link", { name: "choose one in Settings → AI provider" })).toHaveAttribute("href", "/settings?section=ai");
   });
 
   it("hands the posting to a Claude chat when the connector is on and Dossier has no model (#221)", async () => {
@@ -470,3 +477,72 @@ describe("keeping the draft (E7-7)", () => {
   });
 });
 
+
+describe("adding an application by hand", () => {
+  const readResult = {
+    extracted: {
+      title: "Designer · Ledgerly", company: "Ledgerly", role: "Designer", location: null, mode: null, salary: null, deadline: null,
+      requirements: [{ text: "Figma", kind: "skill", skill: "Figma", years: null, language: null }],
+      asksForReferences: false, language: "English",
+    },
+    extractedWith: "extract-posting@1",
+    match: { items: [{ requirement: "Figma", result: "covered", skill: "Figma", experienceIds: [], note: "In your skills" }] },
+    matchedWith: "match-requirements@1",
+  };
+
+  beforeEach(() => {
+    vi.mocked(addManualApplication).mockReset().mockResolvedValue({ ok: true, data: "app-9" });
+    vi.mocked(uploadFile).mockClear();
+    router.push.mockClear();
+  });
+
+  it("continues without reading, then adds it with the user's own files, email and status", async () => {
+    const user = userEvent.setup();
+    render(<NewApplication {...props} aiReady={false} />);
+    await user.type(screen.getByLabelText("Job posting"), "Ledgerly is hiring.");
+    await user.click(screen.getByRole("button", { name: "Continue without reading" }));
+    expect(startReadingPosting).not.toHaveBeenCalled();
+    expect(screen.queryByText("Suggested by AI. Change it if you like")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "How you match" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Company"), "Ledgerly");
+    await user.click(screen.getByRole("button", { name: "Add documents manually →" }));
+
+    expect(screen.getByRole("heading", { name: "Your documents" })).toBeInTheDocument();
+    const resume = new File(["%PDF-1.7"], "Resume.pdf", { type: "application/pdf" });
+    // The Resume picker's input is the first file input; its button opens it.
+    await user.upload(document.querySelectorAll<HTMLInputElement>('input[type="file"]')[0], resume);
+    expect(screen.getByText("Resume.pdf")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("To"), "jobs@ledgerly.com");
+    expect(screen.queryByLabelText("Applied on")).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Status"), "SENT");
+    await user.clear(screen.getByLabelText("Applied on"));
+    await user.type(screen.getByLabelText("Applied on"), "2026-10-01");
+    await user.click(screen.getByRole("button", { name: "Add application" }));
+
+    expect(addManualApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        posting: "Ledgerly is hiring.",
+        readJobId: null,
+        match: null,
+        details: expect.objectContaining({ company: "Ledgerly" }),
+        email: { to: "jobs@ledgerly.com", subject: "", body: "" },
+        status: "SENT",
+        appliedOn: "2026-10-01",
+      }),
+    );
+    expect(uploadFile).toHaveBeenCalledWith("app-9", "resume", resume);
+    expect(router.push).toHaveBeenCalledWith("/applications/app-9");
+  });
+
+  it("adds the documents by hand after reading, keeping the match", async () => {
+    const user = userEvent.setup();
+    render(<NewApplication {...props} />);
+    await user.type(screen.getByLabelText("Job posting"), "Ledgerly is hiring.");
+    await user.click(screen.getByRole("button", { name: "Read the posting →" }));
+    emit({ id: "job-1", status: "DONE", result: readResult });
+    await user.click(await screen.findByRole("button", { name: "Add documents manually" }));
+    await user.click(screen.getByRole("button", { name: "Add application" }));
+    expect(addManualApplication).toHaveBeenCalledWith(expect.objectContaining({ readJobId: "job-1", match: readResult.match, status: "DRAFT", appliedOn: "" }));
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+});

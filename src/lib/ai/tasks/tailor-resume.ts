@@ -9,6 +9,7 @@ import { guardSources, guardUnits } from "../fact-guard";
 
 import {
   applicationFacts,
+  ownVersion,
   candidateFacts,
   CREATIVITY,
   jobForPrompt,
@@ -21,7 +22,7 @@ import {
   type Task,
 } from "./prompt-parts";
 
-export const TAILOR_RESUME_VERSION = "tailor-resume@6";
+export const TAILOR_RESUME_VERSION = "tailor-resume@7";
 
 const answerSchema = z.object({
   summary: z.string(),
@@ -60,10 +61,12 @@ export type TailorInput = {
   facts: string[];
   /** The posting as pasted, for the fact guard. */
   posting: string;
+  /** The candidate's own resume, as they sent it, to tailor rather than start from the profile alone. */
+  source?: string;
 };
 
 /** APP-4: the tailored resume as units (summary, each role, each project, skills, each degree, each publication, languages). */
-export const tailorResume: Task<TailorInput, Unit[]> = async (provider, { profile, extracted, match, facts, posting }, options) => {
+export const tailorResume: Task<TailorInput, Unit[]> = async (provider, { profile, extracted, match, facts, posting, source }, options) => {
   const answer = await provider.complete({
     system: system(
       INSTRUCTIONS,
@@ -82,6 +85,7 @@ export const tailorResume: Task<TailorInput, Unit[]> = async (provider, { profil
           `The candidate's profile:\n${profileForPrompt(profile)}`,
           `The job:\n${jobForPrompt(extracted, match)}`,
           applicationFacts(facts),
+          ownVersion(source),
         ]
           .filter(Boolean)
           .join("\n\n"),
@@ -96,7 +100,7 @@ export const tailorResume: Task<TailorInput, Unit[]> = async (provider, { profil
   const units = resumeUnits(profile, answer, documentLabels(options.language ?? extracted.language));
   // E6-6: in strict mode, note what the profile and posting don't back.
   return {
-    data: options.strict ? guardUnits(units, guardSources(profile, extracted, posting, facts)) : units,
+    data: options.strict ? guardUnits(units, guardSources(profile, extracted, posting, source ? [...facts, source] : facts)) : units,
     promptVersion: TAILOR_RESUME_VERSION,
   };
 };

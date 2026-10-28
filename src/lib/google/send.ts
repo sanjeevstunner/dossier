@@ -40,7 +40,7 @@ export type SentApplication = { threadId: string; eventId: string | null; attach
 export async function sendApplicationEmail(applicationId: string): Promise<SentApplication> {
   const account = await loadGoogleAccount();
   if (!account) throw new GoogleError("not-connected", "Connect your Google account in Settings → Google first.");
-  const application = await prisma.application.findUnique({ where: { id: applicationId }, include: { documents: { select: { kind: true, units: true } } } });
+  const application = await prisma.application.findUnique({ where: { id: applicationId }, include: { documents: { select: { kind: true, units: true } }, files: true } });
   if (!application) throw new GoogleError("unavailable", "That application no longer exists.");
 
   const units = unitsSchema.safeParse(application.documents.find((document) => document.kind === DocumentKind.EMAIL)?.units);
@@ -52,7 +52,12 @@ export async function sendApplicationEmail(applicationId: string): Promise<SentA
   const [name, settings] = await Promise.all([loadProfileName(), loadSettings()]);
   const attachments: Attachment[] = [];
   for (const { kind, path } of PRINTED) {
-    if (!application.documents.some((document) => document.kind === kind)) continue;
+    if (!application.documents.some((document) => document.kind === kind)) {
+      // The user's own file, as they uploaded it, until the AI writes one.
+      const own = application.files.find((file) => file.kind === kind);
+      if (own) attachments.push({ fileName: own.name, contentType: own.type, data: new Uint8Array(own.data) });
+      continue;
+    }
     attachments.push({
       fileName: resolveFileName(settings.fileNamePattern, { name, company: application.company, role: application.role, doc: kind, date: new Date() }),
       contentType: "application/pdf",

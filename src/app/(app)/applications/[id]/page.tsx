@@ -5,11 +5,13 @@ import { activityTimeline } from "@/lib/activity";
 import { isAiConfigured } from "@/lib/ai/config";
 import { editsSchema, matchSchema, matchScore } from "@/lib/application-data";
 import { loadApplication, loadDocuments, readJson } from "@/lib/application-documents";
+import { fileHref } from "@/lib/application-files";
 import { formatShortDate } from "@/lib/dates";
 import { resolveFileName } from "@/lib/file-name";
 import { refineJobKey } from "@/lib/jobs/refine";
 import { regenerateUnitJob, unitJobKey } from "@/lib/jobs/regenerate-unit";
 import { findUnfinishedJobs } from "@/lib/jobs/runner";
+import { documentJobKey, writeApplicationDocumentJob } from "@/lib/jobs/write-application-document";
 import { emailJobKey } from "@/lib/jobs/write-email";
 import { googleConnection } from "@/lib/google/account";
 import { pullInterviewEvents } from "@/lib/google/availability";
@@ -40,13 +42,14 @@ export async function generateMetadata({ params }: PageProps<"/applications/[id]
 export default async function ApplicationPage({ params, searchParams }: PageProps<"/applications/[id]">) {
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
   await pullCalendar(id);
-  const [{ application, profile, settings, extracted, resume, letter, email, includeReferences, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, timeZone, google, emails, themes] =
+  const [{ application, profile, settings, extracted, resume, letter, files, email, includeReferences, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, catchUpJobs, timeZone, google, emails, themes] =
     await Promise.all([
       loadDocuments(id),
       isAiConfigured(),
       findUnfinishedJobs(unitJobKey(id)),
       findUnfinishedJobs(refineJobKey(id)),
       findUnfinishedJobs(emailJobKey(id)),
+      findUnfinishedJobs(documentJobKey(id)),
       userTimeZone(),
       googleConnection(),
       loadConversation(id),
@@ -73,6 +76,8 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
     const input = regenerateUnitJob.input.safeParse(job.input);
     return input.success ? [{ jobId: job.id, document: input.data.document, unitId: input.data.unitId }] : [];
   });
+  const catchingUp = catchUpJobs.at(-1);
+  const catchingUpInput = writeApplicationDocumentJob.input.safeParse(catchingUp?.input);
   // The PDFs to attach to the email, named as they'll download (SET-8).
   const fileName = (doc: "RESUME" | "COVER_LETTER") =>
     resolveFileName(settings.fileNamePattern, { name: profile.basics.name, company: application.company, role: application.role, doc, date: new Date() });
@@ -111,7 +116,17 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       baseThemeId={settings.baseThemeId}
       email={email}
       writingEmail={emailJobs.at(-1)?.id ?? null}
-      attachments={{ resume: resume ? fileName("RESUME") : null, letter: letter ? fileName("COVER_LETTER") : null }}
+      files={files}
+      catchingUp={catchingUp && catchingUpInput.success ? { jobId: catchingUp.id, kind: catchingUpInput.data.kind } : null}
+      // The user's own file goes with the email until the AI writes the document.
+      attachments={{
+        resume: resume
+          ? { name: fileName("RESUME"), href: `/api/pdf?doc=resume&application=${id}` }
+          : files.resume && { name: files.resume.name, href: fileHref(id, "resume", true), own: true },
+        letter: letter
+          ? { name: fileName("COVER_LETTER"), href: `/api/pdf?doc=letter&application=${id}` }
+          : files.letter && { name: files.letter.name, href: fileHref(id, "letter", true), own: true },
+      }}
       gmail={
         google.status === "not-configured" && emails.length === 0
           ? undefined

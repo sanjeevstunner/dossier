@@ -14,8 +14,11 @@ import { copyText } from "@/lib/copy-text";
 import { SendWithGmail, type GmailSender } from "./send-with-gmail";
 import { aboutWords } from "./tabs";
 
-/** The PDFs to attach, by their file names; null when the application doesn't have one. */
-export type Attachments = { resume: string | null; letter: string | null };
+/** A file to attach: its name and download link; `own` for the user's uploaded file rather than a generated PDF. */
+export type Attachment = { name: string; href: string; own?: boolean };
+
+/** The files to attach; null when the application doesn't have one. */
+export type Attachments = { resume: Attachment | null; letter: Attachment | null };
 
 /**
  * The Email tab: the email to send the application with, to whoever the
@@ -111,12 +114,8 @@ export function EmailTab({
           <div className="flex flex-col gap-2.5 border-t border-line px-7 pt-4 pb-5">
             <h3 className="text-meta text-muted">Attach</h3>
             <ul className="flex flex-col gap-2">
-              {attachments.resume && (
-                <Attachment name={attachments.resume} href={`/api/pdf?doc=resume&application=${applicationId}`} what="tailored resume" />
-              )}
-              {attachments.letter && (
-                <Attachment name={attachments.letter} href={`/api/pdf?doc=letter&application=${applicationId}`} what="cover letter" />
-              )}
+              {attachments.resume && <AttachmentRow file={attachments.resume} what={attachments.resume.own ? "resume" : "tailored resume"} />}
+              {attachments.letter && <AttachmentRow file={attachments.letter} what="cover letter" />}
             </ul>
           </div>
         )}
@@ -129,7 +128,7 @@ export function EmailTab({
             sender={gmail.sender}
             to={to}
             subject={subject}
-            attachments={[attachments.resume, attachments.letter].filter((name): name is string => name !== null)}
+            attachments={[attachments.resume, attachments.letter].flatMap((file) => (file ? [file.name] : []))}
             sentBefore={gmail.sentBefore}
           />
         )}
@@ -163,19 +162,26 @@ function Field({ label, onCopy, children }: { label: string; onCopy?: () => void
   );
 }
 
-/** A PDF to attach, with its download. */
-function Attachment({ name, href, what }: { name: string; href: string; what: string }) {
+/** A file to attach, with its download. */
+function AttachmentRow({ file: { name, href, own }, what }: { file: Attachment; what: string }) {
+  const pdf = !own || /\.pdf$/i.test(name);
   return (
     <li className="flex items-center justify-between gap-3 rounded-control border border-line-card bg-input py-2 pr-2 pl-3">
       <span className="flex min-w-0 items-center gap-2.5">
         <span aria-hidden className="rounded-[5px] bg-danger-surface px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-danger">
-          PDF
+          {pdf ? "PDF" : "DOCX"}
         </span>
         <span className="truncate text-control">{name}</span>
       </span>
-      <DownloadPdfButton variant="secondary" size="sm" href={href} progress={`Rendering your ${what} as a PDF…`}>
-        Download <span className="sr-only">{name}</span>
-      </DownloadPdfButton>
+      {own ? (
+        <a href={href} className={buttonClassName("secondary", "sm")}>
+          Download <span className="sr-only">{name}</span>
+        </a>
+      ) : (
+        <DownloadPdfButton variant="secondary" size="sm" href={href} progress={`Rendering your ${what} as a PDF…`}>
+          Download <span className="sr-only">{name}</span>
+        </DownloadPdfButton>
+      )}
     </li>
   );
 }

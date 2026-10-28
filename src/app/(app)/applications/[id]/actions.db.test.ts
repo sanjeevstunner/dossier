@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestClient, resetDatabase } from "@/test/db";
+import { docxWith } from "@/test/resume-files";
 
 import {
   addMatchSkill,
@@ -20,6 +21,8 @@ import {
   setInterviewDate,
   setShowPhoto,
   startRegenerating,
+  savePosting,
+  startCatchingUp,
   startWritingEmail,
   undoEmailRewrite,
   undoMessage,
@@ -618,5 +621,48 @@ describe("the email", () => {
     const first = await finishedRewrite({ units: email, previous: null });
     expect(await undoEmailRewrite({ id: "app-1", jobId: first.id })).toEqual({ ok: false, error: "There's nothing to undo." });
     expect(await saved()).toEqual(email);
+  });
+});
+
+describe("catching up with the AI (an application added by hand)", () => {
+  const posting = "Ledgerly is hiring a Senior Product Designer.";
+
+  it("saves a pasted posting, and forgets what was read from the one before", async () => {
+    await prisma().application.update({ where: { id: "app-1" }, data: { extracted: { title: "Old" }, match: { items: [] }, matchedWith: "match-requirements@1" } });
+    expect(await savePosting({ id: "app-1", posting: `  ${posting}  ` })).toMatchObject({ ok: true });
+    expect(await prisma().application.findUniqueOrThrow({ where: { id: "app-1" } })).toMatchObject({ postingText: posting, extracted: null, match: null, matchedWith: null });
+    expect(await savePosting({ id: "gone", posting })).toEqual({ ok: false, error: "That application no longer exists." });
+  });
+
+  it("starts matching once, keyed to the application", async () => {
+    await prisma().application.update({ where: { id: "app-1" }, data: { postingText: posting } });
+    const first = await startCatchingUp({ id: "app-1", kind: "match" });
+    expect(first.ok).toBe(true);
+    expect(await prisma().job.findUniqueOrThrow({ where: { id: first.ok ? first.data : "" } })).toMatchObject({
+      type: "write-application-document",
+      key: "document:app-1",
+      applicationId: "app-1",
+      input: { applicationId: "app-1", kind: "match" },
+    });
+    expect(await startCatchingUp({ id: "app-1", kind: "letter" })).toEqual(first);
+  });
+
+  it("tailors from the text of the user's own file", async () => {
+    await prisma().application.update({ where: { id: "app-1" }, data: { postingText: posting } });
+    const data = Buffer.from(docxWith(["Dear Ledgerly team,", "I've designed payment flows for merchants for six years, most recently at Acme Payments."]));
+    await prisma().applicationFile.create({ data: { applicationId: "app-1", kind: "COVER_LETTER", name: "Letter.docx", type: "x", size: data.length, data } });
+    const started = await startCatchingUp({ id: "app-1", kind: "letter", fromUpload: true });
+    const job = await prisma().job.findUniqueOrThrow({ where: { id: started.ok ? started.data : "" } });
+    expect(job.input).toMatchObject({ kind: "letter", source: expect.stringContaining("payment flows for merchants") });
+  });
+
+  it("needs the posting, an AI provider, and a document that isn't written yet", async () => {
+    expect(await startCatchingUp({ id: "app-1", kind: "letter" })).toMatchObject({ ok: false, error: expect.stringMatching(/^Add the job posting/) });
+    await prisma().application.update({ where: { id: "app-1" }, data: { postingText: posting } });
+    expect(await startCatchingUp({ id: "app-1", kind: "resume" })).toMatchObject({ ok: false, error: expect.stringMatching(/already written/) });
+    expect(await startCatchingUp({ id: "app-1", kind: "letter", fromUpload: true })).toMatchObject({ ok: false, error: expect.stringMatching(/Upload it again/) });
+    ai.ready = false;
+    expect(await startCatchingUp({ id: "app-1", kind: "letter" })).toMatchObject({ ok: false, error: expect.stringMatching(/needs an AI provider/) });
+    expect(await prisma().job.count()).toBe(0);
   });
 });

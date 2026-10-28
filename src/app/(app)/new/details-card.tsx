@@ -17,7 +17,16 @@ const FIELDS: { field: Exclude<keyof Details, "title" | "deadline">; label: stri
  * "The application" (E7-3, NEW-3): what the AI read from the posting, all
  * editable. What the posting doesn't say stays empty; nothing is filled in.
  */
-export function DetailsCard({ details, onChange }: { details: Details; onChange: (details: Details) => void }) {
+export function DetailsCard({
+  details,
+  onChange,
+  suggested = true,
+}: {
+  details: Details;
+  onChange: (details: Details) => void;
+  /** Whether the AI filled them in from the posting; false when the user enters them. */
+  suggested?: boolean;
+}) {
   const set = (field: keyof Details, value: string) => onChange({ ...details, [field]: value });
   return (
     <Card className="grid grid-cols-1 gap-x-[18px] gap-y-5 sm:grid-cols-2">
@@ -27,11 +36,16 @@ export function DetailsCard({ details, onChange }: { details: Details; onChange:
       <Input
         className="sm:col-span-2"
         label={
-          <span className="flex justify-between gap-3">
-            <span>Title</span>
-            <span className="text-muted">Suggested by AI. Change it if you like</span>
-          </span>
+          suggested ? (
+            <span className="flex justify-between gap-3">
+              <span>Title</span>
+              <span className="text-muted">Suggested by AI. Change it if you like</span>
+            </span>
+          ) : (
+            "Title"
+          )
         }
+        placeholder={suggested ? undefined : "Role · Company, if you leave it empty"}
         inputClassName="text-base font-medium"
         value={details.title}
         onChange={(event) => set("title", event.target.value)}

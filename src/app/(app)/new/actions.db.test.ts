@@ -7,7 +7,7 @@ import { createTestClient, resetDatabase } from "@/test/db";
 
 import { seedBuiltIns } from "../../../../prisma/seed/built-ins";
 
-import { createApplication, startWritingDocuments } from "./actions";
+import { addManualApplication, createApplication, startWritingDocuments } from "./actions";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -247,5 +247,55 @@ describe("createApplication", () => {
     await finishedJobs();
     expect(await createApplication({ writeJobId: "write-job", details, postingUrl: "" })).toMatchObject({ ok: true });
     expect(fitResumeToPages).not.toHaveBeenCalled();
+  });
+});
+
+describe("addManualApplication", () => {
+  const empty = { to: "", subject: "", body: "" };
+  const base = { details, posting: "", postingUrl: "", email: empty, status: "DRAFT" as const, appliedOn: "" as const };
+
+  it("creates a Draft from the details alone, with nothing written by the AI", async () => {
+    const result = await addManualApplication(base);
+    expect(result.ok).toBe(true);
+    const application = await prisma().application.findUniqueOrThrow({ where: { id: result.ok ? result.data : "" }, include: { documents: true, events: true } });
+    expect(application).toMatchObject({ title: "Designer at Ledgerly", company: "Ledgerly B.V.", status: "DRAFT", sentAt: null, furthestStage: null, extracted: null, match: null });
+    expect(application.deadline).toEqual(new Date("2026-10-20T00:00:00Z"));
+    expect(application.documents).toEqual([]);
+    expect(application.events).toEqual([]);
+  });
+
+  it("dates a status past Draft the day it was sent, so the funnel counts it", async () => {
+    const result = await addManualApplication({ ...base, status: "INTERVIEW", appliedOn: "2026-09-01", postingUrl: "jobs.ledgerly.com/1" });
+    const application = await prisma().application.findUniqueOrThrow({ where: { id: result.ok ? result.data : "" }, include: { events: true } });
+    expect(application).toMatchObject({ status: "INTERVIEW", furthestStage: "INTERVIEW", postingUrl: "https://jobs.ledgerly.com/1" });
+    expect(application.sentAt).toEqual(new Date("2026-09-01T12:00:00Z"));
+    expect(application.events).toEqual([expect.objectContaining({ from: "DRAFT", to: "INTERVIEW", at: new Date("2026-09-01T12:00:00Z") })]);
+  });
+
+  it("refuses a date in the future", async () => {
+    const result = await addManualApplication({ ...base, status: "SENT", appliedOn: "2999-01-01" });
+    expect(result).toMatchObject({ ok: false });
+    expect(await prisma().application.count()).toBe(0);
+  });
+
+  it("keeps the email it was sent with, as its first version", async () => {
+    const result = await addManualApplication({ ...base, email: { to: " jobs@ledgerly.com ", subject: "Designer role", body: "Hello,\n\nHere it is." } });
+    const email = await prisma().document.findFirstOrThrow({ where: { applicationId: result.ok ? result.data : "", kind: "EMAIL" }, include: { versions: true } });
+    expect(email.units).toEqual([
+      { id: "to", label: "Recipient", text: "jobs@ledgerly.com" },
+      { id: "subject", label: "Subject", text: "Designer role" },
+      { id: "body", label: "Message", text: "Hello,\n\nHere it is." },
+    ]);
+    expect(email.versions).toEqual([expect.objectContaining({ cause: "WRITTEN" })]);
+  });
+
+  it("keeps what was read from the posting, with the match as shown", async () => {
+    await finishedJobs();
+    const shown = { items: [{ ...match.items[0], result: "partial" as const }] };
+    const result = await addManualApplication({ ...base, posting: "ignored", readJobId: "read-job", match: shown });
+    const id = result.ok ? result.data : "";
+    const application = await prisma().application.findUniqueOrThrow({ where: { id } });
+    expect(application).toMatchObject({ postingText: "Ledgerly is hiring a Senior Product Designer.", extracted, match: shown, extractedWith: "extract-posting@1" });
+    expect(await prisma().job.findUniqueOrThrow({ where: { id: "read-job" } })).toMatchObject({ applicationId: id });
   });
 });
