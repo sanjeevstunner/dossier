@@ -45,7 +45,7 @@ export function DetailsCard({
             "Title"
           )
         }
-        placeholder={suggested ? undefined : "Role · Company, if you leave it empty"}
+        
         inputClassName="text-base font-medium"
         value={details.title}
         onChange={(event) => set("title", event.target.value)}
