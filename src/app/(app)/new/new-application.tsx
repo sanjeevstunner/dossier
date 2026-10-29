@@ -255,7 +255,10 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
   };
 
   // "Continue without reading": the details by hand, and nothing for the AI to do.
-  const continueWithoutReading = () => update({ step: "review", unread: true, details: draft.unread ? draft.details : EMPTY_DETAILS });
+  const continueWithoutReading = () =>
+    !draft.posting.trim()
+      ? toast(samplePosting ? "Paste a job posting first, or try the sample." : "Paste a job posting first.")
+      : update({ step: "review", unread: true, details: draft.unread ? draft.details : EMPTY_DETAILS });
 
   // #221: Claude chat writes it on the user's own Claude plan, through the
   // connector, and saves it here as a Draft application.
@@ -329,6 +332,9 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
   const writeJob = useJob<WriteDocumentsResult>(draft.writeJobId, writeRevision, (job) => {
     if (job.status === "DONE" && job.id === draft.writeJobId) void save(job.id);
   });
+
+  const MANDATORY = "Title, company and role are mandatory.";
+  const detailsDone = [draft.details.title, draft.details.company, draft.details.role].every((v) => v.trim());
 
   const create = async () => {
     if (!draft.read || !draft.readJobId || starting) return;
@@ -488,7 +494,11 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
                   <span />
                 )}
                 <span className="flex flex-wrap items-center gap-3">
-                  <Button variant="secondary" onClick={continueWithoutReading}>
+                  <Button
+                    variant="secondary"
+                    aria-disabled={!draft.posting.trim() || starting || undefined}
+                    onClick={() => (starting ? undefined : continueWithoutReading())}
+                  >
                     Continue without reading
                   </Button>
                   <Button
@@ -520,7 +530,9 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
                 <Button variant="text" onClick={() => update({ step: "paste" })}>
                   ← Back to the posting
                 </Button>
-                <Button onClick={() => update({ step: "manual" })}>Add documents manually →</Button>
+                <Button aria-disabled={!detailsDone || undefined} onClick={() => (detailsDone ? update({ step: "manual" }) : toast(MANDATORY))}>
+                  Add documents manually →
+                </Button>
               </div>
             </>
           )}
@@ -535,10 +547,10 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
                   ← Back to the posting
                 </Button>
                 <span className="flex flex-wrap items-center gap-3">
-                  <Button variant="secondary" onClick={() => update({ step: "manual" })}>
+                  <Button variant="secondary" aria-disabled={!detailsDone || undefined} onClick={() => (detailsDone ? update({ step: "manual" }) : toast(MANDATORY))}>
                     Add documents manually
                   </Button>
-                  <Button aria-disabled={starting || undefined} onClick={() => void create()}>
+                  <Button aria-disabled={starting || !detailsDone || undefined} onClick={() => void (detailsDone ? create() : toast(MANDATORY))}>
                     Create application →
                   </Button>
                 </span>
