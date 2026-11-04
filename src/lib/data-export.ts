@@ -40,10 +40,10 @@ import { appVersion } from "@/lib/version";
 // behind: they belong to the server or the mailbox, not the user's data.
 
 export const EXPORT_FORMAT = "dossier-export";
-/** Bump when the file's shape changes; imports refuse versions they don't know. 2 added Find jobs' postings and keys (E14-9), 3 projects (PRO-13) and the job agent (E16), 4 facts (PRO-14, APP-15), 5 publications (#218), the profile photo's theme and application options (#224) and Startups (#222). */
-export const EXPORT_SCHEMA_VERSION = 5;
+/** Bump when the file's shape changes; imports refuse versions they don't know. 2 added Find jobs' postings and keys (E14-9), 3 projects (PRO-13) and the job agent (E16), 4 facts (PRO-14, APP-15), 5 publications (#218), the profile photo's theme and application options (#224) and Startups (#222), 6 several job agents (E16). */
+export const EXPORT_SCHEMA_VERSION = 6;
 /** The versions imports can read. */
-export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
+export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6];
 
 /** The setting that holds the encrypted API key, which only this server can read. */
 const API_KEY_SETTING = "apiKeyEnc";
@@ -56,8 +56,6 @@ export const INSTALL_SETTINGS: readonly string[] = [
   "usagePingChoice",
   "usagePingChoiceAt",
   "usagePingChoiceText",
-  // The job agent's runs count against this server's job source key (E16).
-  "agentRuns",
   // When Startups was last opened and what its last refresh found (#222).
   "startupsViewedAt",
   "startupsLastRefresh",
@@ -225,9 +223,29 @@ const application = z.object({
   facts: z.array(fact).default([]),
 });
 
-/** A posting the job agent found (E16). */
+/** A job agent's config (E16); its runs belong to this install and stay. */
+const agent = z.object({
+  id: text,
+  name: text,
+  enabled: z.boolean(),
+  query: z.unknown(),
+  hour: int,
+  days: z.array(int),
+  minScore: int,
+  maxScores: int,
+  maxDrafts: int,
+  autoDraft: z.boolean(),
+  maxRunsPerDay: int,
+  manualIntervalMinutes: int,
+  createdAt: date,
+  updatedAt: date,
+});
+
+/** A posting a job agent found (E16). */
 const agentCandidate = z.object({
   id: text,
+  /** The agent that found it; absent before version 6. */
+  agentId: text.nullable().optional(),
   source: z.enum(PostingSource),
   externalId: text,
   title: text,
@@ -318,7 +336,7 @@ const postingSearch = z.object({
 /** An export file as read back (E10-6). */
 export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
-  schemaVersion: z.literal([1, 2, 3, 4, 5]),
+  schemaVersion: z.literal([1, 2, 3, 4, 5, 6]),
   appVersion: text,
   exportedAt: date,
   profile: z.object({
@@ -346,6 +364,8 @@ export const exportSchema = z.object({
   postings: z.array(posting).default([]),
   /** Past searches with what they found (E14-10); absent in version 1 files. */
   searches: z.array(postingSearch).default([]),
+  /** The job agents (E16); absent before version 6. */
+  agents: z.array(agent).default([]),
   /** The job agent's candidates (E16); absent in older files. */
   agentCandidates: z.array(agentCandidate).default([]),
   /** Startups (#222), and hashes of the ones removed for good; absent in older files. */
@@ -372,7 +392,7 @@ export async function buildExport(
   { includeApiKey = false, now = new Date() }: { includeApiKey?: boolean; now?: Date } = {},
 ): Promise<DossierExport> {
   return db.$transaction(async (tx) => {
-    const [fields, skills, languages, experience, projects, education, publications, references, facts, themes, settings, applications, postings, searches, agentCandidates, startups, startupBlocks] = await Promise.all([
+    const [fields, skills, languages, experience, projects, education, publications, references, facts, themes, settings, applications, postings, searches, agents, agentCandidates, startups, startupBlocks] = await Promise.all([
       tx.profileField.findMany({ select: { key: true, value: true }, orderBy: { key: "asc" } }),
       tx.skill.findMany({ select: { id: true, name: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
       tx.language.findMany({ select: { id: true, name: true, level: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
@@ -402,7 +422,9 @@ export async function buildExport(
       }),
       tx.posting.findMany({ orderBy: { createdAt: "asc" } }),
       tx.postingSearch.findMany({ orderBy: { createdAt: "asc" } }),
-      tx.agentCandidate.findMany({ orderBy: { createdAt: "asc" } }),
+      tx.agent.findMany({ orderBy: { createdAt: "asc" } }),
+      // Runs stay with this install.
+      tx.agentCandidate.findMany({ orderBy: { createdAt: "asc" }, omit: { runId: true } }),
       tx.startup.findMany({ orderBy: { createdAt: "asc" } }),
       tx.startupBlock.findMany({ orderBy: { createdAt: "asc" } }),
     ]);
@@ -448,6 +470,7 @@ export async function buildExport(
       applications,
       postings,
       searches,
+      agents,
       agentCandidates,
       startups,
       startupBlocks,

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+
+import { prisma } from "@/lib/prisma";
 import { cache } from "react";
 
 import { activityTimeline } from "@/lib/activity";
@@ -91,6 +93,8 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
         showPhoto,
         archived: application.archivedAt !== null,
         awaitingReview: application.awaitingReview,
+        // The agent that prepared it, for "waiting for review".
+        agentId: application.awaitingReview ? ((await prisma.agentCandidate.findUnique({ where: { applicationId: application.id }, select: { agentId: true } }))?.agentId ?? null) : null,
         nextInterviewAt,
       }}
       timeZone={timeZone}

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { AiProvider, Creativity, DateFormat, PaperSize, Tone } from "@/generated/prisma/enums";
-import { EMPTY_QUERY, JOB_SOURCES, JSEARCH_HOSTS, searchQuerySchema } from "@/lib/job-search/search";
+import { JOB_SOURCES, JSEARCH_HOSTS } from "@/lib/job-search/search";
 import { startupsRefreshSchema } from "@/lib/startups/types";
 
 /** Date styles for documents (SET-6), labelled with an example as in the prototype. */
@@ -85,20 +85,6 @@ const json = <T extends z.ZodType>(schema: T) =>
 /** A list stored as a JSON array of strings. */
 const stringList = json(z.array(z.string()));
 
-/**
- * One run of the job agent (E16), kept here rather than as its Job, which
- * the task-data sweep deletes: the daily limit counts these.
- */
-export const agentRunSchema = z.object({
-  at: z.iso.datetime(),
-  manual: z.boolean(),
-  /** What the run ended with, for the Agent screen; null while it runs. */
-  message: z.string().nullable(),
-});
-export type AgentRun = z.infer<typeof agentRunSchema>;
-/** How many runs are kept: more than a day's worth, for the limit and the screen. */
-export const AGENT_RUNS_KEPT = 10;
-
 export const settingsSchema = z.object({
   // AI provider (SET-1). Null means "not set in the app": fall back to the
   // DOSSIER_AI_* environment variables, then to the built-in defaults.
@@ -158,22 +144,6 @@ export const settingsSchema = z.object({
   /** The NopeRi server that reaches Naukri, and its API key, encrypted like the others. */
   naukriUrl: z.string().nullable().catch(null),
   naukriKeyEnc: z.string().nullable().catch(null),
-  // Job agent (E16): one search, run once a day. Off until it's turned on.
-  // It asks the source in Settings → Job search, with its key.
-  agentEnabled: flag(false),
-  /** The search it runs, as Find jobs asks it; it needs keywords and a country to run. */
-  agentQuery: json(searchQuerySchema).catch(EMPTY_QUERY),
-  /** The hour of the day it runs, in the user's time zone. */
-  agentHour: z.coerce.number().int().min(0).max(23).catch(7),
-  /** Postings scored below this stay out of the queue. */
-  agentMinScore: z.coerce.number().int().min(0).max(100).catch(70),
-  /** The most postings a run scores, and the most drafts it prepares on its own. */
-  agentMaxScores: z.coerce.number().int().min(1).max(30).catch(15),
-  agentMaxDrafts: z.coerce.number().int().min(0).max(10).catch(3),
-  /** Whether a run prepares drafts for its best postings, or only scores them (off by default, #197). */
-  agentAutoDraft: flag(false),
-  /** The latest runs, newest first. They belong to the install: exports leave them out (INSTALL_SETTINGS). */
-  agentRuns: json(z.array(agentRunSchema)).catch([]),
   // Startups (#222): when the screen was last opened, since the daily refresh
   // only runs while it's in use, and what the last refresh found. They belong
   // to the install, not its data, so exports leave them out (INSTALL_SETTINGS).

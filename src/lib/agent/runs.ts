@@ -1,55 +1,77 @@
 import "server-only";
 
-import { AGENT_RUNS_KEPT, type AgentRun } from "@/lib/settings";
-import { loadSettings, saveSettings } from "@/lib/settings-data";
+import { AgentRunStatus } from "@/generated/prisma/enums";
+import { prisma } from "@/lib/prisma";
 
-// The job agent's runs (E16), kept in Settings rather than as their Job rows,
-// which the task-data sweep deletes after "Keep task data for": the limits
-// below must hold whatever that is set to.
+// The job agents' runs (E16), with their logs. Their own rows rather than
+// Job rows, which the task-data sweep deletes after "Keep task data for".
 
-/** At most this many runs in any 24 hours, scheduled or Run now. */
-export const AGENT_MAX_RUNS_PER_DAY = 3;
-/** Run now waits this long after the previous run of either kind. */
-export const AGENT_MANUAL_INTERVAL_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The runs in the 24 hours before `now`, newest first. */
-export const runsInPastDay = (runs: readonly AgentRun[], now: Date) =>
-  runs.filter((run) => now.getTime() - Date.parse(run.at) < DAY_MS);
+type Limits = { maxRunsPerDay: number; manualIntervalMinutes: number };
 
-/** Why no run may start now, in words, or null when one may. */
-export function runLimitProblem(runs: readonly AgentRun[], now: Date, { manual }: { manual: boolean }): string | null {
+/** The runs in the 24 hours before `now`, of those given newest first. */
+export const runsInPastDay = <T extends { startedAt: Date }>(runs: readonly T[], now: Date) =>
+  runs.filter((run) => now.getTime() - run.startedAt.getTime() < DAY_MS);
+
+/**
+ * Why Run now might be too soon, in words, or null. Only ever a warning:
+ * Run anyway goes ahead. The limits are the agent's own.
+ */
+export function runLimitWarning(runs: readonly { startedAt: Date }[], limits: Limits, now: Date): string | null {
   const recent = runsInPastDay(runs, now);
-  if (recent.length >= AGENT_MAX_RUNS_PER_DAY) {
-    const free = new Date(Math.min(...recent.map((run) => Date.parse(run.at))) + DAY_MS);
-    return `The agent has run ${AGENT_MAX_RUNS_PER_DAY} times in the past 24 hours, as many as it may. ${waitText(free.getTime() - now.getTime())}`;
+  if (recent.length >= limits.maxRunsPerDay) {
+    return `This agent has run ${recent.length} ${recent.length === 1 ? "time" : "times"} in the past 24 hours, its limit of ${limits.maxRunsPerDay}. Another run uses more of your job source's quota.`;
   }
   const last = runs[0];
-  if (manual && last) {
-    const wait = Date.parse(last.at) + AGENT_MANUAL_INTERVAL_MS - now.getTime();
-    if (wait > 0) return `The agent ran less than an hour ago. ${waitText(wait)}`;
+  if (last && limits.manualIntervalMinutes > 0) {
+    const wait = last.startedAt.getTime() + limits.manualIntervalMinutes * 60_000 - now.getTime();
+    if (wait > 0) return `This agent ran less than ${minutesText(limits.manualIntervalMinutes)} ago. ${waitText(wait)}`;
   }
   return null;
 }
 
-/** "Try again in 25 minutes." */
+const minutesText = (minutes: number) =>
+  minutes % 60 === 0 ? (minutes === 60 ? "an hour" : `${minutes / 60} hours`) : `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+
+/** "Its wait is over in 25 minutes." */
 function waitText(ms: number): string {
   const minutes = Math.max(1, Math.ceil(ms / 60_000));
-  if (minutes < 60) return `Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
+  if (minutes < 60) return `Its wait is over in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
   const hours = Math.ceil(minutes / 60);
-  return `Try again in ${hours} ${hours === 1 ? "hour" : "hours"}.`;
+  return `Its wait is over in ${hours} ${hours === 1 ? "hour" : "hours"}.`;
 }
 
-/** Records a run as it starts, before it asks the source, so a crash and a retry can't spend the quota twice. */
-export async function recordRunStart(now: Date, manual: boolean): Promise<AgentRun> {
-  const run: AgentRun = { at: now.toISOString(), manual, message: null };
-  const { agentRuns } = await loadSettings();
-  await saveSettings({ agentRuns: [run, ...agentRuns].slice(0, AGENT_RUNS_KEPT) });
-  return run;
+/** Records a run as it starts, before it asks the source, so the schedule sees it even if it crashes. */
+export async function recordRunStart(agentId: string, manual: boolean, now = new Date()): Promise<string> {
+  // ponytail: runs are kept for good; trim to the latest N per agent if the table grows.
+  const run = await prisma.agentRun.create({ data: { agentId, manual, startedAt: now }, select: { id: true } });
+  return run.id;
 }
 
-/** Notes what a run ended with, for the Agent screen. */
-export async function recordRunEnd(run: AgentRun, message: string): Promise<void> {
-  const { agentRuns } = await loadSettings();
-  await saveSettings({ agentRuns: agentRuns.map((entry) => (entry.at === run.at ? { ...entry, message } : entry)) });
+/** Adds a line to the run's log. */
+export async function logStep(runId: string, text: string): Promise<void> {
+  const entry = JSON.stringify([{ at: new Date().toISOString(), text }]);
+  await prisma.$executeRaw`UPDATE "AgentRun" SET steps = steps || ${entry}::jsonb WHERE id = ${runId}`;
+}
+
+export type RunCounts = { found: number; fresh: number; scored: number; drafted: number; skipped: number };
+
+/** What a run ended with. */
+export async function recordRunEnd(runId: string, outcome: RunCounts & { message: string; failed: boolean }): Promise<void> {
+  const { failed, ...data } = outcome;
+  await logStep(runId, outcome.message);
+  await prisma.agentRun.updateMany({
+    where: { id: runId },
+    data: { ...data, status: failed ? AgentRunStatus.FAILED : AgentRunStatus.DONE, finishedAt: new Date() },
+  });
+}
+
+/** A run left RUNNING by a restart has no job to finish it. */
+export async function failInterruptedRuns(): Promise<number> {
+  const { count } = await prisma.agentRun.updateMany({
+    where: { status: AgentRunStatus.RUNNING },
+    data: { status: AgentRunStatus.FAILED, message: "The run was interrupted.", finishedAt: new Date() },
+  });
+  return count;
 }

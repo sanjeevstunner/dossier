@@ -378,6 +378,13 @@ enum AgentCandidateStatus {
   DISMISSED
 }
 
+/// How a job agent run went (E16).
+enum AgentRunStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
 /// The stages the funnel counts, in order (PRD §8, DSH-3).
 enum FunnelStage {
   SENT
@@ -636,11 +643,63 @@ model ClaudePaste {
 
 // ─── Job agent (E16) ─────────────────────────────────────────────────────────
 
+/// A job agent: one search, run on the chosen weekdays after an hour.
+model Agent {
+  id                    String           @id @default(cuid())
+  name                  String           @default("Job agent")
+  enabled               Boolean          @default(false)
+  /// The search it runs, as Find jobs asks it (SearchQuery).
+  query                 Json
+  /// The hour it runs after, in the user's time zone.
+  hour                  Int              @default(7)
+  /// The weekdays it runs on, 0 = Sunday.
+  days                  Int[]            @default([0, 1, 2, 3, 4, 5, 6])
+  minScore              Int              @default(70)
+  maxScores             Int              @default(15)
+  maxDrafts             Int              @default(3)
+  autoDraft             Boolean          @default(false)
+  /// Run now warns past these; they never block.
+  maxRunsPerDay         Int              @default(3)
+  manualIntervalMinutes Int              @default(60)
+  runs                  AgentRun[]
+  candidates            AgentCandidate[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+}
+
+/// One run of an agent and its log.
+model AgentRun {
+  id         String           @id @default(cuid())
+  agentId    String
+  agent      Agent            @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  manual     Boolean          @default(false)
+  status     AgentRunStatus   @default(RUNNING)
+  /// What it ended with; null while it runs.
+  message    String?
+  found      Int              @default(0)
+  fresh      Int              @default(0)
+  scored     Int              @default(0)
+  drafted    Int              @default(0)
+  skipped    Int              @default(0)
+  /// The run's log: [{ at, text }].
+  steps      Json             @default("[]")
+  candidates AgentCandidate[]
+  startedAt  DateTime         @default(now())
+  finishedAt DateTime?
+
+  @@index([agentId, startedAt])
+}
+
 /// A posting the job agent found and scored, and the draft it prepared from
 /// it. Kept after it's dismissed, trimmed to what dedupe needs, so the same
 /// posting never comes back.
 model AgentCandidate {
   id            String               @id @default(cuid())
+  /// The agent that found it, and the run; kept when either is deleted, for dedupe.
+  agentId       String?
+  agent         Agent?               @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  runId         String?
+  run           AgentRun?            @relation(fields: [runId], references: [id], onDelete: SetNull)
   source        PostingSource
   /// The source's own id for it.
   externalId    String
@@ -676,6 +735,7 @@ model AgentCandidate {
 
   @@unique([source, externalId])
   @@index([status, score])
+  @@index([agentId, status])
   @@index([createdAt])
 }
 

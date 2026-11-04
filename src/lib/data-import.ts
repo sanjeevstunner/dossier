@@ -77,7 +77,7 @@ const jsonList = (value: unknown) => (Array.isArray(value) ? value : []) as Pris
  * install's own settings (the usage ping's) stay as they are.
  */
 export async function importExport(db: PrismaClient, data: DossierExport): Promise<void> {
-  const { profile, themes, settings, applications, postings, searches, agentCandidates, startups, startupBlocks, apiKey, jobSourceKeys } = data;
+  const { profile, themes, settings, applications, postings, searches, agents, agentCandidates, startups, startupBlocks, apiKey, jobSourceKeys } = data;
   const fromFile: Record<string, string | null> = {
     apiKeyEnc: apiKey ? encryptApiKey(apiKey) : null,
     jsearchKeyEnc: jobSourceKeys?.jsearch ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.jsearch) : null,
@@ -94,6 +94,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       await tx.posting.deleteMany();
       await tx.postingSearch.deleteMany();
       await tx.agentCandidate.deleteMany();
+      await tx.agent.deleteMany();
       await tx.startup.deleteMany();
       await tx.startupBlock.deleteMany();
       // Scores of postings (#208) belong to the profile being replaced; they're left out of exports, since they can be made again.
@@ -192,10 +193,13 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       await tx.postingSearch.createMany({
         data: searches.map((search) => ({ ...search, query: (search.query ?? {}) as Prisma.InputJsonValue, postings: (search.postings ?? []) as Prisma.InputJsonValue })),
       });
-      // The job agent's candidates (E16), so what it saw stays seen; a draft that isn't in the file leaves it unlinked.
+      // The job agents (E16), then their candidates, so what they saw stays seen; a draft or agent that isn't in the file leaves one unlinked.
+      await tx.agent.createMany({ data: agents.map((agent) => ({ ...agent, query: (agent.query ?? {}) as Prisma.InputJsonValue })) });
+      const agentIds = new Set(agents.map((agent) => agent.id));
       await tx.agentCandidate.createMany({
         data: agentCandidates.map((candidate) => ({
           ...candidate,
+          agentId: candidate.agentId && agentIds.has(candidate.agentId) ? candidate.agentId : null,
           reasons: json(candidate.reasons),
           redFlags: json(candidate.redFlags),
           applicationId: candidate.applicationId && applicationIds.has(candidate.applicationId) ? candidate.applicationId : null,

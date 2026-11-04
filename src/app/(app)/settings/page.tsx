@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
-import { isAiConfigured, loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
+import { loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
 import { jobSearchView, loadJobSearchConfig } from "@/lib/job-search/config";
-import { COUNTRIES } from "@/lib/job-search/countries";
-import { loadSearch } from "@/lib/posting-searches";
 import { providerOption } from "@/lib/ai/provider-options";
 import { lastNightlyBackup } from "@/lib/backup-schedule";
 import { backupsDir } from "@/lib/backups";
@@ -14,7 +12,7 @@ import { formatShortDate } from "@/lib/dates";
 import { env } from "@/lib/env";
 import { googleConnection } from "@/lib/google/account";
 import { loadGoogleClientConfig, redirectUri } from "@/lib/google/oauth";
-import { lastKnownTimeZone, userTimeZone } from "@/lib/time-zone";
+import { userTimeZone } from "@/lib/time-zone";
 import { appVersion } from "@/lib/version";
 import { prisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
@@ -22,7 +20,6 @@ import { loadSettings } from "@/lib/settings-data";
 import { availableUpdate } from "@/lib/update-check";
 import { USAGE_PING_HOST, usagePingChoice } from "@/lib/usage-ping";
 
-import { AgentSection } from "./agent-section";
 import { AiBehaviour } from "./ai-behaviour";
 import { AiProviderSection } from "./ai-provider-section";
 import { DataSection } from "./data-section";
@@ -52,23 +49,6 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         </>
       ) : section === "jobs" ? (
         <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />
-      ) : section === "agent" ? (
-        <AgentSection
-          initial={{
-            enabled: settings.agentEnabled,
-            // With no search of its own yet, it starts from the last one in Find jobs.
-            query: settings.agentQuery.keywords.trim() ? settings.agentQuery : ((await loadSearch())?.query ?? settings.agentQuery),
-            hour: settings.agentHour,
-            minScore: settings.agentMinScore,
-            maxScores: settings.agentMaxScores,
-            maxDrafts: settings.agentMaxDrafts,
-            autoDraft: settings.agentAutoDraft,
-          }}
-          source={(await loadJobSearchConfig()).source}
-          aiReady={await isAiConfigured()}
-          countries={COUNTRIES}
-          timeZone={await lastKnownTimeZone()}
-        />
       ) : section === "google" ? (
         <>
           <GoogleNotice outcome={typeof params.google === "string" ? params.google : null} />
