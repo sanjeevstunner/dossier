@@ -19,7 +19,7 @@ export function uncoveredCountry(source: JobSource | null, query: SearchQuery, c
   return `${SOURCE_INFO[source].name} doesn't list jobs in ${name}.`;
 }
 
-/** What, Where, Country, Within and Posted, for a grid; Remote only is RemoteOnlyField. */
+/** What, Where, Country, Within (Experience on Naukri) and Posted, for a grid; Remote only is RemoteOnlyField. */
 export function SearchFields({
   value,
   onChange,
@@ -57,19 +57,38 @@ export function SearchFields({
           </option>
         ))}
       </Select>
-      <Select
-        label="Within"
-        value={String(value.radiusKm)}
-        disabled={!value.place.trim()}
-        hint={value.place.trim() ? undefined : "Add a place first"}
-        onChange={(event) => onChange({ radiusKm: Number(event.target.value) as RadiusKm })}
-      >
-        {RADII_KM.map((km) => (
-          <option key={km} value={km}>
-            {km} km
-          </option>
-        ))}
-      </Select>
+      {/* Naukri has no radius, but filters by experience. */}
+      {source === "NAUKRI" ? (
+        <Input
+          label="Experience"
+          type="number"
+          min={0}
+          max={50}
+          inputMode="numeric"
+          value={value.experience ?? ""}
+          placeholder="Any"
+          hint="Years"
+          onChange={(event) => {
+            const years = event.target.valueAsNumber;
+            onChange({ experience: Number.isInteger(years) ? Math.min(50, Math.max(0, years)) : undefined });
+          }}
+          onBlur={onBlur}
+        />
+      ) : (
+        <Select
+          label="Within"
+          value={String(value.radiusKm)}
+          disabled={!value.place.trim()}
+          hint={value.place.trim() ? undefined : "Add a place first"}
+          onChange={(event) => onChange({ radiusKm: Number(event.target.value) as RadiusKm })}
+        >
+          {RADII_KM.map((km) => (
+            <option key={km} value={km}>
+              {km} km
+            </option>
+          ))}
+        </Select>
+      )}
       <Select label="Posted" value={value.postedWithin} onChange={(event) => onChange({ postedWithin: event.target.value as SearchQuery["postedWithin"] })}>
         {POSTED_WITHIN.map((option) => (
           <option key={option.value} value={option.value}>

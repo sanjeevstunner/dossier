@@ -10,6 +10,8 @@ export type JobSearchSettingsView = {
   adzuna: { appId: string; keyState: JobKeyState };
   /** Whether this server offers the Bundesagentur für Arbeit, and when its note was accepted (#223). */
   arbeitsagentur: { offered: boolean; acceptedAt: string | null };
+  /** The NopeRi server that reaches Naukri for Dossier, and its API key's state. */
+  naukri: { url: string; keyState: JobKeyState };
 };
 
 export const JOB_KEY_UNREADABLE = "Your saved key can't be read. Please enter it again.";
@@ -74,6 +76,16 @@ export const SOURCE_INFO: Record<JobSource, SourceInfo> = {
     attribution: "Source: Bundesagentur für Arbeit",
     attributionLink: null,
     countries: ["de"],
+  },
+  NAUKRI: {
+    name: "Naukri",
+    description: "India's largest job board, through your own NopeRi server, which signs in to Naukri for you. Adds recommended jobs.",
+    tag: "India only · your own NopeRi server · unofficial",
+    keyUrl: null,
+    quotaPeriod: null,
+    attribution: null,
+    attributionLink: null,
+    countries: ["in"],
   },
 };
 

@@ -12,7 +12,7 @@ import { countryCodeFor } from "./countries";
 // job ad is a "posting".
 
 /** The job sources Dossier can search (E14-1 to E14-3), in the order Settings lists them; one is chosen there. */
-export const JOB_SOURCES = [PostingSource.JSEARCH, PostingSource.ADZUNA, PostingSource.ARBEITSAGENTUR] as const;
+export const JOB_SOURCES = [PostingSource.JSEARCH, PostingSource.ADZUNA, PostingSource.ARBEITSAGENTUR, PostingSource.NAUKRI] as const;
 export type JobSource = PostingSource;
 
 /** Where a JSearch key comes from: OpenWeb Ninja directly, or the RapidAPI marketplace. */
@@ -49,6 +49,8 @@ export const searchQuerySchema = z.object({
   radiusKm: z.literal(RADII_KM),
   remoteOnly: z.boolean(),
   postedWithin: z.enum(POSTED_VALUES),
+  /** Years of experience, for sources that filter by it (Naukri); unset for any. */
+  experience: z.number().int().min(0).max(50).optional().catch(undefined),
 });
 export type SearchQuery = z.output<typeof searchQuerySchema>;
 
@@ -107,7 +109,7 @@ export type PostingState = {
 export type ShownPosting = FoundPosting & { state: PostingState };
 
 /** What went wrong with a search, in words for the screen (E14-6). */
-export type SearchProblem = { ok: false; problem: "off" | "not-accepted" | "no-country" | "no-key" | "key" | "quota" | "country" | "unavailable" | "changed"; message: string };
+export type SearchProblem = { ok: false; problem: "off" | "not-accepted" | "no-country" | "no-key" | "key" | "login" | "quota" | "country" | "unavailable" | "changed"; message: string };
 
 /** What a search gives the screen: postings, or what went wrong. */
 export type SearchOutcome = { ok: true; postings: ShownPosting[]; next: string | null } | SearchProblem;
@@ -134,7 +136,8 @@ export type PastSearchDay = {
 export function describeSearch(query: SearchQuery, countryName: string): string {
   const where = query.place ? `${query.place}, ${query.radiusKm} km` : countryName;
   const posted = POSTED_WITHIN.find((option) => option.value === query.postedWithin);
-  return [query.keywords, where, query.remoteOnly ? "Remote only" : "", posted && posted.value !== "any" ? posted.label : ""].filter(Boolean).join(" · ");
+  const experience = query.experience === undefined ? "" : `${query.experience} yrs exp`;
+  return [query.keywords, where, query.remoteOnly ? "Remote only" : "", posted && posted.value !== "any" ? posted.label : "", experience].filter(Boolean).join(" · ");
 }
 
 /** Identifies a posting across searches. */
@@ -183,6 +186,7 @@ export function queryFromParams(params: Record<string, string | string[] | undef
   const radius = Number(one(params.radius));
   const posted = POSTED_VALUES.find((value) => value === one(params.posted));
   const country = one(params.country).trim().toLowerCase();
+  const experience = one(params.exp) === "" ? NaN : Number(one(params.exp));
   return {
     keywords: keywords.slice(0, 200),
     place: one(params.where).trim().slice(0, 200),
@@ -190,18 +194,19 @@ export function queryFromParams(params: Record<string, string | string[] | undef
     radiusKm: RADII_KM.find((km) => km === radius) ?? DEFAULT_RADIUS_KM,
     remoteOnly: one(params.remote) === "1",
     postedWithin: posted ?? "any",
+    ...(Number.isInteger(experience) && experience >= 0 && experience <= 50 ? { experience } : {}),
   };
 }
 
-/** Find jobs' views: the search, past searches (E14-10), and the postings kept from them (E14-7). */
-export type JobsView = "search" | "history" | "saved" | "dismissed";
+/** Find jobs' views: the search, past searches (E14-10), the postings kept from them (E14-7), and Naukri's recommendations. */
+export type JobsView = "search" | "history" | "saved" | "dismissed" | "recommended";
 
 export function viewFromParams(params: Record<string, string | string[] | undefined>): JobsView {
   const view = one(params.view);
-  return view === "history" || view === "saved" || view === "dismissed" ? view : "search";
+  return view === "history" || view === "saved" || view === "dismissed" || view === "recommended" ? view : "search";
 }
 
-export const viewHref = (view: "history" | "saved" | "dismissed") => `/jobs?view=${view}`;
+export const viewHref = (view: Exclude<JobsView, "search">) => `/jobs?view=${view}`;
 
 /** A kept search on Find jobs (E14-10). */
 export const searchRunHref = (id: string) => `/jobs?search=${encodeURIComponent(id)}`;
@@ -214,6 +219,7 @@ export function searchHref(query: SearchQuery): string {
   if (query.radiusKm !== DEFAULT_RADIUS_KM) params.set("radius", String(query.radiusKm));
   if (query.remoteOnly) params.set("remote", "1");
   if (query.postedWithin !== "any") params.set("posted", query.postedWithin);
+  if (query.experience !== undefined) params.set("exp", String(query.experience));
   return `/jobs?${params.toString()}`;
 }
 

@@ -48,7 +48,7 @@ export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
 /** The setting that holds the encrypted API key, which only this server can read. */
 const API_KEY_SETTING = "apiKeyEnc";
 /** The settings that hold encrypted keys, which only this server can read: never exported as they are. */
-export const SECRET_SETTINGS: readonly string[] = [API_KEY_SETTING, "jsearchKeyEnc", "adzunaKeyEnc"];
+export const SECRET_SETTINGS: readonly string[] = [API_KEY_SETTING, "jsearchKeyEnc", "adzunaKeyEnc", "naukriKeyEnc"];
 /** The settings that belong to this install rather than its data (the usage ping's and its consent, the update check's, the Google client and the browser's time zone): never exported, and kept by an import. */
 export const INSTALL_SETTINGS: readonly string[] = [
   "usagePingId",
@@ -340,7 +340,7 @@ export const exportSchema = z.object({
   /** The AI provider's key in plain text, only when the user asked for it. */
   apiKey: text.optional(),
   /** The job sources' keys in plain text, likewise (E14-9). */
-  jobSourceKeys: z.object({ jsearch: text.optional(), adzuna: text.optional() }).optional(),
+  jobSourceKeys: z.object({ jsearch: text.optional(), adzuna: text.optional(), naukri: text.optional() }).optional(),
   applications: z.array(application),
   /** Saved and dismissed postings (E14-9); absent in version 1 files. */
   postings: z.array(posting).default([]),
@@ -421,6 +421,7 @@ export async function buildExport(
       Object.entries({
         jsearch: readable(stored("jsearchKeyEnc"), (value) => decryptSecret(JOB_SOURCE_KEY, value)),
         adzuna: readable(stored("adzunaKeyEnc"), (value) => decryptSecret(JOB_SOURCE_KEY, value)),
+        naukri: readable(stored("naukriKeyEnc"), (value) => decryptSecret(JOB_SOURCE_KEY, value)),
       }).filter(([, value]) => value),
     );
 

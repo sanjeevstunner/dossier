@@ -62,6 +62,8 @@ describe("stored settings", () => {
       adzunaAppId: null,
       adzunaKeyEnc: null,
       arbeitsagenturAcceptedAt: null,
+      naukriUrl: null,
+      naukriKeyEnc: null,
       agentEnabled: false,
       agentQuery: { keywords: "", place: "", country: "", radiusKm: 25, remoteOnly: false, postedWithin: "any" },
       agentHour: 7,

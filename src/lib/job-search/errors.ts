@@ -14,6 +14,8 @@ export type JobSearchProblem =
   | "no-key"
   /** The source refused the key. */
   | "key"
+  /** The source needs its user signed in (Naukri's recommendations, through NopeRi). */
+  | "login"
   /** The plan's searches are used up. */
   | "quota"
   /** The source doesn't list jobs in that country. */
@@ -42,8 +44,9 @@ export function jobSearchError(problem: JobSearchProblem, source: JobSource, { c
   const message = {
     off: `${name} isn't offered on this server. Choose another source in Settings → Job search.`,
     "not-accepted": `Read the note about ${name} and tick “I understand” before Dossier searches it.`,
-    "no-key": `Add your ${name} ${source === "ADZUNA" ? "app ID and key" : "key"} in Settings → Job search first.`,
+    "no-key": `Add your ${name} ${source === "ADZUNA" ? "app ID and key" : source === "NAUKRI" ? "NopeRi server address and API key" : "key"} in Settings → Job search first.`,
     key: `${name} didn't accept your key. Check it in Settings → Job search.`,
+    login: `Log in to ${name} first.`,
     quota: quotaPeriod
       ? `You've used up your ${name} searches for ${quotaPeriod}. Try again then, or move to a bigger plan.`
       : `${name} is limiting searches right now. Wait a minute and try again.`,

@@ -13,6 +13,8 @@ const nothingSaved = {
   adzunaAppId: null,
   adzunaKeyEnc: null,
   arbeitsagenturAcceptedAt: null,
+  naukriUrl: null,
+  naukriKeyEnc: null,
 };
 const ACCEPTED = "2026-10-23T09:00:00.000Z";
 const noEnv = {};
@@ -26,6 +28,7 @@ describe("resolveJobSearchConfig", () => {
       jsearch: { host: "openwebninja", keyState: "none" },
       adzuna: { appId: "", keyState: "none" },
       arbeitsagentur: { offered: true, acceptedAt: null },
+      naukri: { url: "", keyState: "none" },
     });
   });
 
@@ -54,6 +57,8 @@ describe("resolveJobSearchConfig", () => {
       adzunaAppId: "app-saved",
       adzunaKeyEnc: encryptSecret(JOB_SOURCE_KEY, "adz-saved"),
       arbeitsagenturAcceptedAt: null,
+      naukriUrl: null,
+      naukriKeyEnc: null,
     };
     const config = resolveJobSearchConfig(saved, { DOSSIER_JOBS_SOURCE: "jsearch", DOSSIER_JSEARCH_KEY: "ak_env", DOSSIER_JSEARCH_HOST: "rapidapi" });
     expect(config).toMatchObject({
@@ -134,5 +139,13 @@ describe("requestContext", () => {
   it("leaves sources at their own address, unless the end-to-end tests point them at a fake", () => {
     expect(requestContext("JSEARCH", undefined)).toEqual({});
     expect(requestContext("ADZUNA", "http://127.0.0.1:3998/")).toEqual({ baseUrl: "http://127.0.0.1:3998/adzuna" });
+  });
+});
+
+describe("Naukri credentials", () => {
+  it("needs both the NopeRi address and its API key", () => {
+    expect(() => credentialsFor(resolveJobSearchConfig({ ...nothingSaved, jobSource: "NAUKRI" }, { DOSSIER_NAUKRI_URL: "http://noperi:3000" }), "NAUKRI")).toThrow(/NopeRi/);
+    const config = resolveJobSearchConfig({ ...nothingSaved, jobSource: "NAUKRI" }, { DOSSIER_NAUKRI_URL: "http://noperi:3000", DOSSIER_NAUKRI_KEY: "secret" });
+    expect(credentialsFor(config, "NAUKRI")).toEqual({ url: "http://noperi:3000", apiKey: "secret" });
   });
 });

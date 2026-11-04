@@ -6,7 +6,7 @@ import { action, ActionError } from "@/lib/action";
 import { isAiConfigured, isAiUsable } from "@/lib/ai/config";
 import { handOffFoundPosting, handsOffToClaude } from "@/lib/connector/handoff";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
-import { fullText } from "@/lib/job-search/find";
+import { fullText, naukriSignIn } from "@/lib/job-search/find";
 import { foundPostingSchema, JOB_SOURCES, searchQuerySchema } from "@/lib/job-search/search";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { scoreJobKey, scorePostingJob } from "@/lib/jobs/score-posting";
@@ -88,3 +88,10 @@ export const startScoringPosting = action(z.object({ posting: foundPostingSchema
   const [unfinished] = await findUnfinishedJobs(key);
   return { jobId: unfinished?.id ?? (await startJob(scorePostingJob, { posting }, { key })) };
 });
+
+/** Naukri's sign-in through NopeRi: whether it's signed in, a sign-in with NopeRi's credentials, or a token from a signed-in browser. */
+export const naukriLoginStatus = action(z.object({}), () => naukriSignIn("status"));
+
+export const naukriLogin = action(z.object({}), () => naukriSignIn("login"));
+
+export const naukriUseToken = action(z.object({ token: z.string().trim().min(20).max(4000) }), ({ token }) => naukriSignIn({ token }));

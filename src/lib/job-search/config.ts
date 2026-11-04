@@ -26,18 +26,31 @@ export type JobSearchConfig = {
    * when its note was accepted. Its searches wait until then.
    */
   arbeitsagentur: { offered: boolean; acceptedAt: string | null };
+  /** The NopeRi server that reaches Naukri, and its API key. */
+  naukri: { url: string; key: string | null; keyState: JobKeyState };
 };
 
-type SavedJobSettings = Pick<SettingsData, "jobSource" | "jsearchKeyEnc" | "jsearchHost" | "adzunaAppId" | "adzunaKeyEnc" | "arbeitsagenturAcceptedAt">;
+type SavedJobSettings = Pick<
+  SettingsData,
+  "jobSource" | "jsearchKeyEnc" | "jsearchHost" | "adzunaAppId" | "adzunaKeyEnc" | "arbeitsagenturAcceptedAt" | "naukriUrl" | "naukriKeyEnc"
+>;
 type JobEnv = Pick<
   Env,
-  "DOSSIER_JOBS_SOURCE" | "DOSSIER_JSEARCH_KEY" | "DOSSIER_JSEARCH_HOST" | "DOSSIER_ADZUNA_APP_ID" | "DOSSIER_ADZUNA_KEY" | "DOSSIER_JOBS_ARBEITSAGENTUR"
+  | "DOSSIER_JOBS_SOURCE"
+  | "DOSSIER_JSEARCH_KEY"
+  | "DOSSIER_JSEARCH_HOST"
+  | "DOSSIER_ADZUNA_APP_ID"
+  | "DOSSIER_ADZUNA_KEY"
+  | "DOSSIER_JOBS_ARBEITSAGENTUR"
+  | "DOSSIER_NAUKRI_URL"
+  | "DOSSIER_NAUKRI_KEY"
 >;
 
 const FROM_ENV: Record<NonNullable<Env["DOSSIER_JOBS_SOURCE"]>, JobSource | null> = {
   jsearch: "JSEARCH",
   adzuna: "ADZUNA",
   arbeitsagentur: "ARBEITSAGENTUR",
+  naukri: "NAUKRI",
   off: null,
 };
 
@@ -72,6 +85,10 @@ export function resolveJobSearchConfig(saved: SavedJobSettings, source: JobEnv, 
       ...keyOf(saved.adzunaKeyEnc, source.DOSSIER_ADZUNA_KEY, secret),
     },
     arbeitsagentur: { offered, acceptedAt: saved.arbeitsagenturAcceptedAt },
+    naukri: {
+      url: saved.naukriUrl ?? source.DOSSIER_NAUKRI_URL ?? "",
+      ...keyOf(saved.naukriKeyEnc, source.DOSSIER_NAUKRI_KEY, secret),
+    },
   };
 }
 
@@ -97,6 +114,7 @@ export function jobSearchView(config: JobSearchConfig): JobSearchSettingsView {
     jsearch: { host: config.jsearch.host, keyState: config.jsearch.keyState },
     adzuna: { appId: config.adzuna.appId, keyState: config.adzuna.keyState },
     arbeitsagentur: config.arbeitsagentur,
+    naukri: { url: config.naukri.url, keyState: config.naukri.keyState },
   };
 }
 
@@ -133,6 +151,11 @@ export function credentialsFor<S extends JobSource>(config: JobSearchConfig, sou
       if (!config.arbeitsagentur.offered) throw jobSearchError("off", source);
       if (!config.arbeitsagentur.acceptedAt) throw jobSearchError("not-accepted", source);
       return {} as SourceCredentials[S];
+    }
+    case "NAUKRI": {
+      const { url, key, keyState } = config.naukri;
+      if (!key || !url) throw missing(keyState);
+      return { url, apiKey: key } as SourceCredentials[S];
     }
   }
 }

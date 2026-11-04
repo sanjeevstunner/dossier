@@ -11,7 +11,7 @@ const GENERATE_SECRET = "for example the output of `openssl rand -base64 32`";
 const HASH_PASSWORD = "Make one with `docker run --rm -it ghcr.io/aientech/dossier hash-password`";
 
 export const AI_PROVIDERS = ["local", "openai", "anthropic", "mistral", "lmstudio"] as const;
-export const JOB_SOURCE_NAMES = ["jsearch", "adzuna", "arbeitsagentur", "off"] as const;
+export const JOB_SOURCE_NAMES = ["jsearch", "adzuna", "arbeitsagentur", "naukri", "off"] as const;
 
 // An empty value (`DOSSIER_AI_KEY=` in .env) counts as unset.
 const unsetIfEmpty = (value: unknown) =>
@@ -122,6 +122,9 @@ const schema = z.object({
   ),
   DOSSIER_ADZUNA_APP_ID: optional(z.string()),
   DOSSIER_ADZUNA_KEY: optional(z.string()),
+  // The NopeRi server (noperi-ts) that reaches Naukri, and its API_KEY.
+  DOSSIER_NAUKRI_URL: optional(z.url({ protocol: /^https?$/, error: "DOSSIER_NAUKRI_URL must be an http:// or https:// URL." })),
+  DOSSIER_NAUKRI_KEY: optional(z.string()),
   // Off takes the Bundesagentur für Arbeit out everywhere (#223): it isn't an
   // official API, so a server can choose not to offer it. Unset means on.
   DOSSIER_JOBS_ARBEITSAGENTUR: optional(
