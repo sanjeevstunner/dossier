@@ -15,7 +15,7 @@ import {
   type ShownPosting,
   type StoredSearch,
 } from "@/lib/job-search/search";
-import { postingStates } from "@/lib/postings";
+import { withStates } from "@/lib/postings";
 import { prisma } from "@/lib/prisma";
 
 // Searches kept with what they found (E14-10), until the user removes them,
@@ -32,11 +32,6 @@ function postingsOf(value: Prisma.JsonValue): FoundPosting[] {
 
 const queryOf = (value: Prisma.JsonValue): SearchQuery => searchQuerySchema.catch(EMPTY_QUERY).parse(value);
 
-/** Postings with where each stands for the user now. */
-async function withStates(postings: FoundPosting[]): Promise<ShownPosting[]> {
-  const states = await postingStates(postings);
-  return postings.map((posting) => ({ ...posting, state: states.get(postingKey(posting))! }));
-}
 
 /** "today at 14:32", "yesterday at 09:05" or "on Thu 1 Oct at 18:20". */
 function ranAtLabel(date: Date, timeZone?: string, now = new Date()): string {

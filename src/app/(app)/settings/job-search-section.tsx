@@ -14,6 +14,7 @@ import { JOB_SOURCES, type JobSource, type JSearchHost } from "@/lib/job-search/
 import { JOB_KEY_UNREADABLE, JSEARCH_KEY_URLS, SOURCE_INFO, type JobKeyState, type JobSearchSettingsView } from "@/lib/job-search/sources";
 import { cn } from "@/lib/cn";
 
+import { NaukriLogin } from "../jobs/naukri-login";
 import { saveJobSearchDetails, saveJobSource, saveJobSourceKey, testJobSource } from "./actions";
 import { SettingsSectionIntro } from "./settings-screen";
 
@@ -40,6 +41,7 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
   const track = useTrackSave();
   const [view, setView] = useState(initial);
   const [appId, setAppId] = useState(initial.adzuna.appId);
+  const [naukriUrl, setNaukriUrl] = useState(initial.naukri.url);
   const [connection, setConnection] = useState<Connection>({ status: "untested" });
   const source = view.source;
 
@@ -75,7 +77,13 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
     apply(toastResult(await track(saveJobSearchDetails({ adzunaAppId: appId }))));
   };
 
-  const saveKey = async (keySource: "JSEARCH" | "ADZUNA", change: { action: "set"; value: string } | { action: "clear" }) => {
+  const saveNaukriUrl = async () => {
+    if (naukriUrl.trim() === view.naukri.url) return;
+    changed();
+    apply(toastResult(await track(saveJobSearchDetails({ naukriUrl: naukriUrl.trim() }))));
+  };
+
+  const saveKey = async (keySource: "JSEARCH" | "ADZUNA" | "NAUKRI", change: { action: "set"; value: string } | { action: "clear" }) => {
     changed();
     return apply(toastResult(await track(saveJobSourceKey({ source: keySource, change }))));
   };
@@ -165,6 +173,33 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
                 />
               </div>
             )}
+            {source === "NAUKRI" && (
+              <>
+                <div className="grid grid-cols-1 gap-x-[18px] gap-y-5 sm:grid-cols-2">
+                  <Input
+                    label="NopeRi server"
+                    type="url"
+                    value={naukriUrl}
+                    placeholder="http://localhost:3000"
+                    spellCheck={false}
+                    autoComplete="off"
+                    inputClassName="font-mono text-[13.5px]"
+                    hint="Your noperi-ts server, which signs in to Naukri with the account in its .env. The key is its API_KEY."
+                    onChange={(event) => setNaukriUrl(event.target.value)}
+                    onBlur={() => void saveNaukriUrl()}
+                  />
+                  <KeyField
+                    label="NopeRi API key"
+                    keyState={view.naukri.keyState}
+                    envName="DOSSIER_NAUKRI_KEY"
+                    onSave={(change) => saveKey("NAUKRI", change)}
+                  />
+                </div>
+                {view.naukri.url && view.naukri.keyState !== "none" && view.naukri.keyState !== "unreadable" && (
+                  <NaukriLogin key={`${view.naukri.url}:${view.naukri.keyState}`} />
+                )}
+              </>
+            )}
             {source === "ARBEITSAGENTUR" && (
               <>
                 <ArbeitsagenturNote accepted={Boolean(view.arbeitsagentur.acceptedAt)} onAccept={acceptArbeitsagentur} />
@@ -219,7 +254,8 @@ function KeyField({
   label: string;
   keyState: JobKeyState;
   envName: string;
-  getKey: { href: string; text: string };
+  /** Where to get one; left out when it's the user's own (NopeRi's API_KEY). */
+  getKey?: { href: string; text: string };
   onSave: (change: { action: "set"; value: string } | { action: "clear" }) => Promise<boolean>;
 }) {
   const [value, setValue] = useState("");
@@ -239,7 +275,7 @@ function KeyField({
         }
         error={keyState === "unreadable" ? JOB_KEY_UNREADABLE : undefined}
         hint={
-          keyState === "none" ? (
+          keyState === "none" && getKey ? (
             <>
               Get one from{" "}
               <a href={getKey.href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-ink">

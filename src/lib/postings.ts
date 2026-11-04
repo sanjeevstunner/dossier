@@ -156,3 +156,9 @@ export async function postingStates(found: readonly (PostingRef & { url: string 
     }),
   );
 }
+
+/** Postings with where each stands for the user now. */
+export async function withStates(postings: FoundPosting[]): Promise<ShownPosting[]> {
+  const states = await postingStates(postings);
+  return postings.map((posting) => ({ ...posting, state: states.get(postingKey(posting))! }));
+}

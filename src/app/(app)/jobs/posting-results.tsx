@@ -34,7 +34,7 @@ export type PostingResultsProps = {
       onSearchAgain: () => void;
       searching: boolean;
     }
-  | { mode: "saved" | "dismissed"; postings: ShownPosting[] }
+  | { mode: "saved" | "dismissed" | "recommended"; postings: ShownPosting[] }
 );
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
@@ -162,7 +162,9 @@ export function PostingResults(props: PostingResultsProps) {
       ? "Nothing saved yet. Save a posting from your search results to keep it here."
       : mode === "dismissed"
         ? "Nothing dismissed. Postings you dismiss stay out of your searches and wait here."
-        : postings.length > 0 || !searched
+        : mode === "recommended" && postings.length === 0
+          ? "Naukri has no recommendations for you right now. Keeping your Naukri profile up to date helps."
+          : postings.length > 0 || !searched
           ? "You've dismissed every posting here."
           : `No postings for “${searched.keywords}”${searched.place ? ` within ${searched.radiusKm} km of ${searched.place}` : ""}. Try a bigger radius or fewer words.`;
 
@@ -178,7 +180,9 @@ export function PostingResults(props: PostingResultsProps) {
               ? `${plural(postings.length, "posting", "postings")} from ${SOURCE_INFO[props.search.source].name}${next ? ", more to come" : ""} · searched ${props.search.ranAt}`
               : mode === "saved"
                 ? plural(visible.length, "saved posting", "saved postings")
-                : `${plural(visible.length, "dismissed posting", "dismissed postings")}, kept out of your searches`}
+                : mode === "recommended"
+                  ? `${plural(visible.length, "posting", "postings")} recommended for you by Naukri`
+                  : `${plural(visible.length, "dismissed posting", "dismissed postings")}, kept out of your searches`}
           </span>
           {props.mode === "search" && (
             <button

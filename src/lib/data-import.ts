@@ -82,6 +82,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
     apiKeyEnc: apiKey ? encryptApiKey(apiKey) : null,
     jsearchKeyEnc: jobSourceKeys?.jsearch ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.jsearch) : null,
     adzunaKeyEnc: jobSourceKeys?.adzuna ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.adzuna) : null,
+    naukriKeyEnc: jobSourceKeys?.naukri ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.naukri) : null,
   };
   const keptKeys = [...SECRET_SETTINGS.filter((key) => !fromFile[key]), ...INSTALL_SETTINGS];
   await db.$transaction(

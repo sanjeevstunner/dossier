@@ -25,6 +25,7 @@ import {
 import { SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { acceptArbeitsagenturNote, runJobSearch } from "./actions";
+import { NaukriLogin } from "./naukri-login";
 import { PastSearches } from "./past-searches";
 import { PostingResults } from "./posting-results";
 import { RemoteOnlyField, SearchFields, uncoveredCountry } from "./search-fields";
@@ -46,8 +47,10 @@ export type JobsScreenProps = {
   search: StoredSearch | null;
   /** The URL names a search that's no longer kept. */
   missingSearch?: boolean;
-  /** The Saved or Dismissed postings, in those views. */
+  /** The Saved, Dismissed or Recommended postings, in those views. */
   kept?: ShownPosting[];
+  /** Why Naukri's recommendations couldn't be had, in that view. */
+  recommendedProblem?: Problem;
   /** Past searches by day, in that view. */
   history?: PastSearchDay[];
   /** How many searches, saved and dismissed postings there are, for the tabs. */
@@ -69,6 +72,7 @@ export function JobsScreen({
   search,
   missingSearch = false,
   kept = [],
+  recommendedProblem,
   history = [],
   counts,
   today,
@@ -83,7 +87,7 @@ export function JobsScreen({
         title="Find jobs"
         description={`Search ${source ? SOURCE_INFO[source].name : "job postings"} for postings near you, then start an application from the one you like.`}
       />
-      <ViewTabs view={view} counts={counts} />
+      <ViewTabs view={view} counts={counts} recommended={source === "NAUKRI"} />
     </>
   );
 
@@ -92,6 +96,23 @@ export function JobsScreen({
       <>
         {header}
         <PastSearches days={history} countries={countries} />
+      </>
+    );
+  }
+
+  if (view === "recommended") {
+    return (
+      <>
+        {header}
+        {source !== "NAUKRI" ? (
+          <NoSource />
+        ) : recommendedProblem?.problem === "login" ? (
+          <NaukriLogin onLoggedIn={() => router.refresh()} className="mx-10 mb-16 max-w-[640px]" />
+        ) : recommendedProblem ? (
+          <SearchProblem problem={recommendedProblem.problem} message={recommendedProblem.message} onRetry={() => router.refresh()} />
+        ) : (
+          <PostingResults key={view} mode={view} postings={kept} today={today} scoreInClaude={scoreInClaude} />
+        )}
       </>
     );
   }
@@ -224,15 +245,16 @@ function SearchForm({
   );
 }
 
-/** Search, Past searches (E14-10), Saved and Dismissed (E14-7), with how many each holds. */
-function ViewTabs({ view, counts }: { view: JobsView; counts: { searches: number; saved: number; dismissed: number } }) {
-  const tabs = [
+/** Search, Recommended (Naukri), Past searches (E14-10), Saved and Dismissed (E14-7), with how many each holds. */
+function ViewTabs({ view, counts, recommended }: { view: JobsView; counts: { searches: number; saved: number; dismissed: number }; recommended: boolean }) {
+  const tabs: readonly { view: JobsView; label: string; href: string; count: number | null }[] = [
     // The latest search, as it was kept.
     { view: "search", label: "Search", href: "/jobs", count: null },
+    ...(recommended ? [{ view: "recommended" as const, label: "Recommended", href: viewHref("recommended"), count: null }] : []),
     { view: "history", label: "Past searches", href: viewHref("history"), count: counts.searches },
     { view: "saved", label: "Saved", href: viewHref("saved"), count: counts.saved },
     { view: "dismissed", label: "Dismissed", href: viewHref("dismissed"), count: counts.dismissed },
-  ] as const;
+  ];
   return (
     <nav aria-label="Find jobs views" className="flex flex-wrap gap-1.5 px-10 pb-[18px]">
       {tabs.map((tab) => (

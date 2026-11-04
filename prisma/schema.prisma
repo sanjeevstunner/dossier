@@ -601,6 +601,7 @@ enum PostingSource {
   JSEARCH
   ADZUNA
   ARBEITSAGENTUR
+  NAUKRI
 }
 
 /// A posting from Find jobs that the user kept (E14-5): saved, dismissed, or

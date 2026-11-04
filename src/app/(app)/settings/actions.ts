@@ -131,11 +131,20 @@ export const saveJobSource = action(
   },
 );
 
-/** Saves where the JSearch key is from, or the Adzuna app ID, which isn't a secret. */
+/** Saves where the JSearch key is from, the Adzuna app ID or the NopeRi address, none of them secret. */
 export const saveJobSearchDetails = action(
-  z.strictObject({ jsearchHost: z.enum(JSEARCH_HOSTS).optional(), adzunaAppId: z.string().trim().max(200).optional() }),
-  async ({ jsearchHost, adzunaAppId }) => {
-    await saveSettings({ jsearchHost, ...(adzunaAppId === undefined ? {} : { adzunaAppId: adzunaAppId || null }) });
+  z.strictObject({
+    jsearchHost: z.enum(JSEARCH_HOSTS).optional(),
+    adzunaAppId: z.string().trim().max(200).optional(),
+    /** The NopeRi server's address, which isn't a secret; empty removes it. */
+    naukriUrl: z.union([z.literal(""), z.url({ protocol: /^https?$/ }).max(500)]).optional(),
+  }),
+  async ({ jsearchHost, adzunaAppId, naukriUrl }) => {
+    await saveSettings({
+      jsearchHost,
+      ...(adzunaAppId === undefined ? {} : { adzunaAppId: adzunaAppId || null }),
+      ...(naukriUrl === undefined ? {} : { naukriUrl: naukriUrl.replace(/\/+$/, "") || null }),
+    });
     return loadView();
   },
 );
@@ -143,14 +152,14 @@ export const saveJobSearchDetails = action(
 /** Saves a source's key, encrypted for job sources only, or removes it. The key never comes back to the browser. */
 export const saveJobSourceKey = action(
   z.object({
-    source: z.enum(["JSEARCH", "ADZUNA"]),
+    source: z.enum(["JSEARCH", "ADZUNA", "NAUKRI"]),
     change: z.discriminatedUnion("action", [
       z.object({ action: z.literal("set"), value: z.string().trim().min(1).max(1000) }),
       z.object({ action: z.literal("clear") }),
     ]),
   }),
   async ({ source, change }) => {
-    const field = source === "JSEARCH" ? "jsearchKeyEnc" : "adzunaKeyEnc";
+    const field = ({ JSEARCH: "jsearchKeyEnc", ADZUNA: "adzunaKeyEnc", NAUKRI: "naukriKeyEnc" } as const)[source];
     const current = await loadSettings();
     await saveSettings({ [field]: applySecretChange(JOB_SOURCE_KEY, current[field], change) });
     return loadView();

@@ -4,6 +4,7 @@ import { isAiUsable } from "@/lib/ai/config";
 import { handsOffToClaude } from "@/lib/connector/handoff";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
 import { COUNTRIES } from "@/lib/job-search/countries";
+import { recommendedPostings } from "@/lib/job-search/find";
 import { defaultSearch, latestRole, queryFromParams, viewFromParams } from "@/lib/job-search/search";
 import { countSearches, listSearches, loadSearch } from "@/lib/posting-searches";
 import { countPostings, listPostings } from "@/lib/postings";
@@ -18,7 +19,8 @@ export const metadata: Metadata = { title: "Find jobs" };
  * Find jobs (E14-6). Every search is kept with what it found (E14-10):
  * ?search=<id> opens one, and without it the latest one shows, so going back
  * costs no searches. ?view=history lists past searches; ?view=saved and
- * ?view=dismissed the postings kept from them (E14-7). A search written in
+ * ?view=dismissed the postings kept from them (E14-7); ?view=recommended
+ * Naukri's recommendations, when it's the source. A search written in
  * the URL (?q=…) only fills in the form.
  */
 export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
@@ -36,9 +38,10 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   const now = new Date();
 
   const search = view === "search" && !typed ? await loadSearch(searchId, { timeZone, now }) : null;
-  const [kept, history] = await Promise.all([
+  const [kept, history, recommended] = await Promise.all([
     view === "saved" || view === "dismissed" ? listPostings(view) : undefined,
     view === "history" ? listSearches({ timeZone, now }) : undefined,
+    view === "recommended" && config.source === "NAUKRI" ? recommendedPostings() : undefined,
   ]);
 
   return (
@@ -52,7 +55,8 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
       query={typed ?? search?.query ?? (await latestQuery()) ?? (await profileSearch())}
       search={search}
       missingSearch={Boolean(searchId) && !search}
-      kept={kept}
+      kept={recommended?.ok ? recommended.postings : kept}
+      recommendedProblem={recommended && !recommended.ok ? recommended : undefined}
       history={history}
       counts={{ ...postingCounts, searches }}
       today={now.toISOString()}

@@ -13,6 +13,8 @@ export type SourceCredentials = {
   JSEARCH: { key: string; host: JSearchHost };
   ADZUNA: { appId: string; key: string };
   ARBEITSAGENTUR: Record<string, never>;
+  /** The NopeRi server (noperi-ts) and the API key it asks for. */
+  NAUKRI: { url: string; apiKey: string };
 };
 
 export type RequestContext = {
