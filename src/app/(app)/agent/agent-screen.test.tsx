@@ -148,7 +148,7 @@ describe("AgentScreen (E16-6)", () => {
     const user = userEvent.setup();
     open();
     await user.click(screen.getByRole("button", { name: "Run now" }));
-    expect(runAgentNow).toHaveBeenCalledWith({});
+    expect(runAgentNow).toHaveBeenCalledWith({ force: false });
     expect(screen.getByRole("button", { name: "Running…" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Starting the run…");
   });
