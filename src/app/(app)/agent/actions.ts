@@ -53,17 +53,18 @@ export const saveAgentSettings = action(
 
 /**
  * Run now (E16-4): one more run, at most once an hour after the previous
- * one and within the daily limit. A run already queued or running is
- * reused rather than started again.
+ * one and within the daily limit. `force` (Run anyway) skips the hourly
+ * wait, never the daily limit. A run already queued or running is reused
+ * rather than started again.
  */
-export const runAgentNow = action(z.object({}), async () => {
+export const runAgentNow = action(z.object({ force: z.boolean().optional() }), async ({ force }) => {
   const settings = await loadSettings();
   if (!settings.agentEnabled) throw new ActionError("Turn the job agent on in Settings → Job agent first.");
   const setup = await agentSetupProblem(settings.agentQuery);
   if (setup) throw new ActionError(setup);
   const [unfinished] = await findUnfinishedJobs(AGENT_JOB_KEY);
   if (unfinished) return { jobId: unfinished.id, reused: true };
-  const limit = runLimitProblem(settings.agentRuns, new Date(), { manual: true });
+  const limit = runLimitProblem(settings.agentRuns, new Date(), { manual: !force });
   if (limit) throw new ActionError(limit);
   const jobId = await startJob(agentScanJob, { manual: true }, { key: AGENT_JOB_KEY });
   revalidatePath("/agent");

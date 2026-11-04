@@ -46,10 +46,13 @@ export function AgentScreen({ view }: { view: AgentView }) {
   });
   const running = Boolean(runJobId) && (!run || run.status === "QUEUED" || run.status === "RUNNING");
 
-  const runNow = () =>
+  const runNow = (force = false) =>
     startTransition(async () => {
-      const result = toastResult(await runAgentNow({}));
-      if (result.ok) setRunJobId(result.data.jobId);
+      const result = await runAgentNow({ force });
+      if (result.ok) return setRunJobId(result.data.jobId);
+      // Only the hourly wait can be skipped; the daily limit can't.
+      if (!result.error.startsWith("The agent ran less than an hour ago.")) return toast(result.error);
+      toast(result.error, { action: { label: "Run anyway", onClick: () => runNow(true) } });
     });
 
   const hide = (id: string, gone: boolean) =>
