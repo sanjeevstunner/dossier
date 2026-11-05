@@ -20,7 +20,7 @@ import { arbeitsagenturPage, SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { retry } from "@/lib/jobs/actions";
 
-import { dismissFoundPosting, loadFullText, restorePosting, savePostingForLater, showMorePostings, startEasyApply, startScoringPosting, unsavePosting } from "./actions";
+import { dismissFoundPosting, loadFullText, loadPostingState, restorePosting, savePostingForLater, showMorePostings, startEasyApply, startScoringPosting, unsavePosting } from "./actions";
 import { useStartApplication } from "./use-start-application";
 
 /** Narrow windows show the posting above the list. */
@@ -80,6 +80,12 @@ export function PostingResults(props: PostingResultsProps) {
   const select = (key: string, { reveal = false } = {}) => {
     setSelectedKey(key);
     if (reveal && window.matchMedia?.(NARROW).matches) detail.current?.scrollIntoView({ block: "start" });
+  };
+
+  /** Reloads a posting's state once its easy apply ends: applied, or drafted. */
+  const refreshState = async (posting: ShownPosting) => {
+    const result = await loadPostingState({ posting: withoutState(posting) });
+    if (result.ok) updateState(postingKey(posting), result.data);
   };
 
   /** Changes a posting's state; when that takes it out of the list, the next one takes its place. */
@@ -263,6 +269,7 @@ export function PostingResults(props: PostingResultsProps) {
           onScore={() => void score(selected)}
           reportShown={reportShown}
           onToggleReport={() => setReportShown((shown) => !shown)}
+          onApplyEnded={() => void refreshState(selected)}
         >
           {!selected.state.dismissed && (
             <StartButton starting={starting === postingKey(selected)} onClick={() => void start(withoutState(selected), postingKey(selected))} />
@@ -293,10 +300,12 @@ type EasyApplyResult = { applicationId: string; answered: { question: string; an
  * through NopeRi, answering Naukri's questions from the profile, and puts it
  * on the board in Sent once Naukri confirms it.
  */
-function EasyApply({ posting }: { posting: FoundPosting }) {
+function EasyApply({ posting, onEnded }: { posting: FoundPosting; onEnded: () => void }) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
-  const job = useJob<EasyApplyResult>(jobId, revision);
+  const job = useJob<EasyApplyResult>(jobId, revision, (update) => {
+    if (update.status === "DONE" || update.status === "FAILED") onEnded();
+  });
   const running = jobId !== null && (!job || job.status === "QUEUED" || job.status === "RUNNING");
 
   const start = async () => {
@@ -619,6 +628,7 @@ function PostingDetail({
   onScore,
   reportShown,
   onToggleReport,
+  onApplyEnded,
   children,
 }: {
   ref: Ref<HTMLElement>;
@@ -634,6 +644,8 @@ function PostingDetail({
   /** Whether the score shows its whole report, or only the number by the title. */
   reportShown: boolean;
   onToggleReport: () => void;
+  /** When its easy apply finishes or fails. */
+  onApplyEnded: () => void;
   /** More actions, before Save (E14-8). */
   children?: ReactNode;
 }) {
@@ -662,6 +674,8 @@ function PostingDetail({
 
   const { state } = posting;
   const ago = postedAgo(posting.postedAt, now);
+  // As first shown, so an apply that just went through keeps its own result in place of the note below.
+  const easyApply = posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && !initial.state.applicationId && !state.dismissed;
 
   return (
     <section
@@ -707,11 +721,9 @@ function PostingDetail({
         )}
       </div>
 
-      {posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && !state.applicationId && !state.dismissed && (
-        <EasyApply posting={withoutState(initial)} />
-      )}
+      {easyApply && <EasyApply posting={withoutState(initial)} onEnded={onApplyEnded} />}
 
-      {state.applicationId && (
+      {state.applicationId && !easyApply && (
         <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
           You&apos;ve applied for this.{" "}
           <Link href={`/applications/${state.applicationId}`} className="underline underline-offset-2">

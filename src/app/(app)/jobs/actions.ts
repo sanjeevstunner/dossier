@@ -7,12 +7,12 @@ import { isAiConfigured, isAiUsable } from "@/lib/ai/config";
 import { handOffFoundPosting, handsOffToClaude } from "@/lib/connector/handoff";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
 import { fullPosting, fullText, naukriSignIn } from "@/lib/job-search/find";
-import { foundPostingSchema, JOB_SOURCES, searchQuerySchema } from "@/lib/job-search/search";
+import { foundPostingSchema, JOB_SOURCES, postingKey, searchQuerySchema } from "@/lib/job-search/search";
 import { easyApplyJob, easyApplyJobKey } from "@/lib/jobs/easy-apply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { scoreJobKey, scorePostingJob } from "@/lib/jobs/score-posting";
 import { removeSearch, runSearch, showMoreFor } from "@/lib/posting-searches";
-import { dismissPosting, savePosting, storePosting, unmarkPosting } from "@/lib/postings";
+import { dismissPosting, postingStates, savePosting, storePosting, unmarkPosting } from "@/lib/postings";
 import { saveSettings } from "@/lib/settings-data";
 
 // Find jobs (E14-6). Each search is kept with what it found (E14-10).
@@ -105,6 +105,9 @@ export const startEasyApply = action(z.object({ posting: foundPostingSchema }), 
   const [unfinished] = await findUnfinishedJobs(key);
   return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting }, { key })) };
 });
+
+/** Where a posting stands now: after an easy apply ends, so it shows applied without a reload. */
+export const loadPostingState = action(z.object({ posting: foundPostingSchema }), async ({ posting }) => (await postingStates([posting])).get(postingKey(posting))!);
 
 /** Naukri's sign-in through NopeRi: whether it's signed in, a sign-in with NopeRi's credentials, or a token from a signed-in browser. */
 export const naukriLoginStatus = action(z.object({}), () => naukriSignIn("status"));
