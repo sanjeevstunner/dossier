@@ -267,14 +267,14 @@ describe("the results", () => {
   });
 
   it("gets the whole text when the source only sent the start", async () => {
-    vi.mocked(loadFullText).mockResolvedValue({ ok: true, data: { text: "Everything about the role." } });
+    vi.mocked(loadFullText).mockResolvedValue({ ok: true, data: { text: "Everything about the role.", applyUrl: null } });
     renderScreen({ search: stored([posting("a", { complete: false, description: "The start…" })]) });
     expect(screen.getByText("Getting the whole posting…")).toBeInTheDocument();
     expect(await screen.findByText("Everything about the role.")).toBeInTheDocument();
   });
 
   it("shows the start, and says so, when the rest can't be had", async () => {
-    vi.mocked(loadFullText).mockResolvedValue({ ok: true, data: { text: null } });
+    vi.mocked(loadFullText).mockResolvedValue({ ok: true, data: { text: null, applyUrl: null } });
     renderScreen({ search: stored([posting("a", { complete: false, description: "The start…" })]) });
     expect(await screen.findByText(/This is only the start of the posting/)).toBeInTheDocument();
     expect(screen.getByText("The start…")).toBeInTheDocument();

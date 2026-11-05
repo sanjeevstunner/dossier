@@ -2,7 +2,7 @@ import "server-only";
 
 import { logServerError } from "@/lib/log";
 
-import type { JobSourceAdapter, RequestContext, SourceCredentials } from "./adapter";
+import type { JobSourceAdapter, PostingDetails, RequestContext, SourceCredentials } from "./adapter";
 import { cached, remember } from "./cache";
 import { JobSearchError, jobSearchError } from "./errors";
 import { adzuna } from "./adzuna";
@@ -17,7 +17,7 @@ import { sourceCovers } from "./sources";
 // message for the screen, and the ones that point at a problem with the
 // source are logged, without the search.
 
-export type { JSearchHost, RequestContext, SourceCredentials } from "./adapter";
+export type { JSearchHost, PostingDetails, RequestContext, SourceCredentials } from "./adapter";
 export { JobSearchError } from "./errors";
 
 const ADAPTERS: { [S in JobSource]: JobSourceAdapter<S> } = {
@@ -59,20 +59,21 @@ export async function searchPostings<S extends JobSource>(
   return page;
 }
 
-/** The whole text of a posting: its own description when that's complete, else fetched; null when it can't be had. */
+/** The whole text of a posting: its own description when that's complete, else fetched (null when it can't be had); with an external apply link when the source gives one. */
 export async function postingDetails<S extends JobSource>(
   source: S,
   credentials: SourceCredentials[S],
   posting: FoundPosting,
   context: RequestContext = {},
-): Promise<string | null> {
-  if (posting.complete) return posting.description;
+): Promise<PostingDetails> {
+  if (posting.complete) return { text: posting.description };
   const key = `details:${postingKey(posting)}`;
-  const hit = cached<string>(key);
+  const hit = cached<PostingDetails>(key);
   if (hit) return hit;
-  const text = await logged(() => adapterFor(source).details(posting, credentials, context));
-  if (text) remember(key, text);
-  return text;
+  const answer = await logged(() => adapterFor(source).details(posting, credentials, context));
+  const details = typeof answer === "object" && answer ? answer : { text: answer };
+  if (details.text || details.applyUrl) remember(key, details);
+  return details;
 }
 
 /** "Test connection" in Settings → Job search: throws a JobSearchError when the source or the key doesn't work. */

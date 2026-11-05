@@ -159,14 +159,25 @@ export async function naukriAuth(credentials: Credentials, step: "status" | "log
   return status.data;
 }
 
-const detailsSchema = z.object({ details: z.object({ jobDetails: z.object({ description: text }).nullish().catch(null) }).nullish().catch(null) });
+const detailsSchema = z.object({
+  externalApply: z.boolean().catch(false),
+  details: z
+    .object({ jobDetails: z.object({ description: text, applyRedirectUrl: text, companyApplyUrl: text }).nullish().catch(null) })
+    .nullish()
+    .catch(null),
+});
 
 export const naukri: JobSourceAdapter<"NAUKRI"> = {
   source: "NAUKRI",
   search: searchPage,
   details: async (posting, credentials, context) => {
     const answer = detailsSchema.safeParse(await signedIn(credentials, `/api/jobs/${encodeURIComponent(posting.externalId)}`, context));
-    return (answer.success && plainText(answer.data.details?.jobDetails?.description)) || null;
+    if (!answer.success) return null;
+    const job = answer.data.details?.jobDetails;
+    const text = plainText(job?.description) || null;
+    // Company-site jobs: Naukri hands the applicant over to this link; the rest are Naukri's own Apply.
+    const applyUrl = answer.data.externalApply ? safeLink(job?.applyRedirectUrl || job?.companyApplyUrl).slice(0, 2000) : "";
+    return applyUrl ? { text, applyUrl } : text;
   },
   test: async (credentials, context) => {
     await naukriAuth(credentials, "status", context);

@@ -6,7 +6,7 @@ import { action, ActionError } from "@/lib/action";
 import { isAiConfigured, isAiUsable } from "@/lib/ai/config";
 import { handOffFoundPosting, handsOffToClaude } from "@/lib/connector/handoff";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
-import { fullText, naukriSignIn } from "@/lib/job-search/find";
+import { fullPosting, fullText, naukriSignIn } from "@/lib/job-search/find";
 import { foundPostingSchema, JOB_SOURCES, searchQuerySchema } from "@/lib/job-search/search";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { scoreJobKey, scorePostingJob } from "@/lib/jobs/score-posting";
@@ -43,7 +43,10 @@ export const removeJobSearch = action(z.object({ id: searchId }), async ({ id },
 });
 
 /** The whole text of a posting the search only gave the start of; null when it can't be had. */
-export const loadFullText = action(z.object({ posting: foundPostingSchema }), async ({ posting }) => ({ text: await fullText(posting) }));
+export const loadFullText = action(z.object({ posting: foundPostingSchema }), async ({ posting }) => {
+  const { text, applyUrl } = await fullPosting(posting);
+  return { text, applyUrl: applyUrl ?? null };
+});
 
 export const savePostingForLater = action(z.object({ posting: foundPostingSchema }), async ({ posting }, { toast }) => {
   const saved = await savePosting(posting);

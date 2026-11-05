@@ -473,6 +473,8 @@ function PostingDetail({
   // The posting as first shown; the component is keyed by it.
   const [initial] = useState(posting);
   const [text, setText] = useState<Text>(initial.complete ? { status: "ready", text: initial.description } : { status: "loading" });
+  // Naukri's company-site jobs: where its Apply would send you (null for its own easy apply).
+  const [applyUrl, setApplyUrl] = useState<string | null>(null);
 
   // A source that only sent the start: ask for the rest (E14-2, E14-3).
   useEffect(() => {
@@ -481,6 +483,7 @@ function PostingDetail({
     void loadFullText({ posting: withoutState(initial) }).then((result) => {
       if (!current) return;
       const full = result.ok ? result.data.text : null;
+      if (result.ok) setApplyUrl(result.data.applyUrl);
       setText(full ? { status: "ready", text: full } : { status: "partial", text: initial.description });
     });
     return () => {
@@ -507,6 +510,10 @@ function PostingDetail({
         )}
       </div>
 
+      {posting.source === "NAUKRI" && text.status !== "loading" && (
+        <p className="self-start rounded-card bg-track px-3 py-1 text-meta">{applyUrl ? "Applies on the company site" : "Easy apply on Naukri"}</p>
+      )}
+
       {state.applicationId && (
         <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
           You&apos;ve applied for this.{" "}
@@ -526,6 +533,12 @@ function PostingDetail({
           <Button variant="secondary" size="sm" aria-pressed={state.saved} onClick={state.saved ? onUnsave : onSave}>
             {state.saved ? "Saved" : "Save"}
           </Button>
+        )}
+        {applyUrl && (
+          <a href={applyUrl} target="_blank" rel="noopener noreferrer" className={buttonClassName("primary", "sm")}>
+            Apply on company site<span aria-hidden>↗</span>
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
         )}
         {posting.url && (
           <a href={posting.url} target="_blank" rel="noopener noreferrer" className={buttonClassName("secondary", "sm")}>

@@ -17,6 +17,9 @@ export type SourceCredentials = {
   NAUKRI: { url: string; apiKey: string };
 };
 
+/** A posting's whole text, and where to apply when that's off the source's site (Naukri's company-site jobs). */
+export type PostingDetails = { text: string | null; applyUrl?: string };
+
 export type RequestContext = {
   /** Replaces the source's own address; for the end-to-end tests' fake source. */
   baseUrl?: string;
@@ -27,8 +30,8 @@ export type JobSourceAdapter<S extends JobSource> = {
   source: S;
   /** One page of results (the countries it covers are checked before, see SOURCE_INFO); `next` comes from the page before, null for the first. */
   search: (query: SearchQuery, credentials: SourceCredentials[S], next: string | null, context?: RequestContext) => Promise<SearchPage>;
-  /** The whole posting's text when the search only gave its start, or null when it can't be had. */
-  details: (posting: FoundPosting, credentials: SourceCredentials[S], context?: RequestContext) => Promise<string | null>;
+  /** The whole posting's text when the search only gave its start, or null when it can't be had; or that with an external apply link. */
+  details: (posting: FoundPosting, credentials: SourceCredentials[S], context?: RequestContext) => Promise<string | null | PostingDetails>;
   /** The smallest request that shows the source answers and takes the key. */
   test: (credentials: SourceCredentials[S], context?: RequestContext) => Promise<void>;
 };

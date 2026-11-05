@@ -98,7 +98,7 @@ describe("Find jobs actions", () => {
   });
 
   it("gives a complete posting's text back as it is", async () => {
-    expect(await loadFullText({ posting })).toEqual({ ok: true, data: { text: "The whole posting." } });
+    expect(await loadFullText({ posting })).toEqual({ ok: true, data: { text: "The whole posting.", applyUrl: null } });
   });
 
   it("keeps the posting when an application is started from it, with whatever text there is", async () => {
