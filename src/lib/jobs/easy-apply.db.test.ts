@@ -17,7 +17,11 @@ vi.mock("@/lib/prisma", async () => {
 });
 vi.mock("@/lib/profile-data", async () => {
   const { demoProfile } = await import("@/lib/demo-profile");
-  return { loadProfile: async () => demoProfile(), loadProfileName: async () => "Jane Doe" };
+  const { prisma } = await import("@/lib/prisma");
+  // An application's facts, as the agent loads them, from the test database.
+  const loadFactTexts = async (applicationId: string) =>
+    (await prisma.fact.findMany({ where: { applicationId }, orderBy: { sort: "asc" } })).map((fact) => fact.text);
+  return { loadProfile: async () => demoProfile(), loadProfileName: async () => "Jane Doe", loadFactTexts };
 });
 // Dossier's own model drafts the application; here it's done.
 vi.mock("./read-posting", () => ({
@@ -60,6 +64,7 @@ const fake = vi.hoisted(() => ({
   inHistory: false,
   reply: {} as unknown,
   resumes: [] as (NaukriResume | undefined)[],
+  prompts: [] as string[],
 }));
 vi.mock("@/lib/job-search/naukri", () => ({
   naukriApplyInfo: async () => ({ externalApply: fake.external, skills: { mandatory: ["LLM"], optional: ["RAG"] } }),
@@ -74,7 +79,7 @@ vi.mock("@/lib/job-search/naukri", () => ({
 vi.mock("@/lib/log", () => ({ logServerError: () => {} }));
 vi.mock("@/lib/ai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai")>()),
-  getAiProvider: async () => new MockProvider({ reply: () => fake.reply }),
+  getAiProvider: async () => new MockProvider({ reply: (call) => (fake.prompts.push(JSON.stringify(call)), fake.reply) }),
 }));
 
 const prisma = () => db.client!;
@@ -117,7 +122,7 @@ beforeEach(async () => {
   await resetDatabase(prisma());
   await seedBuiltIns(prisma());
   printed.length = 0;
-  Object.assign(fake, { external: false, questionnaire: [], applies: [], resumes: [], final: { applied: true, status: 200, message: "You have successfully applied to this job." }, inHistory: false, reply: {} });
+  Object.assign(fake, { external: false, questionnaire: [], applies: [], resumes: [], prompts: [], final: { applied: true, status: 200, message: "You have successfully applied to this job." }, inHistory: false, reply: {} });
 });
 afterAll(() => prisma().$disconnect());
 
@@ -172,12 +177,23 @@ describe("Naukri easy apply agent", () => {
     expect(fake.applies[1]).toMatchObject({ sid: "17938819617101388", answers: {} });
   });
 
-  it("stops before sending anything when the profile can't answer a question", async () => {
+  it("asks for what the profile can't answer before sending anything, then applies with a fact given for this job", async () => {
     fake.questionnaire = questions;
     fake.reply = { answers: [found("52869508", "newOption1"), { id: "52869515", answer: "", found: false, missing: "Whether you'd relocate to Chennai" }] };
-    await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/relocate to Chennai.*Facts about me.*Nothing was sent/);
+    const asked = await easyApplyJob.run({ posting }, context());
+    expect(asked.missing).toEqual(["Whether you'd relocate to Chennai"]);
     expect(fake.applies).toHaveLength(1);
-    expect((await prisma().application.findFirstOrThrow()).status).toBe("DRAFT");
+    expect((await prisma().application.findUniqueOrThrow({ where: { id: asked.applicationId } })).status).toBe("DRAFT");
+
+    // The answer, kept for this application only, goes to the questionnaire; the profile is unchanged.
+    await prisma().fact.create({ data: { applicationId: asked.applicationId, text: "Whether you'd relocate to Chennai: Yes" } });
+    fake.reply = { answers: [found("52869508", "newOption1"), found("52869515", "0")] };
+    const applied = await easyApplyJob.run({ posting }, context());
+    expect(applied).toMatchObject({ applicationId: asked.applicationId, missing: [] });
+    expect(fake.prompts.at(-1)).toContain("Facts the candidate gave for this application");
+    expect(fake.prompts.at(-1)).toContain("relocate to Chennai: Yes");
+    expect(await prisma().fact.count({ where: { applicationId: null } })).toBe(0);
+    expect((await prisma().application.findUniqueOrThrow({ where: { id: asked.applicationId } })).status).toBe("SENT");
   });
 
   it("adds nothing to the board when Naukri doesn't confirm and its history doesn't list it", async () => {

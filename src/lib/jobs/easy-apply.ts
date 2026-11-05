@@ -19,7 +19,7 @@ import { renderPdf } from "@/lib/pdf/render";
 import { storePosting } from "@/lib/postings";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/log";
-import { loadProfile, loadProfileName } from "@/lib/profile-data";
+import { loadFactTexts, loadProfile, loadProfileName } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 import { applyStatusChange } from "@/lib/status-changes";
 
@@ -43,7 +43,12 @@ export const easyApplyJobKey = (posting: Pick<FoundPosting, "source" | "external
 export const easyApplyJob = defineJob({
   type: "naukri-easy-apply",
   input: z.object({ posting: foundPostingSchema }),
-  result: z.object({ applicationId: z.string(), answered: z.array(z.object({ question: z.string(), answer: z.string() })) }),
+  /** `missing` lists what the profile doesn't say: then nothing was sent, and the facts the user adds let it try again. */
+  result: z.object({
+    applicationId: z.string(),
+    answered: z.array(z.object({ question: z.string(), answer: z.string() })),
+    missing: z.array(z.string()).default([]),
+  }),
   async run({ posting }, job) {
     const { step, signal } = job;
     if (posting.source !== "NAUKRI") throw new JobFailure("Only Naukri postings can be applied to from here.");
@@ -69,13 +74,10 @@ export const easyApplyJob = defineJob({
         let answers: NaukriAnswers = {};
         if (toAnswer.length > 0) {
           await step(`Answering ${toAnswer.length === 1 ? "1 question" : `${toAnswer.length} questions`}`);
-          const [provider, options, profile] = await Promise.all([getAiProvider(), loadTaskOptions(), loadProfile()]);
-          const { data } = await answerQuestionnaire(provider, { questions: toAnswer, profile, title: posting.title, company: posting.company }, { ...options, signal });
-          if (data.missing.length > 0) {
-            throw new JobFailure(
-              `Naukri asks for something your profile doesn't say: ${data.missing.join("; ")}. Add it to Facts about me in your profile, then try again. Nothing was sent.`,
-            );
-          }
+          const [provider, options, profile, facts] = await Promise.all([getAiProvider(), loadTaskOptions(), loadProfile(), loadFactTexts(applicationId)]);
+          const { data } = await answerQuestionnaire(provider, { questions: toAnswer, profile, facts, title: posting.title, company: posting.company }, { ...options, signal });
+          // Nothing is sent: the posting asks for these, for this job or the profile, and applies again.
+          if (data.missing.length > 0) return { applicationId, answered: [], missing: data.missing };
           answers = data.answers;
           for (const question of toAnswer) {
             const value = answers[question.id];
@@ -100,7 +102,7 @@ export const easyApplyJob = defineJob({
 
       await step("Moving it to Sent");
       await applyStatusChange(prisma, applicationId, ApplicationStatus.SENT);
-      return { applicationId, answered };
+      return { applicationId, answered, missing: [] };
     } catch (error) {
       if (error instanceof JobSearchError) throw new JobFailure(error.message);
       throw error;

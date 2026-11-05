@@ -7,9 +7,12 @@ import { ScoreBadge } from "@/components/score-badge";
 import { linksAttribution, SourceAttribution } from "@/components/source-attribution";
 import { toast, toastResult } from "@/components/toast";
 import { Button, buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useJob } from "@/hooks/use-job";
 import { openPendingTab, sendPendingTab } from "@/lib/claude-tab";
 import { cn } from "@/lib/cn";
+import { createFact, saveFact } from "@/lib/fact-actions";
 import { fitBand, type PostingFit } from "@/lib/fit";
 import type { JobView } from "@/lib/jobs/runner";
 import { postedAgo, postingKey, type FoundPosting, type PostingState, type ShownPosting, type StoredSearch } from "@/lib/job-search/search";
@@ -283,7 +286,7 @@ function ScoreWatcher({ jobId, onChange }: { jobId: string; onChange: (job: JobV
   return null;
 }
 
-type EasyApplyResult = { applicationId: string; answered: { question: string; answer: string }[] };
+type EasyApplyResult = { applicationId: string; answered: { question: string; answer: string }[]; missing?: string[] };
 
 /**
  * "Easy apply with agent" on a Naukri easy apply posting: the agent applies
@@ -307,6 +310,10 @@ function EasyApply({ posting }: { posting: FoundPosting }) {
     if (!result.ok) return void toast(result.error);
     setRevision((n) => n + 1);
   };
+
+  if (job?.status === "DONE" && job.result?.missing?.length) {
+    return <MissingFacts key={jobId} applicationId={job.result.applicationId} missing={job.result.missing} onSaved={start} />;
+  }
 
   if (job?.status === "DONE" && job.result) {
     return (
@@ -354,6 +361,76 @@ function EasyApply({ posting }: { posting: FoundPosting }) {
         </p>
       )}
     </div>
+  );
+}
+
+type FactScope = "job" | "profile";
+const FACT_SCOPES = [
+  { value: "job", label: "This job only" },
+  { value: "profile", label: "Add to my profile" },
+] as const;
+
+/**
+ * What Naukri asks that the profile doesn't say, answered right here: each
+ * answer becomes a fact for this one application (its draft) or for the
+ * profile, and the agent applies again with it. Nothing was sent yet.
+ */
+function MissingFacts({ applicationId, missing, onSaved }: { applicationId: string; missing: string[]; onSaved: () => Promise<void> }) {
+  const [answers, setAnswers] = useState(() => missing.map(() => ({ text: "", scope: "job" as FactScope })));
+  const [saving, setSaving] = useState(false);
+  const ready = answers.every(({ text }) => text.trim());
+  const set = (index: number, change: Partial<(typeof answers)[number]>) =>
+    setAnswers((current) => current.map((answer, i) => (i === index ? { ...answer, ...change } : answer)));
+
+  const submit = async () => {
+    if (!ready || saving) return;
+    setSaving(true);
+    try {
+      for (const [index, { text, scope }] of answers.entries()) {
+        const created = await createFact({ applicationId: scope === "job" ? applicationId : null });
+        if (!created.ok) return void toast(created.error);
+        // The question goes with the answer, so the fact reads on its own later.
+        const saved = await saveFact({ id: created.data.id, text: `${missing[index]}: ${text.trim()}`.slice(0, 1000) });
+        if (!saved.ok) return void toast(saved.error);
+      }
+      await onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form
+      className="flex flex-col gap-4 rounded-card bg-warning-surface px-4 py-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <p role="alert" className="text-meta text-warning">
+        Naukri asks for {missing.length === 1 ? "something" : "a few things"} your profile doesn&apos;t say. Answer here and the agent applies again. Nothing was sent yet.
+      </p>
+      {missing.map((question, index) => (
+        <div key={question} className="flex flex-col gap-2">
+          <Input label={question} value={answers[index].text} maxLength={300} onChange={(event) => set(index, { text: event.target.value })} />
+          <SegmentedControl<FactScope>
+            size="sm"
+            aria-label={`Where to keep the answer to “${question}”`}
+            options={FACT_SCOPES}
+            value={answers[index].scope}
+            onValueChange={(scope) => set(index, { scope })}
+          />
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" variant="primary" size="sm" aria-disabled={!ready || saving || undefined}>
+          {saving ? "Saving…" : "Save and apply again"}
+        </Button>
+        <Link href={`/applications/${applicationId}`} className="text-meta underline underline-offset-2">
+          Open the draft
+        </Link>
+      </div>
+    </form>
   );
 }
 
