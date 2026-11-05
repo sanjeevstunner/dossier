@@ -228,6 +228,8 @@ const applySchema = z.object({
   questionnaireRequired: z.boolean(),
   questionnaire: z.array(questionSchema).catch([]),
 });
+/** A resume PDF to apply with: NopeRi puts it on the Naukri profile for the apply, then puts the profile's own back. */
+export type NaukriResume = { data: Uint8Array; name: string };
 export type NaukriApplied = { applied: boolean; status: number | null; message: string | null; sid: string; questionnaire: NaukriQuestion[] };
 
 /**
@@ -237,15 +239,23 @@ export type NaukriApplied = { applied: boolean; status: number | null; message: 
 export async function naukriApply(
   credentials: Credentials,
   jobId: string,
-  { skills, sid, answers }: { skills: NaukriSkills; sid?: string; answers?: NaukriAnswers },
+  { skills, sid, answers, resume }: { skills: NaukriSkills; sid?: string; answers?: NaukriAnswers; resume?: NaukriResume },
   context: RequestContext = {},
 ): Promise<NaukriApplied> {
   const path = `/api/jobs/${encodeURIComponent(jobId)}/apply`;
   const body = { source: "search", mandatorySkills: skills.mandatory, optionalSkills: skills.optional, ...(sid && { sid }), ...(answers && { answers }) };
-  const answer = applySchema.safeParse(await signedIn(credentials, path, context, body));
+  const answer = applySchema.safeParse(await signedIn(credentials, path, context, resume ? applyForm(body, resume) : body));
   if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
   const { applied, status, message, questionnaireRequired, questionnaire } = answer.data;
   return { applied, status: status ?? null, message: message ?? null, sid: answer.data.sid, questionnaire: questionnaireRequired ? questionnaire : [] };
+}
+
+/** NopeRi's multipart apply: the resume in `resume`, the apply itself as JSON in `data`. */
+function applyForm(body: object, resume: NaukriResume): FormData {
+  const form = new FormData();
+  form.append("resume", new Blob([Buffer.from(resume.data)], { type: "application/pdf" }), resume.name);
+  form.append("data", JSON.stringify(body));
+  return form;
 }
 
 /** Whether Naukri's history lists the job as applied: the check when an apply isn't confirmed (it may have gone through earlier). */

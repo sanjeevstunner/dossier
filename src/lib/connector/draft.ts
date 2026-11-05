@@ -15,7 +15,7 @@ import { loadSettings } from "@/lib/settings-data";
 // it, in one go. Nothing is sent.
 
 /** The application's details from what was read, as New application fills them in. */
-function detailsFrom(extracted: Extracted): ApplicationDetails {
+export function detailsFrom(extracted: Extracted): ApplicationDetails {
   return {
     title: extracted.title ?? [extracted.role, extracted.company].filter(Boolean).join(" · "),
     company: extracted.company ?? "",

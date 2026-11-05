@@ -8,20 +8,24 @@ import type { JobSource } from "./search";
 // requests are still limited in time and size.
 
 export const REQUEST_TIMEOUT_MS = 10_000;
+export const UPLOAD_TIMEOUT_MS = 60_000;
 const MAX_BYTES = 5 * 1024 * 1024;
 
-/** GETs JSON from a source (or POSTs `json` to it), turning every failure into a JobSearchError. */
+/** GETs JSON from a source (or POSTs `json` to it, as multipart when it's FormData), turning every failure into a JobSearchError. */
 export async function requestJson(
   source: JobSource,
   url: URL,
   { headers = {}, signal, json }: { headers?: Record<string, string>; signal?: AbortSignal; json?: unknown } = {},
 ): Promise<unknown> {
-  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  // An upload waits longer: NopeRi swaps the resume in and out around it.
+  const timeout = AbortSignal.timeout(json instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
+  // FormData sets its own multipart content type, boundary included.
+  const body = json === undefined ? {} : json instanceof FormData ? { method: "POST", body: json } : { method: "POST", body: JSON.stringify(json) };
   let response: Response;
   try {
     response = await fetch(url, {
-      ...(json === undefined ? {} : { method: "POST", body: JSON.stringify(json) }),
-      headers: { accept: "application/json", ...(json === undefined ? {} : { "content-type": "application/json" }), ...headers },
+      ...body,
+      headers: { accept: "application/json", ...(json === undefined || json instanceof FormData ? {} : { "content-type": "application/json" }), ...headers },
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       cache: "no-store",
     });

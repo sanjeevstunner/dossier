@@ -1,9 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { NaukriAnswers, NaukriQuestion } from "@/lib/job-search/naukri";
+import type { NaukriAnswers, NaukriQuestion, NaukriResume } from "@/lib/job-search/naukri";
 import type { FoundPosting } from "@/lib/job-search/search";
 import { createTestClient, resetDatabase } from "@/test/db";
 
+import { seedBuiltIns } from "../../../prisma/seed/built-ins";
 import { MockProvider } from "../ai/providers/mock";
 
 import { easyApplyJob, easyApplyJobKey } from "./easy-apply";
@@ -16,8 +17,33 @@ vi.mock("@/lib/prisma", async () => {
 });
 vi.mock("@/lib/profile-data", async () => {
   const { demoProfile } = await import("@/lib/demo-profile");
-  return { loadProfile: async () => demoProfile() };
+  return { loadProfile: async () => demoProfile(), loadProfileName: async () => "Jane Doe" };
 });
+// Dossier's own model drafts the application; here it's done.
+vi.mock("./read-posting", () => ({
+  readPostingJob: {
+    run: async () => ({
+      extracted: { title: null, company: "Acme", role: "Product Designer", location: "Bengaluru", mode: null, salary: null, deadline: null, requirements: [], asksForReferences: false, language: "English" },
+      extractedWith: "extract-posting@1",
+      match: { items: [] },
+      matchedWith: "match-requirements@1",
+    }),
+  },
+}));
+vi.mock("./write-documents", async () => {
+  const { demoLetterUnits, demoResumeUnits } = await import("@/lib/demo-profile");
+  return {
+    writeDocumentsJob: {
+      run: async () => ({ resume: demoResumeUnits(), resumeWith: "tailor-resume@7", letter: demoLetterUnits(), letterWith: "write-cover-letter@6" }),
+    },
+  };
+});
+vi.mock("@/lib/page-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/page-limit")>()),
+  fitResumeToPages: async () => ({ trimmed: [], fits: true }),
+}));
+const printed = vi.hoisted(() => [] as string[]);
+vi.mock("@/lib/pdf/render", () => ({ renderPdf: async (path: string) => (printed.push(path), new TextEncoder().encode("%PDF-tailored")) }));
 vi.mock("@/lib/job-search/config", () => ({
   loadJobSearchConfig: async () => ({}),
   credentialsFor: () => ({ url: "http://noperi", apiKey: "k" }),
@@ -28,16 +54,18 @@ vi.mock("@/lib/job-search/find", () => ({ fullText: async () => "The whole posti
 const fake = vi.hoisted(() => ({
   external: false,
   questionnaire: [] as NaukriQuestion[],
-  applies: [] as { skills: unknown; sid?: string; answers?: NaukriAnswers }[],
+  applies: [] as { skills: unknown; sid?: string; answers?: NaukriAnswers; resume?: NaukriResume }[],
   /** What Naukri says to the apply that sends the answers (or to the first, without a questionnaire). */
   final: { applied: true, status: 200 as number | null, message: "You have successfully applied to this job." as string | null },
   inHistory: false,
   reply: {} as unknown,
+  resumes: [] as (NaukriResume | undefined)[],
 }));
 vi.mock("@/lib/job-search/naukri", () => ({
   naukriApplyInfo: async () => ({ externalApply: fake.external, skills: { mandatory: ["LLM"], optional: ["RAG"] } }),
-  naukriApply: async (_c: unknown, _id: string, body: { skills: unknown; sid?: string; answers?: NaukriAnswers }) => {
+  naukriApply: async (_c: unknown, _id: string, { resume, ...body }: { skills: unknown; sid?: string; answers?: NaukriAnswers; resume?: NaukriResume }) => {
     fake.applies.push(body);
+    fake.resumes.push(resume);
     const asking = !body.answers && fake.questionnaire.length > 0;
     return asking ? { applied: false, status: null, message: null, sid: "17938819617101388", questionnaire: fake.questionnaire } : { ...fake.final, sid: body.sid ?? "1", questionnaire: [] };
   },
@@ -87,7 +115,9 @@ const context = () => {
 
 beforeEach(async () => {
   await resetDatabase(prisma());
-  Object.assign(fake, { external: false, questionnaire: [], applies: [], final: { applied: true, status: 200, message: "You have successfully applied to this job." }, inHistory: false, reply: {} });
+  await seedBuiltIns(prisma());
+  printed.length = 0;
+  Object.assign(fake, { external: false, questionnaire: [], applies: [], resumes: [], final: { applied: true, status: 200, message: "You have successfully applied to this job." }, inHistory: false, reply: {} });
 });
 afterAll(() => prisma().$disconnect());
 
@@ -99,7 +129,7 @@ describe("Naukri easy apply agent", () => {
 
     const result = await easyApplyJob.run({ posting }, run);
 
-    expect(run.steps).toEqual(["Checking it's an easy apply", "Applying on Naukri", "Answering 2 questions", "Sending your answers", "Adding it to your board"]);
+    expect(run.steps).toEqual(["Checking it's an easy apply", "Tailoring your resume", "Applying on Naukri with your tailored resume", "Answering 2 questions", "Sending your answers", "Moving it to Sent"]);
     expect(fake.applies).toEqual([
       { skills: { mandatory: ["LLM"], optional: ["RAG"] } },
       { skills: { mandatory: ["LLM"], optional: ["RAG"] }, sid: "17938819617101388", answers: { "52869508": ["Yes"], "52869515": ["Yes"] } },
@@ -113,15 +143,23 @@ describe("Naukri easy apply agent", () => {
     expect(application.sentAt).not.toBeNull();
     expect(application.posting?.externalId).toBe("123");
 
-    // Run again (Retry): still one card.
+    // Both applies, the first and the one with the answers, carry the tailored resume, printed from this application.
+    expect(printed).toEqual([`/print/resume/${result.applicationId}`]);
+    expect(fake.resumes.map((resume) => [new TextDecoder().decode(resume!.data), resume!.name])).toEqual([
+      ["%PDF-tailored", "Jane Doe – Acme – Resume.pdf"],
+      ["%PDF-tailored", "Jane Doe – Acme – Resume.pdf"],
+    ]);
+
+    // Run again (Retry): still one card, and its resume isn't written again.
     await easyApplyJob.run({ posting }, context());
     expect(await prisma().application.count()).toBe(1);
+    expect(printed).toHaveLength(2);
   });
 
   it("applies straight away when there's no questionnaire", async () => {
     const run = context();
     await easyApplyJob.run({ posting }, run);
-    expect(run.steps).toEqual(["Checking it's an easy apply", "Applying on Naukri", "Adding it to your board"]);
+    expect(run.steps).toEqual(["Checking it's an easy apply", "Tailoring your resume", "Applying on Naukri with your tailored resume", "Moving it to Sent"]);
     expect(fake.applies).toHaveLength(1);
     expect(await prisma().application.count()).toBe(1);
   });
@@ -139,13 +177,13 @@ describe("Naukri easy apply agent", () => {
     fake.reply = { answers: [found("52869508", "newOption1"), { id: "52869515", answer: "", found: false, missing: "Whether you'd relocate to Chennai" }] };
     await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/relocate to Chennai.*Facts about me.*Nothing was sent/);
     expect(fake.applies).toHaveLength(1);
-    expect(await prisma().application.count()).toBe(0);
+    expect((await prisma().application.findFirstOrThrow()).status).toBe("DRAFT");
   });
 
   it("adds nothing to the board when Naukri doesn't confirm and its history doesn't list it", async () => {
     fake.final = { applied: false, status: 409, message: null };
-    await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/didn't confirm the application \(status 409\)/);
-    expect(await prisma().application.count()).toBe(0);
+    await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/didn't confirm the application \(status 409\).*stays a draft/);
+    expect((await prisma().application.findFirstOrThrow()).status).toBe("DRAFT");
   });
 
   it("puts it in Sent when Naukri doesn't confirm a second apply but lists it as applied", async () => {
@@ -157,10 +195,25 @@ describe("Naukri easy apply agent", () => {
     expect((await prisma().application.findFirstOrThrow()).status).toBe("SENT");
   });
 
-  it("refuses company-site jobs without applying", async () => {
+  it("refuses company-site jobs without applying or drafting", async () => {
     fake.external = true;
     await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/company site/);
     expect(fake.applies).toHaveLength(0);
+    expect(await prisma().application.count()).toBe(0);
+  });
+
+  it("applies with the user's own PDF when the posting's application has no written resume", async () => {
+    const stored = await prisma().posting.create({ data: { source: "NAUKRI", externalId: "123", title: "Product Designer", company: "Acme", description: "The whole posting.", complete: true } });
+    const own = new TextEncoder().encode("%PDF-mine");
+    const application = await prisma().application.create({
+      data: { title: "Mine", company: "Acme", role: "Product Designer", files: { create: { kind: "RESUME", name: "My CV.pdf", type: "application/pdf", size: own.length, data: own } } },
+    });
+    await prisma().posting.update({ where: { id: stored.id }, data: { applicationId: application.id } });
+
+    const result = await easyApplyJob.run({ posting }, context());
+    expect(result.applicationId).toBe(application.id);
+    expect(printed).toEqual([]);
+    expect(fake.resumes.map((resume) => [new TextDecoder().decode(resume!.data), resume!.name])).toEqual([["%PDF-mine", "My CV.pdf"]]);
   });
 
   it("keys a posting's easy apply, so a second click follows the first", () => {
