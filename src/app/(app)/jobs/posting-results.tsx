@@ -440,6 +440,8 @@ function Fit({ fit }: { fit: PostingFit }) {
   );
 }
 
+const COMPANY_SITE_LABEL = "From the company site:";
+
 type Text = { status: "ready"; text: string } | { status: "loading" } | { status: "partial"; text: string };
 
 /** The selected posting: its facts, what to do with it, and its whole text. */
@@ -584,7 +586,12 @@ function PostingDetail({
                 This is only the start of the posting. When you start an application, you can paste the rest from the posting&apos;s page.
               </p>
             )}
-            <div className="text-sm leading-relaxed whitespace-pre-line">{text.text || "The source didn't send a description."}</div>
+            <div className="text-sm leading-relaxed whitespace-pre-line">
+              {/* The Naukri adapter adds this label before a company site's text. */}
+              {text.text
+                ? text.text.split(COMPANY_SITE_LABEL).flatMap((part, i) => (i ? [<h6 className="mt-4 border-t border-line pt-4 text-lg font-bold" key={i}>{COMPANY_SITE_LABEL}</h6>, part] : [part]))
+                : "The source didn't send a description."}
+            </div>
           </>
         )}
       </div>
