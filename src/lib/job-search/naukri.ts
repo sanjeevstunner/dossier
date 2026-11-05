@@ -2,6 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
+import { fetchPosting } from "@/lib/posting-fetch";
+
 import type { JobSourceAdapter, RequestContext, SourceCredentials } from "./adapter";
 import { cached, remember } from "./cache";
 import { JobSearchError, jobSearchError } from "./errors";
@@ -159,14 +161,30 @@ export async function naukriAuth(credentials: Credentials, step: "status" | "log
   return status.data;
 }
 
-const detailsSchema = z.object({ details: z.object({ jobDetails: z.object({ description: text }).nullish().catch(null) }).nullish().catch(null) });
+const detailsSchema = z.object({
+  externalApply: z.boolean().catch(false),
+  details: z
+    .object({ jobDetails: z.object({ description: text, applyRedirectUrl: text, companyApplyUrl: text }).nullish().catch(null) })
+    .nullish()
+    .catch(null),
+});
 
 export const naukri: JobSourceAdapter<"NAUKRI"> = {
   source: "NAUKRI",
   search: searchPage,
   details: async (posting, credentials, context) => {
     const answer = detailsSchema.safeParse(await signedIn(credentials, `/api/jobs/${encodeURIComponent(posting.externalId)}`, context));
-    return (answer.success && plainText(answer.data.details?.jobDetails?.description)) || null;
+    if (!answer.success) return null;
+    const job = answer.data.details?.jobDetails;
+    const text = plainText(job?.description) || null;
+    // Company-site jobs: Naukri hands the applicant over to this link; the rest are Naukri's own Apply.
+    const applyUrl = answer.data.externalApply ? safeLink(job?.applyRedirectUrl || job?.companyApplyUrl).slice(0, 2000) : "";
+    if (!applyUrl) return text;
+    // The company's own page often says more (or differs); read it like "Fetch" does (E7-8), and keep Naukri's text when it can't be read.
+    const page = await fetchPosting(applyUrl);
+    const site = page.ok ? page.text.trim() : "";
+    const whole = site && site !== text ? [text, `From the company site:\n${site}`].filter(Boolean).join("\n\n") : text;
+    return { text: whole?.slice(0, 100_000) ?? null, applyUrl };
   },
   test: async (credentials, context) => {
     await naukriAuth(credentials, "status", context);

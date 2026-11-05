@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { json, stubFetch } from "@/lib/ai/test-http";
 
+const fetchPosting = vi.hoisted(() => vi.fn(async () => ({ ok: false, error: "unreachable" })));
+vi.mock("@/lib/posting-fetch", () => ({ fetchPosting }));
+
 import { JobSearchError } from "./errors";
 import { naukri, naukriAuth, postedAtFromLabel } from "./naukri";
 import { EMPTY_QUERY } from "./search";
@@ -62,6 +65,21 @@ describe("Naukri search", () => {
     const error = await naukriAuth(credentials, "login").catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(JobSearchError);
     expect((error as JobSearchError).problem).toBe("key");
+  });
+});
+
+describe("Naukri details", () => {
+  it("gives the company-site apply link for external-apply jobs, and only the text for easy apply", async () => {
+    const posting = { externalId: "123" } as never;
+    stubFetch(() => json({ externalApply: true, details: { jobDetails: { description: "<p>All</p>", applyRedirectUrl: "https://acme.example/apply" } } }));
+    expect(await naukri.details(posting, credentials)).toEqual({ text: "All", applyUrl: "https://acme.example/apply" });
+    fetchPosting.mockResolvedValueOnce({ ok: true, text: "Company says more." } as never);
+    expect(await naukri.details(posting, credentials)).toEqual({ text: "All\n\nFrom the company site:\nCompany says more.", applyUrl: "https://acme.example/apply" });
+    expect(fetchPosting).toHaveBeenLastCalledWith("https://acme.example/apply");
+    stubFetch(() => json({ externalApply: false, details: { jobDetails: { description: "<p>All</p>" } } }));
+    expect(await naukri.details(posting, credentials)).toBe("All");
+    stubFetch(() => json({ externalApply: true, details: { jobDetails: { description: "x", applyRedirectUrl: "javascript:alert(1)" } } }));
+    expect(await naukri.details(posting, credentials)).toBe("x");
   });
 });
 

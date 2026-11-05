@@ -22,7 +22,7 @@ describe.runIf(live.has("arbeitsagentur"))("Arbeitsagentur (live)", { timeout: 3
     expect(page.postings.every((posting) => posting.title && posting.url.startsWith("https://"))).toBe(true);
     expect(page.next).toBe("page:2");
     expect((await arbeitsagentur.search(query, {}, page.next)).postings.length).toBeGreaterThan(0);
-    expect((await arbeitsagentur.details(page.postings[0], {}))?.length).toBeGreaterThan(100);
+    expect(((await arbeitsagentur.details(page.postings[0], {})) as string | null)?.length).toBeGreaterThan(100);
   });
 });
 

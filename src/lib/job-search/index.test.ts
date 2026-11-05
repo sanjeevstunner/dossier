@@ -72,7 +72,7 @@ describe("postingDetails", () => {
   it("returns a complete description as it is", async () => {
     const requests = stubFetch(() => json(jsearchV2Page));
     const [posting] = (await searchPostings("JSEARCH", ninja, query)).postings;
-    expect(await postingDetails("JSEARCH", ninja, posting)).toBe(posting.description);
+    expect(await postingDetails("JSEARCH", ninja, posting)).toEqual({ text: posting.description });
     expect(requests).toHaveLength(1);
   });
 
@@ -80,9 +80,9 @@ describe("postingDetails", () => {
     stubFetch(() => json(jsearchV2Page));
     const [posting] = (await searchPostings("JSEARCH", ninja, query)).postings;
     const partial = { ...posting, complete: false };
-    expect(await postingDetails("JSEARCH", ninja, partial)).toBe(posting.description);
-    expect(await postingDetails("JSEARCH", ninja, { ...partial, description: "" })).toBe(posting.description);
-    expect(await postingDetails("JSEARCH", ninja, { ...partial, externalId: "other", description: "" })).toBeNull();
+    expect(await postingDetails("JSEARCH", ninja, partial)).toEqual({ text: posting.description });
+    expect(await postingDetails("JSEARCH", ninja, { ...partial, description: "" })).toEqual({ text: posting.description });
+    expect(await postingDetails("JSEARCH", ninja, { ...partial, externalId: "other", description: "" })).toEqual({ text: null });
   });
 });
 

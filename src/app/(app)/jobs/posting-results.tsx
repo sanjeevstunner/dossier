@@ -440,6 +440,8 @@ function Fit({ fit }: { fit: PostingFit }) {
   );
 }
 
+const COMPANY_SITE_LABEL = "From the company site:";
+
 type Text = { status: "ready"; text: string } | { status: "loading" } | { status: "partial"; text: string };
 
 /** The selected posting: its facts, what to do with it, and its whole text. */
@@ -473,6 +475,8 @@ function PostingDetail({
   // The posting as first shown; the component is keyed by it.
   const [initial] = useState(posting);
   const [text, setText] = useState<Text>(initial.complete ? { status: "ready", text: initial.description } : { status: "loading" });
+  // Naukri's company-site jobs: where its Apply would send you (null for its own easy apply).
+  const [applyUrl, setApplyUrl] = useState<string | null>(null);
 
   // A source that only sent the start: ask for the rest (E14-2, E14-3).
   useEffect(() => {
@@ -481,6 +485,7 @@ function PostingDetail({
     void loadFullText({ posting: withoutState(initial) }).then((result) => {
       if (!current) return;
       const full = result.ok ? result.data.text : null;
+      if (result.ok) setApplyUrl(result.data.applyUrl);
       setText(full ? { status: "ready", text: full } : { status: "partial", text: initial.description });
     });
     return () => {
@@ -507,6 +512,10 @@ function PostingDetail({
         )}
       </div>
 
+      {posting.source === "NAUKRI" && text.status !== "loading" && (
+        <p className="self-start rounded-card bg-track px-3 py-1 text-meta">{applyUrl ? "Applies on the company site" : "Easy apply on Naukri"}</p>
+      )}
+
       {state.applicationId && (
         <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
           You&apos;ve applied for this.{" "}
@@ -526,6 +535,12 @@ function PostingDetail({
           <Button variant="secondary" size="sm" aria-pressed={state.saved} onClick={state.saved ? onUnsave : onSave}>
             {state.saved ? "Saved" : "Save"}
           </Button>
+        )}
+        {applyUrl && (
+          <a href={applyUrl} target="_blank" rel="noopener noreferrer" className={buttonClassName("primary", "sm")}>
+            Apply on company site<span aria-hidden>↗</span>
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
         )}
         {posting.url && (
           <a href={posting.url} target="_blank" rel="noopener noreferrer" className={buttonClassName("secondary", "sm")}>
@@ -571,7 +586,12 @@ function PostingDetail({
                 This is only the start of the posting. When you start an application, you can paste the rest from the posting&apos;s page.
               </p>
             )}
-            <div className="text-sm leading-relaxed whitespace-pre-line">{text.text || "The source didn't send a description."}</div>
+            <div className="text-sm leading-relaxed whitespace-pre-line">
+              {/* The Naukri adapter adds this label before a company site's text. */}
+              {text.text
+                ? text.text.split(COMPANY_SITE_LABEL).flatMap((part, i) => (i ? [<h6 className="mt-4 border-t border-line pt-4 text-lg font-bold" key={i}>{COMPANY_SITE_LABEL}</h6>, part] : [part]))
+                : "The source didn't send a description."}
+            </div>
           </>
         )}
       </div>

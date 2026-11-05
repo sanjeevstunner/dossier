@@ -4,7 +4,7 @@ import { withStates } from "@/lib/postings";
 
 import { credentialsFor, loadJobSearchConfig, requestContext } from "./config";
 import { JobSearchError } from "./errors";
-import { postingDetails, searchPostings } from "./index";
+import { postingDetails, searchPostings, type PostingDetails } from "./index";
 import { naukriAuth, naukriRecommended, type NaukriStatus } from "./naukri";
 import type { FoundPosting, JobSource, SearchPage, SearchProblem, SearchQuery, ShownPosting } from "./search";
 
@@ -60,11 +60,16 @@ export async function naukriSignIn(step: "status" | "login" | { token: string })
  * the one chosen, for a saved posting); null when it can't be had.
  */
 export async function fullText(posting: FoundPosting): Promise<string | null> {
-  if (posting.complete) return posting.description;
+  return (await fullPosting(posting)).text;
+}
+
+/** fullText, with the external apply link when the source gives one. */
+export async function fullPosting(posting: FoundPosting): Promise<PostingDetails> {
+  if (posting.complete) return { text: posting.description };
   try {
     return await postingDetails(posting.source, credentialsFor(await loadJobSearchConfig(), posting.source), posting, requestContext(posting.source));
   } catch (error) {
-    if (error instanceof JobSearchError) return null;
+    if (error instanceof JobSearchError) return { text: null };
     throw error;
   }
 }
