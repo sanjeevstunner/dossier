@@ -23,7 +23,7 @@ import { loadThemes } from "@/lib/theme-data";
 import { userTimeZone } from "@/lib/time-zone";
 
 import { ApplicationView } from "./application-view";
-import { metaLine } from "./meta";
+import { metaLine, sourceLine } from "./meta";
 import { tabFrom } from "./tabs";
 
 /**
@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: PageProps<"/applications/[id]
 export default async function ApplicationPage({ params, searchParams }: PageProps<"/applications/[id]">) {
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
   await pullCalendar(id);
-  const [{ application, profile, settings, extracted, resume, letter, files, email, includeReferences, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, catchUpJobs, timeZone, google, emails, themes] =
+  const [{ application, profile, settings, extracted, resume, letter, files, email, includeReferences, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, catchUpJobs, timeZone, google, emails, themes, origin] =
     await Promise.all([
       loadDocuments(id),
       isAiConfigured(),
@@ -56,6 +56,15 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       googleConnection(),
       loadConversation(id),
       loadThemes(),
+      // Where it came from, for the meta line.
+      prisma.application.findUnique({
+        where: { id },
+        select: {
+          posting: { select: { source: true, via: true } },
+          agentCandidate: { select: { source: true, via: true, agent: { select: { name: true } } } },
+          startup: { select: { source: true } },
+        },
+      }),
     ]);
 
   const match = readJson(matchSchema, application.match);
@@ -113,7 +122,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       requirements={extracted?.requirements ?? []}
       facts={application.facts}
       activity={activityTimeline({ notes: application.notes, events: application.events, createdAt: application.createdAt })}
-      meta={metaLine(application)}
+      meta={metaLine(application, origin ? sourceLine(origin) : "")}
       resume={resume}
       letter={letter}
       themes={themes}
