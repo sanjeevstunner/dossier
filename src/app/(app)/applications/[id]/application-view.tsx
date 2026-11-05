@@ -54,6 +54,9 @@ import {
   undoEmailRewrite,
   undoMessage,
 } from "./actions";
+import { EasyApply } from "@/app/(app)/jobs/posting-results";
+import type { FoundPosting } from "@/lib/job-search/search";
+
 import { ApplicationHeader } from "./application-header";
 import { ApplicationMenu } from "./application-menu";
 import { ConversationTab } from "./conversation-tab";
@@ -123,6 +126,8 @@ export type ApplicationViewProps = {
     /** While a Draft: why the easy apply from Find jobs didn't send it. */
     draftReason?: string | null;
   };
+  /** The Naukri posting a Draft came from, to easy apply to from here. */
+  easyApply?: FoundPosting | null;
   /** The browser's time zone as it last told the server, for the interview's time. */
   timeZone?: string;
   posting: PostingData;
@@ -180,6 +185,7 @@ export type ApplicationViewProps = {
  */
 export function ApplicationView({
   application,
+  easyApply: easyApplyAtLoad = null,
   timeZone,
   meta,
   posting,
@@ -211,6 +217,8 @@ export function ApplicationView({
   suggestions,
 }: ApplicationViewProps) {
   const router = useRouter();
+  // As loaded, so an apply that goes through keeps its result on screen after the refresh.
+  const [easyApply] = useState(easyApplyAtLoad);
   const [tab, setTab] = useState(initialTab);
   // Kept here: the Job posting tab is drawn again on every visit, and switching tabs doesn't reload the page.
   const [facts, setFacts] = useState(factsAtLoad);
@@ -691,7 +699,9 @@ export function ApplicationView({
           </>
         }
       >
-        {application.status === "DRAFT" && application.draftReason && (
+        {easyApply ? (
+          <EasyApply posting={easyApply} draftReason={application.draftReason ?? null} onEnded={() => router.refresh()} onApplication />
+        ) : application.status === "DRAFT" && application.draftReason && (
           <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
             Easy apply didn&apos;t send this, so it&apos;s still a draft. {application.draftReason}
           </p>

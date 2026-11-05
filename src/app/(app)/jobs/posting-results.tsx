@@ -300,7 +300,18 @@ type EasyApplyResult = { applicationId: string; answered: { question: string; an
  * through NopeRi, answering Naukri's questions from the profile, and puts it
  * on the board in Sent once Naukri confirms it.
  */
-function EasyApply({ posting, draftReason, onEnded }: { posting: FoundPosting; draftReason: string | null; onEnded: () => void }) {
+export function EasyApply({
+  posting,
+  draftReason,
+  onEnded,
+  onApplication = false,
+}: {
+  posting: FoundPosting;
+  draftReason: string | null;
+  onEnded: () => void;
+  /** On the application's own page, which needs no link to itself. */
+  onApplication?: boolean;
+}) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const job = useJob<EasyApplyResult>(jobId, revision, (update) => {
@@ -331,9 +342,11 @@ function EasyApply({ posting, draftReason, onEnded }: { posting: FoundPosting; d
       <div role="status" className="flex flex-col gap-1 rounded-card bg-track px-4 py-3 text-meta">
         <p>
           Applied on Naukri and added to your board in Sent.{" "}
-          <Link href={`/applications/${job.result.applicationId}`} className="underline underline-offset-2">
-            Open the application
-          </Link>
+          {!onApplication && (
+            <Link href={`/applications/${job.result.applicationId}`} className="underline underline-offset-2">
+              Open the application
+            </Link>
+          )}
         </p>
         {job.result.answered.length > 0 && (
           <ul className="text-muted">
