@@ -2,6 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
+import { fetchPosting } from "@/lib/posting-fetch";
+
 import type { JobSourceAdapter, RequestContext, SourceCredentials } from "./adapter";
 import { cached, remember } from "./cache";
 import { JobSearchError, jobSearchError } from "./errors";
@@ -177,7 +179,12 @@ export const naukri: JobSourceAdapter<"NAUKRI"> = {
     const text = plainText(job?.description) || null;
     // Company-site jobs: Naukri hands the applicant over to this link; the rest are Naukri's own Apply.
     const applyUrl = answer.data.externalApply ? safeLink(job?.applyRedirectUrl || job?.companyApplyUrl).slice(0, 2000) : "";
-    return applyUrl ? { text, applyUrl } : text;
+    if (!applyUrl) return text;
+    // The company's own page often says more (or differs); read it like "Fetch" does (E7-8), and keep Naukri's text when it can't be read.
+    const page = await fetchPosting(applyUrl);
+    const site = page.ok ? page.text.trim() : "";
+    const whole = site && site !== text ? [text, `From the company site:\n${site}`].filter(Boolean).join("\n\n") : text;
+    return { text: whole?.slice(0, 100_000) ?? null, applyUrl };
   },
   test: async (credentials, context) => {
     await naukriAuth(credentials, "status", context);
