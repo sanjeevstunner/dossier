@@ -30,7 +30,7 @@ describe("NavLinks", () => {
       "Base resume",
       "Find jobs",
       "Startups",
-      "Agent",
+      "Agents",
       "Applications",
       "Inbox",
       "Settings",

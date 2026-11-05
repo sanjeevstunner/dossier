@@ -64,14 +64,6 @@ describe("stored settings", () => {
       arbeitsagenturAcceptedAt: null,
       naukriUrl: null,
       naukriKeyEnc: null,
-      agentEnabled: false,
-      agentQuery: { keywords: "", place: "", country: "", radiusKm: 25, remoteOnly: false, postedWithin: "any" },
-      agentHour: 7,
-      agentMinScore: 70,
-      agentMaxScores: 15,
-      agentMaxDrafts: 3,
-      agentAutoDraft: false,
-      agentRuns: [],
       startupsViewedAt: null,
       startupsLastRefresh: null,
       updateCheck: true,
@@ -143,26 +135,6 @@ describe("stored settings", () => {
     // Unknown, or not chosen: up to two pages.
     expect(settingsFromRows([{ key: "pageLimit", value: "3" }]).pageLimit).toBe("2");
     expect(settingsFromRows([]).pageLimit).toBe("2");
-  });
-});
-
-describe("the job agent's settings (E16)", () => {
-  it("reads its search and runs as JSON, and values out of range as the defaults", () => {
-    const query = { keywords: "Data scientist", place: "Berlin", country: "de", radiusKm: 50, remoteOnly: true, postedWithin: "week" } as const;
-    const runs = [{ at: "2026-10-20T07:00:00.000Z", manual: false, message: "2 new postings scored." }];
-    const rows = Object.entries({ agentQuery: query, agentRuns: runs, agentEnabled: true, agentHour: 9 }).map(([key, value]) => ({ key, value: settingValue(value)! }));
-    expect(rows).toContainEqual({ key: "agentQuery", value: JSON.stringify(query) });
-    expect(settingsFromRows(rows)).toMatchObject({ agentQuery: query, agentRuns: runs, agentEnabled: true, agentHour: 9 });
-
-    const odd = settingsFromRows([
-      { key: "agentQuery", value: "{not json" },
-      { key: "agentRuns", value: '[{"at":"yesterday"}]' },
-      { key: "agentHour", value: "24" },
-      { key: "agentMinScore", value: "101" },
-      { key: "agentMaxScores", value: "0" },
-      { key: "agentMaxDrafts", value: "11" },
-    ]);
-    expect(odd).toMatchObject({ agentQuery: { keywords: "", country: "" }, agentRuns: [], agentHour: 7, agentMinScore: 70, agentMaxScores: 15, agentMaxDrafts: 3 });
   });
 });
 

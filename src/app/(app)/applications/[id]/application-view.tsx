@@ -116,6 +116,8 @@ export type ApplicationViewProps = {
     archived: boolean;
     /** A job agent draft not approved yet (#195): it isn't in Applications. */
     awaitingReview?: boolean;
+    /** The job agent that prepared it, while it's awaiting review. */
+    agentId?: string | null;
     /** The next interview, while in Interview (E9-9). */
     nextInterviewAt: Date | null;
   };
@@ -664,7 +666,7 @@ export function ApplicationView({
           <>
             {application.archived && <span className="rounded-full bg-track px-3 py-1.5 text-meta text-muted">Archived</span>}
             {application.awaitingReview && (
-              <Link href="/agent" className="rounded-full bg-warning-surface px-3 py-1.5 text-meta text-warning hover:text-warning">
+              <Link href={application.agentId ? `/agent/${application.agentId}` : "/agent"} className="rounded-full bg-warning-surface px-3 py-1.5 text-meta text-warning hover:text-warning">
                 From the job agent · waiting for review
               </Link>
             )}

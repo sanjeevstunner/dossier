@@ -7,7 +7,7 @@ import type { Country } from "@/lib/job-search/countries";
 import { POSTED_WITHIN, RADII_KM, type JobSource, type RadiusKm, type SearchQuery } from "@/lib/job-search/search";
 import { SOURCE_INFO, sourceCovers } from "@/lib/job-search/sources";
 
-// A search's fields, as Find jobs asks them (E14-6) and Settings → Job agent
+// A search's fields, as Find jobs asks them (E14-6) and each job agent
 // saves its search (E16-7).
 
 export type SearchFieldErrors = { keywords?: string; country?: string };

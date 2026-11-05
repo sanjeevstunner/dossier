@@ -3,17 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "@/components/toast";
-import type { AgentCandidateView, AgentView } from "@/lib/agent/view";
+import type { AgentCandidateView } from "@/lib/agent/view";
 
-import { approveAgentDraft, dismissAgentCandidate, prepareAgentDraft, restoreAgentCandidate, runAgentNow } from "./actions";
-import { AgentScreen } from "./agent-screen";
+import { approveAgentDraft, dismissAgentCandidate, prepareAgentDraft, restoreAgentCandidate } from "./actions";
+import { WaitingQueue } from "./waiting-queue";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/agent" }));
 vi.mock("@/hooks/use-job", () => ({ useJob: () => null }));
 vi.mock("@/components/toast", () => ({ toast: vi.fn(), toastResult: (result: { ok: boolean }) => result }));
 vi.mock("./actions", () => ({
-  runAgentNow: vi.fn(async () => ({ ok: true, data: { jobId: "run-1", reused: false } })),
   prepareAgentDraft: vi.fn(async () => ({ ok: true, data: { jobId: "draft-1", applicationId: null } })),
   approveAgentDraft: vi.fn(async () => ({ ok: true, data: { applicationId: "app-1" } })),
   dismissAgentCandidate: vi.fn(async () => ({ ok: true, data: { undo: null } })),
@@ -36,36 +35,18 @@ const card = (id: string, score: number, extra: Partial<AgentCandidateView> = {}
   draftJobId: null,
   ...extra,
 });
-const view: AgentView = {
-  enabled: true,
+const queue = {
   autoDraft: false,
   minScore: 70,
-  maxScores: 15,
-  maxDrafts: 3,
-  search: "Product designer · Rotterdam, 25 km · via JSearch",
-  setupProblem: null,
-  setupSection: null,
-  limitReached: false,
-  lastRun: { at: "Tue 20 Oct, 07:00", message: "2 new postings are waiting for a look." },
-  nextRun: "Wed 21 Oct, 07:00",
-  runJobId: null,
   drafts: [card("d1", 91, { applicationId: "app-1" })],
   scored: [card("s1", 84, { redFlags: ["German required"], error: "The draft couldn't be prepared. Try again." }), card("s2", 72)],
   belowMinimum: [card("b1", 40)],
 };
-const open = (changes: Partial<AgentView> = {}) => render(<AgentScreen view={{ ...view, ...changes }} />);
+const open = (changes: Partial<typeof queue> = {}) => render(<WaitingQueue {...queue} {...changes} />);
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("AgentScreen (E16-6)", () => {
-  it("says what it searches, when it ran and when it runs next", () => {
-    open();
-    expect(screen.getByRole("heading", { level: 1, name: "Job agent" })).toBeInTheDocument();
-    expect(screen.getByText("Searches for").nextElementSibling).toHaveTextContent("Product designer · Rotterdam, 25 km · via JSearch");
-    expect(screen.getByText("Last run").nextElementSibling).toHaveTextContent("Tue 20 Oct, 07:002 new postings are waiting for a look.");
-    expect(screen.getByText("Next run").nextElementSibling).toHaveTextContent("Wed 21 Oct, 07:00");
-  });
-
+describe("WaitingQueue (E16-6)", () => {
   it("lists drafts to review with a link to the draft, Approve and Dismiss", async () => {
     const user = userEvent.setup();
     open();
@@ -144,35 +125,9 @@ describe("AgentScreen (E16-6)", () => {
     await waitFor(() => expect(screen.getByText("Posting s2")).toBeInTheDocument());
   });
 
-  it("runs now on request", async () => {
-    const user = userEvent.setup();
-    open();
-    await user.click(screen.getByRole("button", { name: "Run now" }));
-    expect(runAgentNow).toHaveBeenCalledWith({ force: false });
-    expect(screen.getByRole("button", { name: "Running…" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Starting the run…");
-  });
-
-  it("points to Settings while it's off, not set up, or out of runs for the day", () => {
-    const { unmount } = open({ enabled: false, nextRun: null });
-    expect(screen.getByRole("note")).toHaveTextContent("The job agent is off. Turn it on in Settings → Job agent. What it found before is still here.");
-    expect(screen.getByRole("link", { name: "Turn it on in Settings → Job agent" })).toHaveAttribute("href", "/settings?section=agent");
-    expect(screen.getByText("Next run").nextElementSibling).toHaveTextContent("Off");
-    unmount();
-
-    const second = open({ setupProblem: "Choose a job source in Settings → Job search first.", setupSection: "jobs" });
-    expect(screen.getByRole("note")).toHaveTextContent("Choose a job source. Go to Settings → Job search");
-    expect(screen.getByRole("link", { name: "Go to Settings → Job search" })).toHaveAttribute("href", "/settings?section=jobs");
-    second.unmount();
-
-    open({ limitReached: true });
-    expect(screen.getByRole("note")).toHaveTextContent("The agent has run 3 times in the past 24 hours");
-  });
-
   it("says when there's nothing yet", () => {
-    open({ drafts: [], scored: [], belowMinimum: [], lastRun: null, autoDraft: true });
+    open({ drafts: [], scored: [], belowMinimum: [], autoDraft: true });
     expect(screen.getByText("No drafts yet. After a run, the best new postings get a draft here.")).toBeInTheDocument();
     expect(screen.getByText("Nothing waiting yet. A run puts the postings that fit you best here.")).toBeInTheDocument();
-    expect(screen.getByText("Last run").nextElementSibling).toHaveTextContent("Not yet");
   });
 });

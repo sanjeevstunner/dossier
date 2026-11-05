@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
-import { loadAgentView } from "@/lib/agent/view";
+import { loadAgentList } from "@/lib/agent/view";
 
-import { AgentScreen } from "./agent-screen";
+import { AgentsScreen } from "./agents-screen";
 
-export const metadata: Metadata = { title: "Job agent" };
+export const metadata: Metadata = { title: "Agents" };
 
-/** The job agent (E16-6): what it found and the drafts it prepared, waiting for a look. */
-export default async function AgentPage() {
-  return <AgentScreen view={await loadAgentView()} />;
+/** The job agents (E16-6): each one's search, schedule, last run and what's waiting. */
+export default async function AgentsPage() {
+  return <AgentsScreen agents={await loadAgentList()} />;
 }
