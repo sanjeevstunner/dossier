@@ -42,7 +42,7 @@ const countries = [
   { code: "fr", name: "France" },
 ];
 const query = { ...EMPTY_QUERY, keywords: "product designer", place: "Hamburg", country: "de" };
-const state: PostingState = { postingId: null, saved: false, dismissed: false, applicationId: null, score: null };
+const state: PostingState = { postingId: null, saved: false, dismissed: false, applicationId: null, drafted: false, draftReason: null, score: null };
 
 const posting = (id: string, extra: Partial<ShownPosting> = {}): ShownPosting => ({
   source: "JSEARCH",

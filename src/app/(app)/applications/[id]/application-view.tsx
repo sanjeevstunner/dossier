@@ -54,6 +54,10 @@ import {
   undoEmailRewrite,
   undoMessage,
 } from "./actions";
+import { naukriAppliesOnCompanySite } from "@/app/(app)/jobs/actions";
+import { EasyApply } from "@/app/(app)/jobs/posting-results";
+import type { FoundPosting } from "@/lib/job-search/search";
+
 import { ApplicationHeader } from "./application-header";
 import { ApplicationMenu } from "./application-menu";
 import { ConversationTab } from "./conversation-tab";
@@ -120,7 +124,11 @@ export type ApplicationViewProps = {
     agentId?: string | null;
     /** The next interview, while in Interview (E9-9). */
     nextInterviewAt: Date | null;
+    /** While a Draft: why the easy apply from Find jobs didn't send it. */
+    draftReason?: string | null;
   };
+  /** The Naukri posting a Draft came from, to easy apply to from here. */
+  easyApply?: FoundPosting | null;
   /** The browser's time zone as it last told the server, for the interview's time. */
   timeZone?: string;
   posting: PostingData;
@@ -178,6 +186,7 @@ export type ApplicationViewProps = {
  */
 export function ApplicationView({
   application,
+  easyApply: easyApplyAtLoad = null,
   timeZone,
   meta,
   posting,
@@ -209,6 +218,8 @@ export function ApplicationView({
   suggestions,
 }: ApplicationViewProps) {
   const router = useRouter();
+  // As loaded, so an apply that goes through keeps its result on screen after the refresh.
+  const [easyApply] = useState(easyApplyAtLoad);
   const [tab, setTab] = useState(initialTab);
   // Kept here: the Job posting tab is drawn again on every visit, and switching tabs doesn't reload the page.
   const [facts, setFacts] = useState(factsAtLoad);
@@ -689,6 +700,13 @@ export function ApplicationView({
           </>
         }
       >
+        {easyApply ? (
+          <DraftEasyApply posting={easyApply} draftReason={application.draftReason ?? null} onEnded={() => router.refresh()} />
+        ) : application.status === "DRAFT" && application.draftReason && (
+          <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
+            Easy apply didn&apos;t send this, so it&apos;s still a draft. {application.draftReason}
+          </p>
+        )}
         {/* Its underline runs the header's full width, under the padding too. */}
         <TabsList aria-label="Application" className="-mx-10 px-10">
           <TabsTrigger value="resume">Resume</TabsTrigger>
@@ -918,3 +936,42 @@ function PreviewSwitch({ label, checked, onCheckedChange }: { label: string; che
   );
 }
 
+
+/**
+ * Easy apply for a Draft from a Naukri posting, once NopeRi says the job
+ * takes Naukri's own apply: a company-site job gets a link to the posting
+ * instead. When NopeRi can't tell, the button shows and the apply says what's wrong.
+ */
+function DraftEasyApply({ posting, draftReason, onEnded }: { posting: FoundPosting; draftReason: string | null; onEnded: () => void }) {
+  const [companySite, setCompanySite] = useState<boolean | null | "checking">("checking");
+  useEffect(() => {
+    let current = true;
+    void naukriAppliesOnCompanySite({ jobId: posting.externalId }).then((result) => {
+      if (current) setCompanySite(result.ok ? result.data : null);
+    });
+    return () => {
+      current = false;
+    };
+  }, [posting.externalId]);
+
+  if (companySite === "checking") {
+    return (
+      <p role="status" className="text-meta text-muted">
+        Checking whether Naukri takes this application…
+      </p>
+    );
+  }
+  if (companySite) {
+    return (
+      <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
+        This job applies on the company site, so the agent can&apos;t apply for you.{" "}
+        {posting.url && (
+          <a href={posting.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+            Open the posting
+          </a>
+        )}
+      </p>
+    );
+  }
+  return <EasyApply posting={posting} draftReason={draftReason} onEnded={onEnded} onApplication />;
+}

@@ -5,14 +5,16 @@ import { z } from "zod";
 import { action, ActionError } from "@/lib/action";
 import { isAiConfigured, isAiUsable } from "@/lib/ai/config";
 import { handOffFoundPosting, handsOffToClaude } from "@/lib/connector/handoff";
-import { loadJobSearchConfig } from "@/lib/job-search/config";
+import { credentialsFor, loadJobSearchConfig, requestContext } from "@/lib/job-search/config";
+import { JobSearchError } from "@/lib/job-search/errors";
+import { naukriApplyInfo } from "@/lib/job-search/naukri";
 import { fullPosting, fullText, naukriSignIn } from "@/lib/job-search/find";
-import { foundPostingSchema, JOB_SOURCES, searchQuerySchema } from "@/lib/job-search/search";
+import { foundPostingSchema, JOB_SOURCES, postingKey, searchQuerySchema } from "@/lib/job-search/search";
 import { easyApplyJob, easyApplyJobKey } from "@/lib/jobs/easy-apply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { scoreJobKey, scorePostingJob } from "@/lib/jobs/score-posting";
 import { removeSearch, runSearch, showMoreFor } from "@/lib/posting-searches";
-import { dismissPosting, savePosting, storePosting, unmarkPosting } from "@/lib/postings";
+import { dismissPosting, postingStates, savePosting, storePosting, unmarkPosting } from "@/lib/postings";
 import { saveSettings } from "@/lib/settings-data";
 
 // Find jobs (E14-6). Each search is kept with what it found (E14-10).
@@ -104,6 +106,19 @@ export const startEasyApply = action(z.object({ posting: foundPostingSchema }), 
   const key = easyApplyJobKey(posting);
   const [unfinished] = await findUnfinishedJobs(key);
   return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting }, { key })) };
+});
+
+/** Where a posting stands now: after an easy apply ends, so it shows applied without a reload. */
+export const loadPostingState = action(z.object({ posting: foundPostingSchema }), async ({ posting }) => (await postingStates([posting])).get(postingKey(posting))!);
+
+/** Whether a Naukri job applies on the company site rather than Naukri's own easy apply; null when NopeRi can't tell. */
+export const naukriAppliesOnCompanySite = action(z.object({ jobId: z.string().min(1).max(100) }), async ({ jobId }) => {
+  try {
+    return (await naukriApplyInfo(credentialsFor(await loadJobSearchConfig(), "NAUKRI"), jobId, requestContext("NAUKRI"))).externalApply;
+  } catch (error) {
+    if (error instanceof JobSearchError) return null;
+    throw error;
+  }
 });
 
 /** Naukri's sign-in through NopeRi: whether it's signed in, a sign-in with NopeRi's credentials, or a token from a signed-in browser. */

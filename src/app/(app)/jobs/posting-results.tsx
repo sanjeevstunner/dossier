@@ -7,9 +7,12 @@ import { ScoreBadge } from "@/components/score-badge";
 import { linksAttribution, SourceAttribution } from "@/components/source-attribution";
 import { toast, toastResult } from "@/components/toast";
 import { Button, buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useJob } from "@/hooks/use-job";
 import { openPendingTab, sendPendingTab } from "@/lib/claude-tab";
 import { cn } from "@/lib/cn";
+import { createFact, saveFact } from "@/lib/fact-actions";
 import { fitBand, type PostingFit } from "@/lib/fit";
 import type { JobView } from "@/lib/jobs/runner";
 import { postedAgo, postingKey, type FoundPosting, type PostingState, type ShownPosting, type StoredSearch } from "@/lib/job-search/search";
@@ -17,7 +20,7 @@ import { arbeitsagenturPage, SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { retry } from "@/lib/jobs/actions";
 
-import { dismissFoundPosting, loadFullText, restorePosting, savePostingForLater, showMorePostings, startEasyApply, startScoringPosting, unsavePosting } from "./actions";
+import { dismissFoundPosting, loadFullText, loadPostingState, restorePosting, savePostingForLater, showMorePostings, startEasyApply, startScoringPosting, unsavePosting } from "./actions";
 import { useStartApplication } from "./use-start-application";
 
 /** Narrow windows show the posting above the list. */
@@ -77,6 +80,12 @@ export function PostingResults(props: PostingResultsProps) {
   const select = (key: string, { reveal = false } = {}) => {
     setSelectedKey(key);
     if (reveal && window.matchMedia?.(NARROW).matches) detail.current?.scrollIntoView({ block: "start" });
+  };
+
+  /** Reloads a posting's state once its easy apply ends: applied, or drafted. */
+  const refreshState = async (posting: ShownPosting) => {
+    const result = await loadPostingState({ posting: withoutState(posting) });
+    if (result.ok) updateState(postingKey(posting), result.data);
   };
 
   /** Changes a posting's state; when that takes it out of the list, the next one takes its place. */
@@ -260,6 +269,7 @@ export function PostingResults(props: PostingResultsProps) {
           onScore={() => void score(selected)}
           reportShown={reportShown}
           onToggleReport={() => setReportShown((shown) => !shown)}
+          onApplyEnded={() => void refreshState(selected)}
         >
           {!selected.state.dismissed && (
             <StartButton starting={starting === postingKey(selected)} onClick={() => void start(withoutState(selected), postingKey(selected))} />
@@ -283,18 +293,33 @@ function ScoreWatcher({ jobId, onChange }: { jobId: string; onChange: (job: JobV
   return null;
 }
 
-type EasyApplyResult = { applicationId: string; answered: { question: string; answer: string }[] };
+type EasyApplyResult = { applicationId: string; answered: { question: string; answer: string }[]; missing?: string[] };
 
 /**
  * "Easy apply with agent" on a Naukri easy apply posting: the agent applies
  * through NopeRi, answering Naukri's questions from the profile, and puts it
  * on the board in Sent once Naukri confirms it.
  */
-function EasyApply({ posting }: { posting: FoundPosting }) {
+export function EasyApply({
+  posting,
+  draftReason,
+  onEnded,
+  onApplication = false,
+}: {
+  posting: FoundPosting;
+  draftReason: string | null;
+  onEnded: () => void;
+  /** On the application's own page, which needs no link to itself. */
+  onApplication?: boolean;
+}) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
-  const job = useJob<EasyApplyResult>(jobId, revision);
+  const job = useJob<EasyApplyResult>(jobId, revision, (update) => {
+    if (update.status === "DONE" || update.status === "FAILED") onEnded();
+  });
   const running = jobId !== null && (!job || job.status === "QUEUED" || job.status === "RUNNING");
+  // Why it isn't sent: this apply's failure, or the last one's, kept with the draft.
+  const failure = job?.status === "FAILED" ? job.error : jobId === null ? draftReason : null;
 
   const start = async () => {
     const result = await startEasyApply({ posting });
@@ -308,14 +333,20 @@ function EasyApply({ posting }: { posting: FoundPosting }) {
     setRevision((n) => n + 1);
   };
 
+  if (job?.status === "DONE" && job.result?.missing?.length) {
+    return <MissingFacts key={jobId} applicationId={job.result.applicationId} missing={job.result.missing} onSaved={start} />;
+  }
+
   if (job?.status === "DONE" && job.result) {
     return (
       <div role="status" className="flex flex-col gap-1 rounded-card bg-track px-4 py-3 text-meta">
         <p>
           Applied on Naukri and added to your board in Sent.{" "}
-          <Link href={`/applications/${job.result.applicationId}`} className="underline underline-offset-2">
-            Open the application
-          </Link>
+          {!onApplication && (
+            <Link href={`/applications/${job.result.applicationId}`} className="underline underline-offset-2">
+              Open the application
+            </Link>
+          )}
         </p>
         {job.result.answered.length > 0 && (
           <ul className="text-muted">
@@ -339,7 +370,7 @@ function EasyApply({ posting }: { posting: FoundPosting }) {
           </Button>
         ) : (
           <Button variant="primary" size="sm" aria-disabled={running || undefined} onClick={running ? undefined : () => void start()}>
-            {running ? "Applying…" : "Easy apply with agent"}
+            {running ? "Applying…" : failure ? "Try easy apply again" : "Easy apply with agent"}
           </Button>
         )}
         {running && (
@@ -348,12 +379,82 @@ function EasyApply({ posting }: { posting: FoundPosting }) {
           </span>
         )}
       </div>
-      {job?.status === "FAILED" && job.error && (
+      {failure && (
         <p role="alert" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
-          {job.error}
+          {failure}
         </p>
       )}
     </div>
+  );
+}
+
+type FactScope = "job" | "profile";
+const FACT_SCOPES = [
+  { value: "job", label: "This job only" },
+  { value: "profile", label: "Add to my profile" },
+] as const;
+
+/**
+ * What Naukri asks that the profile doesn't say, answered right here: each
+ * answer becomes a fact for this one application (its draft) or for the
+ * profile, and the agent applies again with it. Nothing was sent yet.
+ */
+function MissingFacts({ applicationId, missing, onSaved }: { applicationId: string; missing: string[]; onSaved: () => Promise<void> }) {
+  const [answers, setAnswers] = useState(() => missing.map(() => ({ text: "", scope: "job" as FactScope })));
+  const [saving, setSaving] = useState(false);
+  const ready = answers.every(({ text }) => text.trim());
+  const set = (index: number, change: Partial<(typeof answers)[number]>) =>
+    setAnswers((current) => current.map((answer, i) => (i === index ? { ...answer, ...change } : answer)));
+
+  const submit = async () => {
+    if (!ready || saving) return;
+    setSaving(true);
+    try {
+      for (const [index, { text, scope }] of answers.entries()) {
+        const created = await createFact({ applicationId: scope === "job" ? applicationId : null });
+        if (!created.ok) return void toast(created.error);
+        // The question goes with the answer, so the fact reads on its own later.
+        const saved = await saveFact({ id: created.data.id, text: `${missing[index]}: ${text.trim()}`.slice(0, 1000) });
+        if (!saved.ok) return void toast(saved.error);
+      }
+      await onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form
+      className="flex flex-col gap-4 rounded-card bg-warning-surface px-4 py-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <p role="alert" className="text-meta text-warning">
+        Naukri asks for {missing.length === 1 ? "something" : "a few things"} your profile doesn&apos;t say. Answer here and the agent applies again. Nothing was sent yet.
+      </p>
+      {missing.map((question, index) => (
+        <div key={question} className="flex flex-col gap-2">
+          <Input label={question} value={answers[index].text} maxLength={300} onChange={(event) => set(index, { text: event.target.value })} />
+          <SegmentedControl<FactScope>
+            size="sm"
+            aria-label={`Where to keep the answer to “${question}”`}
+            options={FACT_SCOPES}
+            value={answers[index].scope}
+            onValueChange={(scope) => set(index, { scope })}
+          />
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" variant="primary" size="sm" aria-disabled={!ready || saving || undefined}>
+          {saving ? "Saving…" : "Save and apply again"}
+        </Button>
+        <Link href={`/applications/${applicationId}`} className="text-meta underline underline-offset-2">
+          Open the draft
+        </Link>
+      </div>
+    </form>
   );
 }
 
@@ -476,7 +577,7 @@ function PostingList({
 }
 
 function StateBadges({ state }: { state: PostingState }) {
-  const badges = [state.applicationId && "Applied", state.saved && "Saved", state.dismissed && "Dismissed"].filter(Boolean) as string[];
+  const badges = [state.applicationId && (state.drafted ? "Drafted" : "Applied"), state.saved && "Saved", state.dismissed && "Dismissed"].filter(Boolean) as string[];
   if (badges.length === 0) return null;
   return (
     <span className="flex shrink-0 gap-1.5">
@@ -542,6 +643,7 @@ function PostingDetail({
   onScore,
   reportShown,
   onToggleReport,
+  onApplyEnded,
   children,
 }: {
   ref: Ref<HTMLElement>;
@@ -557,6 +659,8 @@ function PostingDetail({
   /** Whether the score shows its whole report, or only the number by the title. */
   reportShown: boolean;
   onToggleReport: () => void;
+  /** When its easy apply finishes or fails. */
+  onApplyEnded: () => void;
   /** More actions, before Save (E14-8). */
   children?: ReactNode;
 }) {
@@ -585,6 +689,10 @@ function PostingDetail({
 
   const { state } = posting;
   const ago = postedAgo(posting.postedAt, now);
+  // As first shown, so an apply that just went through keeps its own result in place of the note below.
+  const applied = Boolean(state.applicationId) && !state.drafted;
+  const easyApply =
+    posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && (!initial.state.applicationId || initial.state.drafted) && !state.dismissed;
 
   return (
     <section
@@ -630,11 +738,19 @@ function PostingDetail({
         )}
       </div>
 
-      {posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && !state.applicationId && !state.dismissed && (
-        <EasyApply posting={withoutState(initial)} />
+      {easyApply && <EasyApply posting={withoutState(initial)} draftReason={state.draftReason} onEnded={onApplyEnded} />}
+
+      {state.drafted && (
+        <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
+          Drafted on your board, not sent yet.{" "}
+          {!easyApply && state.draftReason && <>{state.draftReason} </>}
+          <Link href={`/applications/${state.applicationId}`} className="underline underline-offset-2">
+            Open the draft
+          </Link>
+        </p>
       )}
 
-      {state.applicationId && (
+      {applied && !easyApply && (
         <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
           You&apos;ve applied for this.{" "}
           <Link href={`/applications/${state.applicationId}`} className="underline underline-offset-2">
@@ -644,15 +760,19 @@ function PostingDetail({
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {children}
+        {/* Once applied, starting, saving or dismissing it again means nothing. */}
+        {!state.applicationId && children}
+        {/* Bring back stays even once applied: it's the only way out of the Dismissed view. */}
         {state.dismissed ? (
           <Button variant="secondary" size="sm" onClick={onRestore}>
             Bring back
           </Button>
         ) : (
-          <Button variant="secondary" size="sm" aria-pressed={state.saved} onClick={state.saved ? onUnsave : onSave}>
-            {state.saved ? "Saved" : "Save"}
-          </Button>
+          !state.applicationId && (
+            <Button variant="secondary" size="sm" aria-pressed={state.saved} onClick={state.saved ? onUnsave : onSave}>
+              {state.saved ? "Saved" : "Save"}
+            </Button>
+          )
         )}
         {applyUrl && (
           <a href={applyUrl} target="_blank" rel="noopener noreferrer" className={buttonClassName("secondary", "sm")}>
@@ -676,7 +796,7 @@ function PostingDetail({
         <Button variant="secondary" size="sm" aria-disabled={scoring ? true : undefined} onClick={scoring ? undefined : onScore}>
           {scoring ? "Scoring…" : state.score ? "Score again" : "Score"}
         </Button>
-        {!state.dismissed && (
+        {!state.dismissed && !state.applicationId && (
           <Button variant="secondary" size="sm" onClick={onDismiss}>
             Dismiss
           </Button>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { metaLine } from "./meta";
+import { metaLine, sourceLine } from "./meta";
 
 const application = {
   location: "Amsterdam",
@@ -26,5 +26,17 @@ describe("metaLine (APP-1)", () => {
       "Hybrid · 3 days in office",
       "Created 27 Sep 2026",
     ]);
+  });
+});
+
+describe("sourceLine", () => {
+  const none = { posting: null, agentCandidate: null, startup: null };
+  it("names the screen and the job board", () => {
+    expect(sourceLine(none)).toBe("Added by you");
+    expect(sourceLine({ ...none, posting: { source: "NAUKRI", via: "" } })).toBe("From Find jobs on Naukri");
+    expect(sourceLine({ ...none, posting: { source: "JSEARCH", via: "LinkedIn" } })).toBe("From Find jobs on LinkedIn via JSearch");
+    expect(sourceLine({ ...none, agentCandidate: { source: "NAUKRI", via: "Naukri", agent: { name: "Job agent 2" } } })).toBe("From Job agent 2 on Naukri");
+    expect(sourceLine({ ...none, agentCandidate: { source: "ADZUNA", via: "", agent: null } })).toBe("From the job agent on Adzuna");
+    expect(sourceLine({ ...none, startup: { source: "YC" } })).toBe("From Startups on YC");
   });
 });

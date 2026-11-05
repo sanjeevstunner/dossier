@@ -18,12 +18,13 @@ import { emailJobKey } from "@/lib/jobs/write-email";
 import { googleConnection } from "@/lib/google/account";
 import { pullInterviewEvents } from "@/lib/google/availability";
 import { loadConversation } from "@/lib/google/inbox-data";
+import { draftReasonFor, foundFromPosting } from "@/lib/postings";
 import { refineSuggestions } from "@/lib/refine-suggestions";
 import { loadThemes } from "@/lib/theme-data";
 import { userTimeZone } from "@/lib/time-zone";
 
 import { ApplicationView } from "./application-view";
-import { metaLine } from "./meta";
+import { metaLine, sourceLine } from "./meta";
 import { tabFrom } from "./tabs";
 
 /**
@@ -44,7 +45,7 @@ export async function generateMetadata({ params }: PageProps<"/applications/[id]
 export default async function ApplicationPage({ params, searchParams }: PageProps<"/applications/[id]">) {
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
   await pullCalendar(id);
-  const [{ application, profile, settings, extracted, resume, letter, files, email, includeReferences, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, catchUpJobs, timeZone, google, emails, themes] =
+  const [{ application, profile, settings, extracted, resume, letter, files, email, includeReferences, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, catchUpJobs, timeZone, google, emails, themes, origin, draftReason, fromPosting] =
     await Promise.all([
       loadDocuments(id),
       isAiConfigured(),
@@ -56,6 +57,17 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       googleConnection(),
       loadConversation(id),
       loadThemes(),
+      // Where it came from, for the meta line.
+      prisma.application.findUnique({
+        where: { id },
+        select: {
+          posting: { select: { source: true, via: true } },
+          agentCandidate: { select: { source: true, via: true, agent: { select: { name: true } } } },
+          startup: { select: { source: true } },
+        },
+      }),
+      draftReasonFor(id),
+      prisma.posting.findUnique({ where: { applicationId: id } }),
     ]);
 
   const match = readJson(matchSchema, application.match);
@@ -101,7 +113,10 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
         // The agent that prepared it, for "waiting for review".
         agentId: application.awaitingReview ? ((await prisma.agentCandidate.findUnique({ where: { applicationId: application.id }, select: { agentId: true } }))?.agentId ?? null) : null,
         nextInterviewAt,
+        draftReason,
       }}
+      // A Naukri posting's draft can still be easy applied from here; a company-site job says so when tried.
+      easyApply={fromPosting?.source === "NAUKRI" && application.status === "DRAFT" && !application.awaitingReview ? foundFromPosting(fromPosting) : null}
       timeZone={timeZone}
       posting={{
         text: application.postingText,
@@ -113,7 +128,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       requirements={extracted?.requirements ?? []}
       facts={application.facts}
       activity={activityTimeline({ notes: application.notes, events: application.events, createdAt: application.createdAt })}
-      meta={metaLine(application)}
+      meta={metaLine(application, origin ? sourceLine(origin) : "")}
       resume={resume}
       letter={letter}
       themes={themes}
