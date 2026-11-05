@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFitToViewport } from "@/hooks/use-fit-to-viewport";
 import { NAUKRI_FILTER_GROUPS, type SearchFilters } from "@/lib/job-search/search";
 
 const SHOWN = 4;
@@ -22,6 +23,7 @@ export function NaukriFilters({
   onChange: (chosen: Chosen | undefined) => void;
 }) {
   const applied = Object.values(chosen).flat().length;
+  const ref = useFitToViewport<HTMLElement>();
   const toggle = (key: string, id: string) => {
     const ids = chosen[key] ?? [];
     const next = { ...chosen, [key]: ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id] };
@@ -30,7 +32,7 @@ export function NaukriFilters({
   };
 
   return (
-    <aside aria-label="Filters" className="flex min-w-0 flex-[1_1_220px] flex-col gap-5 rounded-panel border border-line-card bg-card p-5 lg:max-w-[260px]">
+    <aside ref={ref} aria-label="Filters" className="flex min-w-0 flex-[1_1_220px] flex-col gap-5 rounded-panel border border-line-card bg-card p-5 lg:sticky lg:top-[121px] lg:max-h-(--fit,calc(100dvh-145px)) lg:max-w-[260px] lg:overflow-y-auto lg:overscroll-contain">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-medium">Filters</h2>
         {applied > 0 && (
