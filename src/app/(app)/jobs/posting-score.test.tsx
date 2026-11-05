@@ -47,7 +47,7 @@ const posting = (id: string, score: PostingFit | null = null): ShownPosting => (
   via: "",
   description: "The whole posting.",
   complete: true,
-  state: { postingId: "row", saved: true, dismissed: false, applicationId: null, score },
+  state: { postingId: "row", saved: true, dismissed: false, applicationId: null, drafted: false, draftReason: null, score },
 });
 const open = (postings: ShownPosting[]) => render(<PostingResults mode="saved" postings={postings} today="2026-10-20T10:00:00.000Z" />);
 

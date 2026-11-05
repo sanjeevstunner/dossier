@@ -118,9 +118,21 @@ describe("postingStates", () => {
     await prisma().posting.update({ where: { source_externalId: ref }, data: { applicationId: application.id } });
 
     const states = await postingStates([found, other, third]);
-    expect(states.get("JSEARCH:job-1")).toEqual({ postingId: expect.any(String), saved: true, dismissed: false, applicationId: application.id, score: null });
-    expect(states.get("JSEARCH:job-2")).toEqual({ postingId: expect.any(String), saved: false, dismissed: true, applicationId: null, score: null });
-    expect(states.get("JSEARCH:job-3")).toEqual({ postingId: null, saved: false, dismissed: false, applicationId: null, score: null });
+    expect(states.get("JSEARCH:job-1")).toEqual({ postingId: expect.any(String), saved: true, dismissed: false, applicationId: application.id, drafted: true, draftReason: null, score: null });
+    expect(states.get("JSEARCH:job-2")).toEqual({ postingId: expect.any(String), saved: false, dismissed: true, applicationId: null, drafted: false, draftReason: null, score: null });
+    expect(states.get("JSEARCH:job-3")).toEqual({ postingId: null, saved: false, dismissed: false, applicationId: null, drafted: false, draftReason: null, score: null });
+  });
+
+  it("tells a draft from a sent application, with why its last easy apply failed", async () => {
+    const draft = await prisma().application.create({ data: { title: "Drafted by easy apply" } });
+    await prisma().posting.update({ where: { id: (await storePosting(found)).id }, data: { applicationId: draft.id } });
+    const key = "easy-apply:JSEARCH:job-1";
+    await prisma().job.create({ data: { type: "naukri-easy-apply", key, input: {}, status: "FAILED", error: "Older failure", createdAt: new Date("2026-01-01") } });
+    await prisma().job.create({ data: { type: "naukri-easy-apply", key, input: {}, status: "FAILED", error: "Daily limit reached" } });
+    expect((await postingStates([found])).get("JSEARCH:job-1")).toMatchObject({ applicationId: draft.id, drafted: true, draftReason: "Daily limit reached" });
+
+    await prisma().application.update({ where: { id: draft.id }, data: { status: "SENT" } });
+    expect((await postingStates([found])).get("JSEARCH:job-1")).toMatchObject({ applicationId: draft.id, drafted: false, draftReason: null });
   });
 
   it("counts applications made from the same link before Find jobs, ignoring tracking", async () => {

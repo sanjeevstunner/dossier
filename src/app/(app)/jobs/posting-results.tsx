@@ -300,13 +300,15 @@ type EasyApplyResult = { applicationId: string; answered: { question: string; an
  * through NopeRi, answering Naukri's questions from the profile, and puts it
  * on the board in Sent once Naukri confirms it.
  */
-function EasyApply({ posting, onEnded }: { posting: FoundPosting; onEnded: () => void }) {
+function EasyApply({ posting, draftReason, onEnded }: { posting: FoundPosting; draftReason: string | null; onEnded: () => void }) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const job = useJob<EasyApplyResult>(jobId, revision, (update) => {
     if (update.status === "DONE" || update.status === "FAILED") onEnded();
   });
   const running = jobId !== null && (!job || job.status === "QUEUED" || job.status === "RUNNING");
+  // Why it isn't sent: this apply's failure, or the last one's, kept with the draft.
+  const failure = job?.status === "FAILED" ? job.error : jobId === null ? draftReason : null;
 
   const start = async () => {
     const result = await startEasyApply({ posting });
@@ -355,7 +357,7 @@ function EasyApply({ posting, onEnded }: { posting: FoundPosting; onEnded: () =>
           </Button>
         ) : (
           <Button variant="primary" size="sm" aria-disabled={running || undefined} onClick={running ? undefined : () => void start()}>
-            {running ? "Applying…" : "Easy apply with agent"}
+            {running ? "Applying…" : failure ? "Try easy apply again" : "Easy apply with agent"}
           </Button>
         )}
         {running && (
@@ -364,9 +366,9 @@ function EasyApply({ posting, onEnded }: { posting: FoundPosting; onEnded: () =>
           </span>
         )}
       </div>
-      {job?.status === "FAILED" && job.error && (
+      {failure && (
         <p role="alert" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
-          {job.error}
+          {failure}
         </p>
       )}
     </div>
@@ -562,7 +564,7 @@ function PostingList({
 }
 
 function StateBadges({ state }: { state: PostingState }) {
-  const badges = [state.applicationId && "Applied", state.saved && "Saved", state.dismissed && "Dismissed"].filter(Boolean) as string[];
+  const badges = [state.applicationId && (state.drafted ? "Drafted" : "Applied"), state.saved && "Saved", state.dismissed && "Dismissed"].filter(Boolean) as string[];
   if (badges.length === 0) return null;
   return (
     <span className="flex shrink-0 gap-1.5">
@@ -675,7 +677,9 @@ function PostingDetail({
   const { state } = posting;
   const ago = postedAgo(posting.postedAt, now);
   // As first shown, so an apply that just went through keeps its own result in place of the note below.
-  const easyApply = posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && !initial.state.applicationId && !state.dismissed;
+  const applied = Boolean(state.applicationId) && !state.drafted;
+  const easyApply =
+    posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && (!initial.state.applicationId || initial.state.drafted) && !state.dismissed;
 
   return (
     <section
@@ -721,9 +725,19 @@ function PostingDetail({
         )}
       </div>
 
-      {easyApply && <EasyApply posting={withoutState(initial)} onEnded={onApplyEnded} />}
+      {easyApply && <EasyApply posting={withoutState(initial)} draftReason={state.draftReason} onEnded={onApplyEnded} />}
 
-      {state.applicationId && !easyApply && (
+      {state.drafted && (
+        <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
+          Drafted on your board, not sent yet.{" "}
+          {!easyApply && state.draftReason && <>{state.draftReason} </>}
+          <Link href={`/applications/${state.applicationId}`} className="underline underline-offset-2">
+            Open the draft
+          </Link>
+        </p>
+      )}
+
+      {applied && !easyApply && (
         <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
           You&apos;ve applied for this.{" "}
           <Link href={`/applications/${state.applicationId}`} className="underline underline-offset-2">

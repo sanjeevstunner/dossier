@@ -14,9 +14,9 @@ import { credentialsFor, loadJobSearchConfig, requestContext } from "@/lib/job-s
 import { JobSearchError } from "@/lib/job-search/errors";
 import { fullText } from "@/lib/job-search/find";
 import { naukriApply, naukriApplyInfo, naukriHasApplied, type NaukriAnswers, type NaukriResume } from "@/lib/job-search/naukri";
-import { foundPostingSchema, postingKey, postingText, type FoundPosting } from "@/lib/job-search/search";
+import { foundPostingSchema, postingText, type FoundPosting } from "@/lib/job-search/search";
 import { renderPdf } from "@/lib/pdf/render";
-import { storePosting } from "@/lib/postings";
+import { easyApplyJobKey, storePosting } from "@/lib/postings";
 import { prisma } from "@/lib/prisma";
 import { logServerError } from "@/lib/log";
 import { loadFactTexts, loadProfile, loadProfileName } from "@/lib/profile-data";
@@ -27,8 +27,7 @@ import { readPostingJob } from "./read-posting";
 import { defineJob, JobFailure, type JobContext } from "./runner";
 import { writeDocumentsJob } from "./write-documents";
 
-/** The key of a posting's easy apply, so a second click follows the one under way. */
-export const easyApplyJobKey = (posting: Pick<FoundPosting, "source" | "externalId">) => `easy-apply:${postingKey(posting)}`;
+export { easyApplyJobKey };
 
 /**
  * The apply agent (upstream NopeRi's apply_agent): applies to a Naukri easy

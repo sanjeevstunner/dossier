@@ -127,6 +127,10 @@ export type PostingState = {
   dismissed: boolean;
   /** The application made from it, or from the same link before Find jobs. */
   applicationId: string | null;
+  /** That application is still a Draft: started, or an easy apply that didn't go through, but not sent. */
+  drafted: boolean;
+  /** Why its last easy apply failed, while it's a draft. */
+  draftReason: string | null;
   /** How well it fits the profile, once it's scored (#208). */
   score: PostingFit | null;
 };

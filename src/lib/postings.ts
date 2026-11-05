@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Posting } from "@/generated/prisma/client";
+import { ApplicationStatus, JobStatus } from "@/generated/prisma/enums";
 import { linkKey, postingKey, type FoundPosting, type JobSource, type PostingState, type ShownPosting } from "@/lib/job-search/search";
 import { stringsOf } from "@/lib/agent/candidates";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,9 @@ import { prisma } from "@/lib/prisma";
 export type { PostingState };
 
 type PostingRef = { source: JobSource; externalId: string };
+
+/** The key of a posting's easy apply job, so a second click follows the one under way. */
+export const easyApplyJobKey = (posting: PostingRef) => `easy-apply:${postingKey(posting)}`;
 
 const whereRef = ({ source, externalId }: PostingRef) => ({ source_externalId: { source, externalId } });
 
@@ -126,30 +130,47 @@ export async function postingStates(found: readonly (PostingRef & { url: string 
   const [stored, applications, scores] = await Promise.all([
     prisma.posting.findMany({
       where: { OR: found.map(({ source, externalId }) => ({ source, externalId })) },
-      select: { id: true, source: true, externalId: true, savedAt: true, dismissedAt: true, applicationId: true },
+      select: { id: true, source: true, externalId: true, savedAt: true, dismissedAt: true, applicationId: true, application: { select: { status: true } } },
     }),
     // An agent draft waiting for review isn't applied for yet (#195).
-    prisma.application.findMany({ where: { postingUrl: { not: "" }, awaitingReview: false }, select: { id: true, postingUrl: true }, orderBy: { createdAt: "asc" } }),
+    prisma.application.findMany({
+      where: { postingUrl: { not: "" }, awaitingReview: false },
+      select: { id: true, postingUrl: true, status: true },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.postingScore.findMany({ where: { OR: refs } }),
   ]);
+  // The last easy apply of each, newest first: a failed one says why it's still a draft.
+  const applies = await prisma.job.findMany({
+    where: { key: { in: refs.map(easyApplyJobKey) } },
+    select: { key: true, status: true, error: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const lastApply = new Map<string, (typeof applies)[number]>();
+  for (const job of applies) if (job.key && !lastApply.has(job.key)) lastApply.set(job.key, job);
   const scoreOf = new Map(scores.map((row) => [postingKey(row), { score: row.score, reasons: stringsOf(row.reasons), redFlags: stringsOf(row.redFlags) }]));
   const byKey = new Map(stored.map((posting) => [postingKey(posting), posting]));
-  const byLink = new Map<string, string>();
+  const byLink = new Map<string, { id: string; status: ApplicationStatus }>();
   for (const application of applications) {
     const key = linkKey(application.postingUrl);
-    if (key && !byLink.has(key)) byLink.set(key, application.id);
+    if (key && !byLink.has(key)) byLink.set(key, application);
   }
   return new Map(
     found.map((posting) => {
       const row = byKey.get(postingKey(posting));
       const link = linkKey(posting.url);
+      const application = row?.applicationId ? { id: row.applicationId, status: row.application?.status } : (link && byLink.get(link)) || null;
+      const drafted = application?.status === ApplicationStatus.DRAFT;
+      const apply = lastApply.get(easyApplyJobKey(posting));
       return [
         postingKey(posting),
         {
           postingId: row?.id ?? null,
           saved: Boolean(row?.savedAt),
           dismissed: Boolean(row?.dismissedAt),
-          applicationId: row?.applicationId ?? ((link && byLink.get(link)) || null),
+          applicationId: application?.id ?? null,
+          drafted,
+          draftReason: drafted && apply?.status === JobStatus.FAILED ? apply.error : null,
           score: scoreOf.get(postingKey(posting)) ?? null,
         },
       ];
