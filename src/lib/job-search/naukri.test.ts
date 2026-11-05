@@ -35,6 +35,26 @@ describe("Naukri search", () => {
     expect(page.postings[0]).toMatchObject({ source: "NAUKRI", externalId: "123", title: "Backend Engineer", salary: "", description: "Build APIs", complete: false });
   });
 
+  it("sends chosen filters and reads Naukri's filter groups from the first page", async () => {
+    const answer = {
+      jobs: [job],
+      total: 1563,
+      clusters: {
+        citiesGid: [{ id: "97", count: 111, label: "Bengaluru" }],
+        wfhType: [{ id: "2", count: 50, label: "Remote" }, { id: "3", count: 17, label: "Hybrid" }],
+        employement: [{ id: "1", count: 1516, label: "Company Jobs" }],
+      },
+      clusterOrder: ["wfhType", "experience", "citiesGid", "employement"],
+    };
+    const requests = stubFetch(() => json(answer));
+    const page = await naukri.search({ ...query, filters: { wfhType: ["2", "3"] } }, credentials, null);
+    expect(requests[0].url.searchParams.getAll("filter.wfhType")).toEqual(["2", "3"]);
+    expect(page.postings).toHaveLength(1);
+    // Groups Dossier doesn't know (employement) are left out; Naukri's order is kept.
+    expect(page.filters).toEqual({ total: 1563, groups: [{ key: "wfhType", options: answer.clusters.wfhType }, { key: "citiesGid", options: answer.clusters.citiesGid }] });
+    expect((await naukri.search(query, credentials, "page:2")).filters).toBeUndefined();
+  });
+
   it("tells a missing Naukri sign-in from a wrong API key", async () => {
     stubFetch(({ url }) => (url.pathname === "/api/auth/status" ? json({ loggedIn: false, loginTime: null }) : json({ error: {} }, { status: 401 })));
     await expect(naukri.details({ ...job, externalId: "123" } as never, credentials)).rejects.toMatchObject({ problem: "login" });

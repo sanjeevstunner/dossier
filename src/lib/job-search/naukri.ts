@@ -6,7 +6,7 @@ import type { JobSourceAdapter, RequestContext, SourceCredentials } from "./adap
 import { cached, remember } from "./cache";
 import { JobSearchError, jobSearchError } from "./errors";
 import { requestJson } from "./http";
-import { POSTED_WITHIN, safeLink, type FoundPosting, type SearchPage, type SearchQuery } from "./search";
+import { NAUKRI_FILTER_GROUPS, POSTED_WITHIN, safeLink, type FoundPosting, type SearchFilters, type SearchPage, type SearchQuery } from "./search";
 import { plainText } from "./text";
 
 // Naukri, through the user's own NopeRi server (noperi-ts), which holds the
@@ -30,6 +30,22 @@ const jobSchema = z.object({
   description: text,
 });
 type Job = z.output<typeof jobSchema>;
+
+const optionSchema = z.object({ id: z.string().min(1).max(40), count: z.number().int().min(0), label: z.string().max(200) });
+/** NopeRi's search answer: its jobs and Naukri's filter groups (older NopeRi answers a bare list of jobs). */
+const searchSchema = z.object({
+  jobs: z.array(z.unknown()),
+  total: z.number().int().min(0).catch(0),
+  clusters: z.record(z.string(), z.array(optionSchema).catch([])).catch({}),
+  clusterOrder: z.array(z.string()).catch([]),
+});
+
+/** The groups Dossier knows, in Naukri's order, with the ones it left out of that order last. */
+export function filtersOf(answer: z.output<typeof searchSchema>): SearchFilters {
+  const keys = [...new Set([...answer.clusterOrder, ...Object.keys(NAUKRI_FILTER_GROUPS)])];
+  const groups = keys.flatMap((key) => (key in NAUKRI_FILTER_GROUPS && answer.clusters[key]?.length ? [{ key, options: answer.clusters[key] }] : []));
+  return { total: answer.total, groups };
+}
 
 const statusSchema = z.object({ loggedIn: z.boolean(), loginTime: z.string().nullable().catch(null) });
 export type NaukriStatus = z.output<typeof statusSchema>;
@@ -106,14 +122,18 @@ export function searchPath(query: SearchQuery, page: number): string {
   const days = POSTED_WITHIN.find((option) => option.value === query.postedWithin)?.days;
   if (days) params.set("jobAge", String(days));
   if (query.experience !== undefined) params.set("experience", String(query.experience));
+  for (const [key, ids] of Object.entries(query.filters ?? {})) for (const id of ids) params.append(`filter.${key}`, id);
   return `/api/jobs/search?${params}`;
 }
 
 async function searchPage(query: SearchQuery, credentials: Credentials, next: string | null, context: RequestContext = {}): Promise<SearchPage> {
   const page = next?.startsWith("page:") ? Math.max(1, Number(next.slice("page:".length)) || 1) : 1;
   const path = searchPath(query, page);
-  const postings = postingsOf(await call(credentials, path, context), "/api/jobs/search");
-  return { postings, next: postings.length >= PAGE_SIZE ? `page:${page + 1}` : null };
+  const answer = await call(credentials, path, context);
+  const search = searchSchema.safeParse(answer);
+  const postings = postingsOf(search.success ? search.data.jobs : answer, "/api/jobs/search");
+  const more = postings.length >= PAGE_SIZE ? `page:${page + 1}` : null;
+  return search.success && page === 1 ? { postings, next: more, filters: filtersOf(search.data) } : { postings, next: more };
 }
 
 /** The jobs Naukri recommends for its signed-in user, from the cache when asked for in the last half hour. */

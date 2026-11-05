@@ -30,6 +30,12 @@ describe("search in the URL", () => {
 
   it("leaves defaults out of the URL", () => {
     expect(searchHref({ ...EMPTY_QUERY, keywords: "nurse" })).toBe("/jobs?q=nurse");
+    const filtered = { ...EMPTY_QUERY, keywords: "nodejs", filters: { wfhType: ["2", "3"], citiesGid: ["97"] } };
+    const params = new URL(searchHref(filtered), "http://x").searchParams;
+    expect(params.getAll("f.wfhType")).toEqual(["2", "3"]);
+    const back = Object.fromEntries([...new Set(params.keys())].map((key) => [key, params.getAll(key)]));
+    expect(queryFromParams(back)?.filters).toEqual(filtered.filters);
+    expect(queryFromParams({ q: "x", "f.bogus": "1", "f.wfhType": "<script>" })?.filters).toBeUndefined();
   });
 
   it("reads the view from the URL (E14-7)", () => {

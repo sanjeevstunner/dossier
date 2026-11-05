@@ -794,6 +794,8 @@ model PostingSearch {
   found     Int           @default(0)
   /// What to ask the source for the next page; null on the last one.
   next      String?
+  /// The source's filters for it, from the first page (SearchFilters); null when it gives none.
+  filters   Json?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
