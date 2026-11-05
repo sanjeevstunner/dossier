@@ -87,6 +87,15 @@ describe("Score in Find jobs (#208)", () => {
     expect(within(list).getByRole("button", { name: "Score “Designer b”" })).toBeInTheDocument();
   });
 
+  it("hides the report down to the score by the title, and brings it back", async () => {
+    const user = userEvent.setup();
+    open([posting("a", { ...fit, score: 91 })]);
+    await user.click(screen.getByRole("button", { name: "Hide report" }));
+    expect(screen.queryByText("Excellent fit · 91 of 100")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Show report/ }));
+    expect(screen.getByText("Excellent fit · 91 of 100")).toBeInTheDocument();
+  });
+
   it("scores a posting from its pill in the list, keeping the open one open", async () => {
     const user = userEvent.setup();
     open([posting("a"), posting("b")]);

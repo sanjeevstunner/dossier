@@ -58,6 +58,8 @@ export function PostingResults(props: PostingResultsProps) {
   const [next, setNext] = useState(mode === "search" ? props.search.next : null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
+  // Kept across postings, so hiding the report once hides it for the next one too.
+  const [reportShown, setReportShown] = useState(true);
   const inView = ({ state }: ShownPosting) => (mode === "saved" ? state.saved : mode === "dismissed" ? state.dismissed : showDismissed || !state.dismissed);
   const visible = postings.filter(inView);
   const hidden = mode === "search" ? postings.filter((posting) => posting.state.dismissed).length : 0;
@@ -256,6 +258,8 @@ export function PostingResults(props: PostingResultsProps) {
           onRestore={() => void restore(selected, false)}
           scoring={scoring[postingKey(selected)] ?? null}
           onScore={() => void score(selected)}
+          reportShown={reportShown}
+          onToggleReport={() => setReportShown((shown) => !shown)}
         >
           {!selected.state.dismissed && (
             <StartButton starting={starting === postingKey(selected)} onClick={() => void start(withoutState(selected), postingKey(selected))} />
@@ -486,14 +490,19 @@ function StateBadges({ state }: { state: PostingState }) {
 }
 
 /** A posting's score (#208): its band, why it fits, and what gives pause. */
-function Fit({ fit }: { fit: PostingFit }) {
+function Fit({ fit, onHide }: { fit: PostingFit; onHide: () => void }) {
   return (
     <div className="flex items-start gap-3.5 rounded-card border border-line-card bg-paper px-4 py-3.5">
       <ScoreBadge score={fit.score} />
-      <div className="flex min-w-0 flex-col gap-1.5 text-sm">
-        <p className="font-medium">
-          {fitBand(fit.score)} · {fit.score} of 100
-        </p>
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="font-medium">
+            {fitBand(fit.score)} · {fit.score} of 100
+          </p>
+          <button type="button" aria-expanded onClick={onHide} className="shrink-0 text-meta text-muted underline underline-offset-2 hover:text-ink">
+            Hide report
+          </button>
+        </div>
         {fit.reasons.length > 0 && (
           <ul aria-label="Why it fits" className="flex list-disc flex-col gap-0.5 pl-5 text-muted">
             {fit.reasons.map((reason, index) => (
@@ -531,6 +540,8 @@ function PostingDetail({
   onRestore,
   scoring,
   onScore,
+  reportShown,
+  onToggleReport,
   children,
 }: {
   ref: Ref<HTMLElement>;
@@ -543,6 +554,9 @@ function PostingDetail({
   /** While it's being scored (#208): the step under way. */
   scoring: { step: string | null } | null;
   onScore: () => void;
+  /** Whether the score shows its whole report, or only the number by the title. */
+  reportShown: boolean;
+  onToggleReport: () => void;
   /** More actions, before Save (E14-8). */
   children?: ReactNode;
 }) {
@@ -578,19 +592,43 @@ function PostingDetail({
       aria-labelledby={headingId}
       className="flex min-w-0 flex-[999_1_420px] scroll-mt-[121px] flex-col gap-4 rounded-panel border border-line-card bg-card p-7 max-lg:order-first max-lg:max-h-[75vh] lg:sticky lg:top-[121px] lg:max-h-[calc(100dvh-145px)]"
     >
-      <div className="flex flex-col gap-1.5">
-        <h2 id={headingId} className="font-serif text-section text-pretty">
-          {posting.title || "Untitled posting"}
-        </h2>
-        <p className="text-sm text-muted">{[posting.company, posting.place, posting.remote ? "Remote" : "", posting.salary].filter(Boolean).join(" · ")}</p>
-        {(ago || posting.via) && (
-          <p className="text-meta text-muted">{[ago && `Posted ${ago === "Today" || ago === "Yesterday" ? ago.toLowerCase() : ago}`, posting.via && `via ${posting.via}`].filter(Boolean).join(" · ")}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <h2 id={headingId} className="font-serif text-section text-pretty">
+              {posting.title || "Untitled posting"}
+            </h2>
+            {posting.source === "NAUKRI" && text.status !== "loading" && (
+              <span className="rounded-card bg-track px-3 py-1 text-meta">{applyUrl ? "Applies on the company site" : "Easy apply on Naukri"}</span>
+            )}
+          </div>
+          <p className="text-sm text-muted">
+            {[
+              posting.company,
+              posting.place,
+              posting.remote ? "Remote" : "",
+              posting.salary,
+              ago && `Posted ${ago === "Today" || ago === "Yesterday" ? ago.toLowerCase() : ago}`,
+              posting.via && `via ${posting.via}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+        {!reportShown && !scoring && state.score && (
+          <button
+            type="button"
+            aria-expanded={false}
+            onClick={onToggleReport}
+            title="Show the full report"
+            className="flex shrink-0 items-center gap-2 rounded-full text-meta text-muted hover:text-ink"
+          >
+            <span className="max-sm:sr-only">{fitBand(state.score.score)}</span>
+            <ScoreBadge score={state.score.score} />
+            <span className="sr-only">Show report</span>
+          </button>
         )}
       </div>
-
-      {posting.source === "NAUKRI" && text.status !== "loading" && (
-        <p className="self-start rounded-card bg-track px-3 py-1 text-meta">{applyUrl ? "Applies on the company site" : "Easy apply on Naukri"}</p>
-      )}
 
       {posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && !state.applicationId && !state.dismissed && (
         <EasyApply posting={withoutState(initial)} />
@@ -617,7 +655,7 @@ function PostingDetail({
           </Button>
         )}
         {applyUrl && (
-          <a href={applyUrl} target="_blank" rel="noopener noreferrer" className={buttonClassName("primary", "sm")}>
+          <a href={applyUrl} target="_blank" rel="noopener noreferrer" className={buttonClassName("secondary", "sm")}>
             Apply on company site<span aria-hidden>↗</span>
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
@@ -650,7 +688,7 @@ function PostingDetail({
           {scoring.step ?? "Starting…"}
         </p>
       ) : (
-        state.score && <Fit fit={state.score} />
+        state.score && reportShown && <Fit fit={state.score} onHide={onToggleReport} />
       )}
 
       {/* Only the text scrolls, so the title and actions stay in view; focusable, so it scrolls from the keyboard too. */}
