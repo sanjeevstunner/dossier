@@ -11,6 +11,7 @@ import { jsearchV2LastPage } from "@/test/job-search-fixtures";
 import {
   dismissFoundPosting,
   loadFullText,
+  naukriAppliesOnCompanySite,
   removeJobSearch,
   restorePosting,
   runJobSearch,
@@ -119,6 +120,16 @@ describe("Find jobs actions", () => {
       description: "The start…",
       complete: false,
     });
+  });
+});
+
+describe("Naukri company-site check", () => {
+  it("says whether the job applies on the company site, and null when NopeRi can't tell", async () => {
+    expect(await naukriAppliesOnCompanySite({ jobId: "123" })).toEqual({ ok: true, data: null });
+
+    await saveSettings({ jobSource: "NAUKRI", naukriUrl: "http://noperi.test", naukriKeyEnc: encryptSecret(JOB_SOURCE_KEY, "nk_test") });
+    stubFetch(() => json({ externalApply: true, skills: { mandatory: [], optional: [] } }));
+    expect(await naukriAppliesOnCompanySite({ jobId: "123" })).toEqual({ ok: true, data: true });
   });
 });
 

@@ -54,6 +54,7 @@ import {
   undoEmailRewrite,
   undoMessage,
 } from "./actions";
+import { naukriAppliesOnCompanySite } from "@/app/(app)/jobs/actions";
 import { EasyApply } from "@/app/(app)/jobs/posting-results";
 import type { FoundPosting } from "@/lib/job-search/search";
 
@@ -700,7 +701,7 @@ export function ApplicationView({
         }
       >
         {easyApply ? (
-          <EasyApply posting={easyApply} draftReason={application.draftReason ?? null} onEnded={() => router.refresh()} onApplication />
+          <DraftEasyApply posting={easyApply} draftReason={application.draftReason ?? null} onEnded={() => router.refresh()} />
         ) : application.status === "DRAFT" && application.draftReason && (
           <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
             Easy apply didn&apos;t send this, so it&apos;s still a draft. {application.draftReason}
@@ -935,3 +936,42 @@ function PreviewSwitch({ label, checked, onCheckedChange }: { label: string; che
   );
 }
 
+
+/**
+ * Easy apply for a Draft from a Naukri posting, once NopeRi says the job
+ * takes Naukri's own apply: a company-site job gets a link to the posting
+ * instead. When NopeRi can't tell, the button shows and the apply says what's wrong.
+ */
+function DraftEasyApply({ posting, draftReason, onEnded }: { posting: FoundPosting; draftReason: string | null; onEnded: () => void }) {
+  const [companySite, setCompanySite] = useState<boolean | null | "checking">("checking");
+  useEffect(() => {
+    let current = true;
+    void naukriAppliesOnCompanySite({ jobId: posting.externalId }).then((result) => {
+      if (current) setCompanySite(result.ok ? result.data : null);
+    });
+    return () => {
+      current = false;
+    };
+  }, [posting.externalId]);
+
+  if (companySite === "checking") {
+    return (
+      <p role="status" className="text-meta text-muted">
+        Checking whether Naukri takes this application…
+      </p>
+    );
+  }
+  if (companySite) {
+    return (
+      <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
+        This job applies on the company site, so the agent can&apos;t apply for you.{" "}
+        {posting.url && (
+          <a href={posting.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+            Open the posting
+          </a>
+        )}
+      </p>
+    );
+  }
+  return <EasyApply posting={posting} draftReason={draftReason} onEnded={onEnded} onApplication />;
+}
