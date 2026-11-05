@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { AgentCandidateStatus } from "@/generated/prisma/enums";
+import { AgentCandidateStatus, PostingSource } from "@/generated/prisma/enums";
 import { loadAgent } from "@/lib/agent/agents";
 import { agentDraftJob, approveCandidate, dismissCandidate, draftJobKey, restoreCandidate } from "@/lib/agent/draft";
 import { agentJobKey, agentScanJob } from "@/lib/agent/jobs";
@@ -43,6 +43,8 @@ export const saveAgent = action(
     name: z.string().trim().min(1, "Give the agent a name.").max(100).optional(),
     enabled: z.boolean().optional(),
     query: searchQuerySchema.optional(),
+    /** Null: the board in Settings → Job search. The BA is refused when it runs (#223). */
+    source: z.enum(PostingSource).nullable().optional(),
     hour: z.number().int().min(0).max(23).optional(),
     days: z.array(z.number().int().min(0).max(6)).max(7).optional(),
     minScore: z.number().int().min(0).max(100).optional(),
@@ -83,7 +85,7 @@ export const deleteAgent = action(z.object({ id: agentId }), async ({ id }, { to
 export const runAgentNow = action(z.object({ id: agentId, force: z.boolean().optional() }), async ({ id, force }) => {
   const agent = await loadAgent(id);
   if (!agent) throw missing();
-  const setup = await agentSetupProblem(agent.query);
+  const setup = await agentSetupProblem(agent);
   if (setup) throw new ActionError(setup);
   const [unfinished] = await findUnfinishedJobs(agentJobKey(id));
   if (unfinished) return { jobId: unfinished.id, warning: null };

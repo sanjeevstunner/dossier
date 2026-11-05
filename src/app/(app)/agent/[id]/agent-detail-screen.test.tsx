@@ -27,7 +27,7 @@ vi.mock("../actions", () => ({
 const query = { keywords: "Product designer", place: "Rotterdam", country: "nl", radiusKm: 25, remoteOnly: false, postedWithin: "any" } as const;
 const view: AgentDetailView = {
   id: "a1",
-  config: { name: "Designers", enabled: true, query, hour: 7, days: [1, 2, 3, 4, 5], minScore: 70, maxScores: 15, maxDrafts: 3, autoDraft: false, maxRunsPerDay: 3, manualIntervalMinutes: 60 },
+  config: { name: "Designers", enabled: true, query, source: null, hour: 7, days: [1, 2, 3, 4, 5], minScore: 70, maxScores: 15, maxDrafts: 3, autoDraft: false, maxRunsPerDay: 3, manualIntervalMinutes: 60 },
   agents: [
     { id: "a1", name: "Designers", enabled: true },
     { id: "a2", name: "Data", enabled: false },
@@ -60,7 +60,7 @@ const view: AgentDetailView = {
   drafts: [],
   scored: [],
   belowMinimum: [],
-  source: "JSEARCH",
+  defaultSource: "JSEARCH",
   timeZone: "Europe/Berlin",
 };
 const open = (changes: Partial<AgentDetailView> = {}) => render(<AgentDetailScreen view={{ ...view, ...changes }} countries={COUNTRIES} />);
@@ -101,6 +101,17 @@ describe("AgentDetailScreen (E16-6)", () => {
     await user.selectOptions(screen.getByLabelText("Runs in 24 hours"), "6");
     expect(saveAgent).toHaveBeenLastCalledWith({ id: "a1", maxRunsPerDay: 6 });
     expect(screen.getByLabelText("Runs in 24 hours")).toHaveValue("3");
+  });
+
+  it("searches its own job board, or the one in Settings", async () => {
+    const user = userEvent.setup();
+    open();
+    const board = screen.getByLabelText("Job board");
+    expect(board).toHaveDisplayValue("Settings default (JSearch)");
+    await user.selectOptions(board, "NAUKRI");
+    expect(saveAgent).toHaveBeenLastCalledWith({ id: "a1", source: "NAUKRI" });
+    await user.selectOptions(board, "");
+    expect(saveAgent).toHaveBeenLastCalledWith({ id: "a1", source: null });
   });
 
   it("turns off, and on only with a search", async () => {

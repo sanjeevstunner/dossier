@@ -13,7 +13,7 @@ import { lastKnownTimeZone } from "@/lib/time-zone";
 import { listAgents, loadAgent, type AgentConfig } from "./agents";
 import { stringsOf } from "./candidates";
 import { agentJobKey } from "./jobs";
-import { agentSetupProblem } from "./run";
+import { agentSetupProblem, agentSource } from "./run";
 import { runLimitWarning } from "./runs";
 import { nextAgentRun, scheduleText } from "./schedule";
 
@@ -68,7 +68,7 @@ export type AgentCardView = {
 
 export type AgentEditable = Pick<
   AgentConfig,
-  "name" | "enabled" | "query" | "hour" | "days" | "minScore" | "maxScores" | "maxDrafts" | "autoDraft" | "maxRunsPerDay" | "manualIntervalMinutes"
+  "name" | "enabled" | "query" | "source" | "hour" | "days" | "minScore" | "maxScores" | "maxDrafts" | "autoDraft" | "maxRunsPerDay" | "manualIntervalMinutes"
 >;
 
 export type AgentDetailView = {
@@ -93,8 +93,8 @@ export type AgentDetailView = {
   scored: AgentCandidateView[];
   /** Below it: kept so they don't come back, shown on request. */
   belowMinimum: AgentCandidateView[];
-  /** Where the agent searches, and what the config form needs. */
-  source: JobSource | null;
+  /** The board in Settings → Job search, which an agent without its own searches. */
+  defaultSource: JobSource | null;
   timeZone: string;
 };
 
@@ -168,14 +168,14 @@ export async function loadAgentList(now = new Date()): Promise<AgentCardView[]> 
       const [runs, waiting, setupProblem] = await Promise.all([
         prisma.agentRun.findMany({ where: { agentId: agent.id }, orderBy: { startedAt: "desc" }, take: 5 }),
         prisma.agentCandidate.count({ where: waitingWhere(agent) }),
-        agentSetupProblem(agent.query),
+        agentSetupProblem(agent),
       ]);
       const next = agent.enabled ? nextAgentRun(now, agent, timeZone, runs) : null;
       return {
         id: agent.id,
         name: agent.name,
         enabled: agent.enabled,
-        search: searchText(agent.query, config.source),
+        search: searchText(agent.query, agentSource(agent, config)),
         schedule: scheduleText(agent),
         nextRun: next && formatDateTime(next, timeZone, now),
         lastRun: runs[0] ? summary(runs[0], timeZone, now) : null,
@@ -238,17 +238,17 @@ export async function loadAgentDetail(id: string, runId?: string, now = new Date
     };
   }
 
-  const setupProblem = await agentSetupProblem(agent.query);
+  const setupProblem = await agentSetupProblem(agent);
   const next = agent.enabled ? nextAgentRun(now, agent, timeZone, runs) : null;
   const drafts = candidates.filter((candidate) => candidate.status === AgentCandidateStatus.DRAFTED && candidate.applicationId).map(view);
   const waiting = candidates.filter((candidate) => candidate.status !== AgentCandidateStatus.DRAFTED);
-  const { name, enabled, query, hour, days, minScore, maxScores, maxDrafts, autoDraft, maxRunsPerDay, manualIntervalMinutes } = agent;
+  const { name, enabled, query, source, hour, days, minScore, maxScores, maxDrafts, autoDraft, maxRunsPerDay, manualIntervalMinutes } = agent;
 
   return {
     id,
-    config: { name, enabled, query, hour, days, minScore, maxScores, maxDrafts, autoDraft, maxRunsPerDay, manualIntervalMinutes },
+    config: { name, enabled, query, source, hour, days, minScore, maxScores, maxDrafts, autoDraft, maxRunsPerDay, manualIntervalMinutes },
     agents: all.map((entry) => ({ id: entry.id, name: entry.name, enabled: entry.enabled })),
-    search: searchText(query, config.source),
+    search: searchText(query, agentSource(agent, config)),
     schedule: scheduleText(agent),
     setupProblem,
     setupSection: setupProblem ? sectionOf(setupProblem) : null,
@@ -260,7 +260,7 @@ export async function loadAgentDetail(id: string, runId?: string, now = new Date
     drafts,
     scored: waiting.filter((candidate) => candidate.score >= minScore).map(view),
     belowMinimum: waiting.filter((candidate) => candidate.score < minScore).map(view),
-    source: config.source,
+    defaultSource: config.source,
     timeZone,
   };
 }
