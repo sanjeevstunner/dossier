@@ -222,12 +222,13 @@ export type NaukriAnswers = Record<string, string | string[]>;
 
 const applySchema = z.object({
   applied: z.boolean(),
+  status: z.number().nullish().catch(null),
   message: z.string().nullish().catch(null),
   sid: z.string(),
   questionnaireRequired: z.boolean(),
   questionnaire: z.array(questionSchema).catch([]),
 });
-export type NaukriApplied = { applied: boolean; message: string | null; sid: string; questionnaire: NaukriQuestion[] };
+export type NaukriApplied = { applied: boolean; status: number | null; message: string | null; sid: string; questionnaire: NaukriQuestion[] };
 
 /**
  * Applies on Naukri. `applied` is Naukri's own confirmation; a questionnaire
@@ -243,6 +244,13 @@ export async function naukriApply(
   const body = { source: "search", mandatorySkills: skills.mandatory, optionalSkills: skills.optional, ...(sid && { sid }), ...(answers && { answers }) };
   const answer = applySchema.safeParse(await signedIn(credentials, path, context, body));
   if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
-  const { applied, message, questionnaireRequired, questionnaire } = answer.data;
-  return { applied, message: message ?? null, sid: answer.data.sid, questionnaire: questionnaireRequired ? questionnaire : [] };
+  const { applied, status, message, questionnaireRequired, questionnaire } = answer.data;
+  return { applied, status: status ?? null, message: message ?? null, sid: answer.data.sid, questionnaire: questionnaireRequired ? questionnaire : [] };
+}
+
+/** Whether Naukri's history lists the job as applied: the check when an apply isn't confirmed (it may have gone through earlier). */
+export async function naukriHasApplied(credentials: Credentials, jobId: string, context: RequestContext = {}): Promise<boolean> {
+  const answer = await signedIn(credentials, "/api/applications?pageSize=50&days=30", context);
+  if (!Array.isArray(answer)) throw jobSearchError("changed", "NAUKRI", { detail: "/api/applications: unexpected answer" });
+  return answer.some((item) => item && typeof item === "object" && "jobId" in item && String(item.jobId) === jobId);
 }

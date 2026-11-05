@@ -10,10 +10,11 @@ import { createManualApplication } from "@/lib/application-create";
 import { credentialsFor, loadJobSearchConfig, requestContext } from "@/lib/job-search/config";
 import { JobSearchError } from "@/lib/job-search/errors";
 import { fullText } from "@/lib/job-search/find";
-import { naukriApply, naukriApplyInfo, type NaukriAnswers } from "@/lib/job-search/naukri";
+import { naukriApply, naukriApplyInfo, naukriHasApplied, type NaukriAnswers } from "@/lib/job-search/naukri";
 import { foundPostingSchema, postingKey, type FoundPosting } from "@/lib/job-search/search";
 import { storePosting } from "@/lib/postings";
 import { prisma } from "@/lib/prisma";
+import { logServerError } from "@/lib/log";
 import { loadProfile } from "@/lib/profile-data";
 import { applyStatusChange } from "@/lib/status-changes";
 
@@ -74,8 +75,14 @@ export const easyApplyJob = defineJob({
         if (result.questionnaire.length > 0) throw new JobFailure("Naukri didn't take the answers. Apply on Naukri yourself to finish.");
       }
 
+      // Not confirmed: it may have gone through before (a Retry, or an apply done on Naukri), which its history shows.
       if (!result.applied) {
-        throw new JobFailure(`Naukri didn't confirm the application${result.message ? `: “${result.message}”` : "."} It wasn't added to your board.`);
+        await step("Checking your applies on Naukri");
+        if (!(await naukriHasApplied(credentials, jobId, context))) {
+          logServerError("naukri easy apply", new Error(`not confirmed: status ${result.status}, message ${JSON.stringify(result.message)}`));
+          const said = result.message ? `: “${result.message}”` : result.status ? ` (status ${result.status})` : ".";
+          throw new JobFailure(`Naukri didn't confirm the application${said} It wasn't added to your board.`);
+        }
       }
 
       await step("Adding it to your board");

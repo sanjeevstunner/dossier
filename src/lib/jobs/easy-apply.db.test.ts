@@ -30,7 +30,8 @@ const fake = vi.hoisted(() => ({
   questionnaire: [] as NaukriQuestion[],
   applies: [] as { skills: unknown; sid?: string; answers?: NaukriAnswers }[],
   /** What Naukri says to the apply that sends the answers (or to the first, without a questionnaire). */
-  final: { applied: true, message: "You have successfully applied to this job." as string | null },
+  final: { applied: true, status: 200 as number | null, message: "You have successfully applied to this job." as string | null },
+  inHistory: false,
   reply: {} as unknown,
 }));
 vi.mock("@/lib/job-search/naukri", () => ({
@@ -38,9 +39,11 @@ vi.mock("@/lib/job-search/naukri", () => ({
   naukriApply: async (_c: unknown, _id: string, body: { skills: unknown; sid?: string; answers?: NaukriAnswers }) => {
     fake.applies.push(body);
     const asking = !body.answers && fake.questionnaire.length > 0;
-    return asking ? { applied: false, message: null, sid: "17938819617101388", questionnaire: fake.questionnaire } : { ...fake.final, sid: body.sid ?? "1", questionnaire: [] };
+    return asking ? { applied: false, status: null, message: null, sid: "17938819617101388", questionnaire: fake.questionnaire } : { ...fake.final, sid: body.sid ?? "1", questionnaire: [] };
   },
+  naukriHasApplied: async () => fake.inHistory,
 }));
+vi.mock("@/lib/log", () => ({ logServerError: () => {} }));
 vi.mock("@/lib/ai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai")>()),
   getAiProvider: async () => new MockProvider({ reply: () => fake.reply }),
@@ -84,7 +87,7 @@ const context = () => {
 
 beforeEach(async () => {
   await resetDatabase(prisma());
-  Object.assign(fake, { external: false, questionnaire: [], applies: [], final: { applied: true, message: "You have successfully applied to this job." }, reply: {} });
+  Object.assign(fake, { external: false, questionnaire: [], applies: [], final: { applied: true, status: 200, message: "You have successfully applied to this job." }, inHistory: false, reply: {} });
 });
 afterAll(() => prisma().$disconnect());
 
@@ -139,10 +142,19 @@ describe("Naukri easy apply agent", () => {
     expect(await prisma().application.count()).toBe(0);
   });
 
-  it("adds nothing to the board when Naukri doesn't confirm", async () => {
-    fake.final = { applied: false, message: "You have already applied to this job." };
-    await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/didn't confirm.*already applied/);
+  it("adds nothing to the board when Naukri doesn't confirm and its history doesn't list it", async () => {
+    fake.final = { applied: false, status: 409, message: null };
+    await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/didn't confirm the application \(status 409\)/);
     expect(await prisma().application.count()).toBe(0);
+  });
+
+  it("puts it in Sent when Naukri doesn't confirm a second apply but lists it as applied", async () => {
+    fake.final = { applied: false, status: 409, message: null };
+    fake.inHistory = true;
+    const run = context();
+    await easyApplyJob.run({ posting }, run);
+    expect(run.steps).toContain("Checking your applies on Naukri");
+    expect((await prisma().application.findFirstOrThrow()).status).toBe("SENT");
   });
 
   it("refuses company-site jobs without applying", async () => {
