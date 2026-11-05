@@ -104,6 +104,10 @@ export const easyApplyJob = defineJob({
       await applyStatusChange(prisma, applicationId, ApplicationStatus.SENT);
       return { applicationId, answered, missing: [] };
     } catch (error) {
+      // NopeRi answers 429 when Naukri's daily apply limit is used up.
+      if (error instanceof JobSearchError && error.problem === "quota") {
+        throw new JobFailure("You've reached Naukri's daily apply limit, so nothing was sent. It stays a draft on your board; try again tomorrow.");
+      }
       if (error instanceof JobSearchError) throw new JobFailure(error.message);
       throw error;
     }

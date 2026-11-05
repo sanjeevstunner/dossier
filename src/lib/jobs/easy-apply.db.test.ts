@@ -62,6 +62,7 @@ const fake = vi.hoisted(() => ({
   /** What Naukri says to the apply that sends the answers (or to the first, without a questionnaire). */
   final: { applied: true, status: 200 as number | null, message: "You have successfully applied to this job." as string | null },
   inHistory: false,
+  quota: false,
   reply: {} as unknown,
   resumes: [] as (NaukriResume | undefined)[],
   prompts: [] as string[],
@@ -69,6 +70,7 @@ const fake = vi.hoisted(() => ({
 vi.mock("@/lib/job-search/naukri", () => ({
   naukriApplyInfo: async () => ({ externalApply: fake.external, skills: { mandatory: ["LLM"], optional: ["RAG"] } }),
   naukriApply: async (_c: unknown, _id: string, { resume, ...body }: { skills: unknown; sid?: string; answers?: NaukriAnswers; resume?: NaukriResume }) => {
+    if (fake.quota) throw (await import("@/lib/job-search/errors")).jobSearchError("quota", "NAUKRI", { detail: "apply: HTTP 429" });
     fake.applies.push(body);
     fake.resumes.push(resume);
     const asking = !body.answers && fake.questionnaire.length > 0;
@@ -122,7 +124,7 @@ beforeEach(async () => {
   await resetDatabase(prisma());
   await seedBuiltIns(prisma());
   printed.length = 0;
-  Object.assign(fake, { external: false, questionnaire: [], applies: [], resumes: [], prompts: [], final: { applied: true, status: 200, message: "You have successfully applied to this job." }, inHistory: false, reply: {} });
+  Object.assign(fake, { external: false, questionnaire: [], applies: [], resumes: [], prompts: [], final: { applied: true, status: 200, message: "You have successfully applied to this job." }, inHistory: false, quota: false, reply: {} });
 });
 afterAll(() => prisma().$disconnect());
 
@@ -199,6 +201,12 @@ describe("Naukri easy apply agent", () => {
   it("adds nothing to the board when Naukri doesn't confirm and its history doesn't list it", async () => {
     fake.final = { applied: false, status: 409, message: null };
     await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/didn't confirm the application \(status 409\).*stays a draft/);
+    expect((await prisma().application.findFirstOrThrow()).status).toBe("DRAFT");
+  });
+
+  it("says Naukri's daily apply limit is reached and keeps the draft", async () => {
+    fake.quota = true;
+    await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/daily apply limit.*try again tomorrow/);
     expect((await prisma().application.findFirstOrThrow()).status).toBe("DRAFT");
   });
 
