@@ -8,6 +8,7 @@ import { handOffFoundPosting, handsOffToClaude } from "@/lib/connector/handoff";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
 import { fullPosting, fullText, naukriSignIn } from "@/lib/job-search/find";
 import { foundPostingSchema, JOB_SOURCES, searchQuerySchema } from "@/lib/job-search/search";
+import { easyApplyJob, easyApplyJobKey } from "@/lib/jobs/easy-apply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { scoreJobKey, scorePostingJob } from "@/lib/jobs/score-posting";
 import { removeSearch, runSearch, showMoreFor } from "@/lib/posting-searches";
@@ -90,6 +91,19 @@ export const startScoringPosting = action(z.object({ posting: foundPostingSchema
   const key = scoreJobKey(posting);
   const [unfinished] = await findUnfinishedJobs(key);
   return { jobId: unfinished?.id ?? (await startJob(scorePostingJob, { posting }, { key })) };
+});
+
+/**
+ * "Easy apply with agent": applies on Naukri through NopeRi in the
+ * background, answering its questions from the profile; an apply under way is
+ * followed, not started again. Once Naukri confirms it, it's on the board in Sent.
+ */
+export const startEasyApply = action(z.object({ posting: foundPostingSchema }), async ({ posting }) => {
+  if (posting.source !== "NAUKRI") throw new ActionError("Only Naukri postings can be applied to from here.");
+  if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first: it answers Naukri's questions.");
+  const key = easyApplyJobKey(posting);
+  const [unfinished] = await findUnfinishedJobs(key);
+  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting }, { key })) };
 });
 
 /** Naukri's sign-in through NopeRi: whether it's signed in, a sign-in with NopeRi's credentials, or a token from a signed-in browser. */

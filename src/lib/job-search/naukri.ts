@@ -190,3 +190,67 @@ export const naukri: JobSourceAdapter<"NAUKRI"> = {
     await naukriAuth(credentials, "status", context);
   },
 };
+
+// Easy apply through NopeRi (the apply agent, src/lib/jobs/easy-apply.ts).
+
+const skillsSchema = z.object({ mandatory: z.array(z.string()).catch([]), optional: z.array(z.string()).catch([]) });
+const applyInfoSchema = z.object({ externalApply: z.boolean(), skills: skillsSchema.catch({ mandatory: [], optional: [] }) });
+export type NaukriSkills = z.output<typeof skillsSchema>;
+
+/** Whether a Naukri job applies on the company site, and the skills its apply sends. */
+export async function naukriApplyInfo(credentials: Credentials, jobId: string, context: RequestContext = {}): Promise<z.output<typeof applyInfoSchema>> {
+  const path = `/api/jobs/${encodeURIComponent(jobId)}`;
+  const answer = applyInfoSchema.safeParse(await signedIn(credentials, path, context));
+  if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
+  return answer.data;
+}
+
+export const questionSchema = z.object({
+  id: z.string().min(1),
+  text: z.string(),
+  type: z.enum(["text", "choice", "multi"]),
+  /** Option key → label; the answer sends labels. */
+  options: z.record(z.string(), z.string()),
+  required: z.boolean().catch(true),
+  /** Naukri fills it from the Naukri profile (CTC, notice period…), so it's left out of the answers. */
+  skippable: z.boolean().catch(false),
+  prefill: z.array(z.string()).catch([]),
+});
+export type NaukriQuestion = z.output<typeof questionSchema>;
+/** Text answers as strings, choice answers as lists of option labels, keyed by question id. */
+export type NaukriAnswers = Record<string, string | string[]>;
+
+const applySchema = z.object({
+  applied: z.boolean(),
+  status: z.number().nullish().catch(null),
+  message: z.string().nullish().catch(null),
+  sid: z.string(),
+  questionnaireRequired: z.boolean(),
+  questionnaire: z.array(questionSchema).catch([]),
+});
+export type NaukriApplied = { applied: boolean; status: number | null; message: string | null; sid: string; questionnaire: NaukriQuestion[] };
+
+/**
+ * Applies on Naukri. `applied` is Naukri's own confirmation; a questionnaire
+ * means it wasn't sent yet: apply again with the same `sid` and `answers`.
+ */
+export async function naukriApply(
+  credentials: Credentials,
+  jobId: string,
+  { skills, sid, answers }: { skills: NaukriSkills; sid?: string; answers?: NaukriAnswers },
+  context: RequestContext = {},
+): Promise<NaukriApplied> {
+  const path = `/api/jobs/${encodeURIComponent(jobId)}/apply`;
+  const body = { source: "search", mandatorySkills: skills.mandatory, optionalSkills: skills.optional, ...(sid && { sid }), ...(answers && { answers }) };
+  const answer = applySchema.safeParse(await signedIn(credentials, path, context, body));
+  if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
+  const { applied, status, message, questionnaireRequired, questionnaire } = answer.data;
+  return { applied, status: status ?? null, message: message ?? null, sid: answer.data.sid, questionnaire: questionnaireRequired ? questionnaire : [] };
+}
+
+/** Whether Naukri's history lists the job as applied: the check when an apply isn't confirmed (it may have gone through earlier). */
+export async function naukriHasApplied(credentials: Credentials, jobId: string, context: RequestContext = {}): Promise<boolean> {
+  const answer = await signedIn(credentials, "/api/applications?pageSize=50&days=30", context);
+  if (!Array.isArray(answer)) throw jobSearchError("changed", "NAUKRI", { detail: "/api/applications: unexpected answer" });
+  return answer.some((item) => item && typeof item === "object" && "jobId" in item && String(item.jobId) === jobId);
+}
