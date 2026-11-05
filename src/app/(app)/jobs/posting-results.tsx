@@ -33,6 +33,8 @@ export type PostingResultsProps = {
       /** Runs the same search anew, as a new kept search. */
       onSearchAgain: () => void;
       searching: boolean;
+      /** Beside the list: the source's filters for the search (Naukri). */
+      aside?: ReactNode;
     }
   | { mode: "saved" | "dismissed" | "recommended"; postings: ShownPosting[] }
 );
@@ -170,6 +172,7 @@ export function PostingResults(props: PostingResultsProps) {
 
   return (
     <div className="flex flex-wrap items-start gap-6 px-10 pb-16">
+      {props.mode === "search" && props.aside}
       {Object.entries(scoring).map(([key, { jobId }]) =>
         jobId ? <ScoreWatcher key={jobId} jobId={jobId} onChange={(job) => scoringChanged(key, job)} /> : null,
       )}
@@ -177,7 +180,7 @@ export function PostingResults(props: PostingResultsProps) {
         <p className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 text-meta text-muted", mode !== "search" && visible.length === 0 && "hidden")}>
           <span>
             {props.mode === "search"
-              ? `${plural(postings.length, "posting", "postings")} from ${SOURCE_INFO[props.search.source].name}${next ? ", more to come" : ""} · searched ${props.search.ranAt}`
+              ? `${plural(postings.length, "posting", "postings")}${props.search.filters?.total ? ` of ${props.search.filters.total.toLocaleString("en-IN")}` : ""} from ${SOURCE_INFO[props.search.source].name}${next ? ", more to come" : ""} · searched ${props.search.ranAt}`
               : mode === "saved"
                 ? plural(visible.length, "saved posting", "saved postings")
                 : mode === "recommended"

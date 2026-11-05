@@ -7,6 +7,7 @@ import {
   EMPTY_QUERY,
   foundPostingSchema,
   postingKey,
+  type SearchFilters,
   searchQuerySchema,
   type FoundPosting,
   type PastSearchDay,
@@ -32,6 +33,9 @@ function postingsOf(value: Prisma.JsonValue): FoundPosting[] {
 
 const queryOf = (value: Prisma.JsonValue): SearchQuery => searchQuerySchema.catch(EMPTY_QUERY).parse(value);
 
+/** The filters column, written by runSearch from the source's own answer. */
+const filtersOf = (value: Prisma.JsonValue): SearchFilters | null => (value && typeof value === "object" && "groups" in value ? (value as SearchFilters) : null);
+
 
 /** "today at 14:32", "yesterday at 09:05" or "on Thu 1 Oct at 18:20". */
 function ranAtLabel(date: Date, timeZone?: string, now = new Date()): string {
@@ -45,7 +49,7 @@ export async function runSearch(query: SearchQuery): Promise<{ ok: true; id: str
   const answer = await askSource(query);
   if (!answer.ok) return answer;
   const search = await prisma.postingSearch.create({
-    data: { source: answer.source, query, postings: answer.postings, found: answer.postings.length, next: answer.next },
+    data: { source: answer.source, query, postings: answer.postings, found: answer.postings.length, next: answer.next, filters: answer.filters },
     select: { id: true },
   });
   return { ok: true, id: search.id };
@@ -64,6 +68,7 @@ export async function loadSearch(id?: string, { timeZone, now = new Date() }: { 
     ranAt: ranAtLabel(search.createdAt, timeZone, now),
     postings: await withStates(postingsOf(search.postings)),
     next: search.next,
+    filters: filtersOf(search.filters),
   };
 }
 

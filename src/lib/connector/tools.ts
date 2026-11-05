@@ -165,6 +165,10 @@ export function createDossierServer(origin: string): McpServer {
         remote_only: z.boolean().optional().describe("Only remote postings."),
         radius_km: z.literal(RADII_KM).optional(),
         posted_within: z.enum(POSTED).optional().describe("any, day, 3days, week or month. Defaults to month."),
+        filters: z
+          .record(z.string().max(40), z.array(z.string().max(40)).max(50))
+          .optional()
+          .describe("Naukri only: option ids by group, from a previous result's `filters`, e.g. { wfhType: ['2'], citiesGid: ['97'] }."),
       }),
       annotations: { readOnlyHint: false, openWorldHint: true },
     },
@@ -180,6 +184,7 @@ export function createDossierServer(origin: string): McpServer {
         radiusKm: input.radius_km ?? DEFAULT_RADIUS_KM,
         remoteOnly,
         postedWithin: input.posted_within ?? "month",
+        ...(input.filters && Object.keys(input.filters).length ? { filters: input.filters } : {}),
       };
       const ran = await runSearch(query);
       if (!ran.ok) return failure(ran.message);
@@ -191,6 +196,11 @@ export function createDossierServer(origin: string): McpServer {
         found: search.postings.length,
         more_available: search.next !== null,
         postings: search.postings.map((posting, index) => postingLine(posting, index + 1)),
+        ...(search.filters && {
+          total: search.filters.total,
+          // What search_jobs can be narrowed by next: "id: label (count)" per option.
+          filters: Object.fromEntries(search.filters.groups.map((group) => [group.key, group.options.map((o) => `${o.id}: ${o.label} (${o.count})`)])),
+        }),
         link: linkTo(`/jobs?search=${search.id}`),
       });
     },

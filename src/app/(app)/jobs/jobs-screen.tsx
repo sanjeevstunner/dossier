@@ -25,6 +25,7 @@ import {
 import { SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { acceptArbeitsagenturNote, runJobSearch } from "./actions";
+import { NaukriFilters } from "./naukri-filters";
 import { NaukriLogin } from "./naukri-login";
 import { PastSearches } from "./past-searches";
 import { PostingResults } from "./posting-results";
@@ -175,6 +176,11 @@ export function JobsScreen({
             scoreInClaude={scoreInClaude}
             onSearchAgain={() => run(search.query)}
             searching={pending}
+            aside={
+              search.source === "NAUKRI" && search.filters?.groups.length ? (
+                <NaukriFilters filters={search.filters} chosen={search.query.filters} disabled={pending} onChange={(filters) => run({ ...search.query, filters })} />
+              ) : undefined
+            }
           />
         ) : (
           <p className="px-10 pb-16 text-sm text-muted">

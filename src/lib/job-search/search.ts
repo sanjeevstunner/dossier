@@ -51,6 +51,11 @@ export const searchQuerySchema = z.object({
   postedWithin: z.enum(POSTED_VALUES),
   /** Years of experience, for sources that filter by it (Naukri); unset for any. */
   experience: z.number().int().min(0).max(50).optional().catch(undefined),
+  /** Naukri's filters, by group key (see NAUKRI_FILTER_GROUPS) to the chosen options' ids; unset for none. */
+  filters: z
+    .record(z.string().regex(/^\w{1,40}$/), z.array(z.string().regex(/^[\w-]{1,40}$/)).max(50))
+    .optional()
+    .catch(undefined),
 });
 export type SearchQuery = z.output<typeof searchQuerySchema>;
 
@@ -90,8 +95,29 @@ export const foundPostingSchema = z.object({
 });
 export type FoundPosting = z.output<typeof foundPostingSchema>;
 
-/** A page of results, and what to ask for the next page (null on the last one). */
-export type SearchPage = { postings: FoundPosting[]; next: string | null };
+/** Naukri's filter groups Dossier can send back, with their headings, in the order Naukri's own sidebar would show them unless it says otherwise. */
+export const NAUKRI_FILTER_GROUPS: Record<string, string> = {
+  wfhType: "Work mode",
+  functionalAreaGid: "Department",
+  citiesGid: "Location",
+  salaryRange: "Salary",
+  business_size: "Company type",
+  glbl_RoleCat: "Role category",
+  ugCourseGid: "UG education",
+  pgCourseGid: "PG education",
+  industryTypeGid: "Industry",
+  topGroupId: "Top companies",
+};
+
+/** A source's filters for a search (Naukri's), with how many postings each option would leave. */
+export type SearchFilters = {
+  /** Postings across all pages. */
+  total: number;
+  groups: { key: string; options: { id: string; count: number; label: string }[] }[];
+};
+
+/** A page of results, and what to ask for the next page (null on the last one); a source that offers filters gives them with the first page. */
+export type SearchPage = { postings: FoundPosting[]; next: string | null; filters?: SearchFilters };
 
 /** Where a posting stands for the user (E14-5). */
 export type PostingState = {
@@ -123,6 +149,8 @@ export type StoredSearch = {
   ranAt: string;
   postings: ShownPosting[];
   next: string | null;
+  /** The source's filters for it (Naukri), when it gave any. */
+  filters?: SearchFilters | null;
 };
 
 /** A search in the Past searches list, grouped by the day it ran. */
@@ -137,7 +165,9 @@ export function describeSearch(query: SearchQuery, countryName: string): string 
   const where = query.place ? `${query.place}, ${query.radiusKm} km` : countryName;
   const posted = POSTED_WITHIN.find((option) => option.value === query.postedWithin);
   const experience = query.experience === undefined ? "" : `${query.experience} yrs exp`;
-  return [query.keywords, where, query.remoteOnly ? "Remote only" : "", posted && posted.value !== "any" ? posted.label : "", experience].filter(Boolean).join(" · ");
+  const chosen = Object.values(query.filters ?? {}).flat().length;
+  const filters = chosen ? `${chosen} filter${chosen === 1 ? "" : "s"}` : "";
+  return [query.keywords, where, query.remoteOnly ? "Remote only" : "", posted && posted.value !== "any" ? posted.label : "", experience, filters].filter(Boolean).join(" · ");
 }
 
 /** Identifies a posting across searches. */
@@ -187,6 +217,13 @@ export function queryFromParams(params: Record<string, string | string[] | undef
   const posted = POSTED_VALUES.find((value) => value === one(params.posted));
   const country = one(params.country).trim().toLowerCase();
   const experience = one(params.exp) === "" ? NaN : Number(one(params.exp));
+  // f.<group>=<id>, repeated for each option.
+  const filters: Record<string, string[]> = {};
+  for (const [name, value] of Object.entries(params)) {
+    const key = name.startsWith("f.") ? name.slice(2) : "";
+    const ids = [value ?? []].flat().filter((id) => /^[\w-]{1,40}$/.test(id));
+    if (key in NAUKRI_FILTER_GROUPS && ids.length) filters[key] = ids.slice(0, 50);
+  }
   return {
     keywords: keywords.slice(0, 200),
     place: one(params.where).trim().slice(0, 200),
@@ -195,6 +232,7 @@ export function queryFromParams(params: Record<string, string | string[] | undef
     remoteOnly: one(params.remote) === "1",
     postedWithin: posted ?? "any",
     ...(Number.isInteger(experience) && experience >= 0 && experience <= 50 ? { experience } : {}),
+    ...(Object.keys(filters).length ? { filters } : {}),
   };
 }
 
@@ -220,6 +258,7 @@ export function searchHref(query: SearchQuery): string {
   if (query.remoteOnly) params.set("remote", "1");
   if (query.postedWithin !== "any") params.set("posted", query.postedWithin);
   if (query.experience !== undefined) params.set("exp", String(query.experience));
+  for (const [key, ids] of Object.entries(query.filters ?? {})) for (const id of ids) params.append(`f.${key}`, id);
   return `/jobs?${params.toString()}`;
 }
 

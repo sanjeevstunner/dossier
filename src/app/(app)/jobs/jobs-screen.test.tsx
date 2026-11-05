@@ -478,3 +478,40 @@ describe("the Saved and Dismissed views (E14-7)", () => {
     expect(screen.queryByRole("button", { name: /^Designer a/ })).not.toBeInTheDocument();
   });
 });
+
+describe("Naukri's filters", () => {
+  const filters = {
+    total: 1563,
+    groups: [
+      { key: "wfhType", options: [{ id: "0", count: 1496, label: "Work from office" }, { id: "2", count: 50, label: "Remote" }] },
+      { key: "citiesGid", options: ["Hyderabad", "Indore", "Pune", "Delhi", "Bengaluru", "Chennai"].map((label, i) => ({ id: String(i), count: 10 - i, label })) },
+    ],
+  };
+  const naukriSearch = (chosen?: Record<string, string[]>): StoredSearch => ({
+    ...stored([posting("1", { source: "NAUKRI" })]),
+    source: "NAUKRI",
+    query: { ...query, country: "in", filters: chosen },
+    filters,
+  });
+
+  it("shows them beside a Naukri search, and ticking one searches again with it", async () => {
+    renderScreen({ source: "NAUKRI", search: naukriSearch({ wfhType: ["0"] }) });
+    const aside = screen.getByRole("complementary", { name: "Filters" });
+    expect(within(aside).getByRole("group", { name: "Work mode" })).toBeInTheDocument();
+    expect(within(aside).getByRole("checkbox", { name: "Work from office (1,496)" })).toBeChecked();
+    expect(within(aside).queryByRole("checkbox", { name: /Chennai/ })).not.toBeInTheDocument();
+    await userEvent.click(within(aside).getByRole("button", { name: "View 2 more" }));
+    expect(within(aside).getByRole("checkbox", { name: /Chennai/ })).toBeInTheDocument();
+
+    await userEvent.click(within(aside).getByRole("checkbox", { name: "Remote (50)" }));
+    await waitFor(() => expect(runJobSearch).toHaveBeenCalledWith({ query: { ...query, country: "in", filters: { wfhType: ["0", "2"] } } }));
+    await userEvent.click(within(aside).getByRole("button", { name: "Clear 1" }));
+    await waitFor(() => expect(runJobSearch).toHaveBeenLastCalledWith({ query: { ...query, country: "in", filters: undefined } }));
+    expect(screen.getByText(/1 posting of 1,563 from Naukri/)).toBeInTheDocument();
+  });
+
+  it("aren't shown for other sources", () => {
+    renderScreen({ search: { ...stored([posting("1")]), filters } });
+    expect(screen.queryByRole("complementary", { name: "Filters" })).not.toBeInTheDocument();
+  });
+});
