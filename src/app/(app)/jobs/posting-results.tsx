@@ -721,15 +721,19 @@ function PostingDetail({
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {children}
+        {/* Once applied, starting, saving or dismissing it again means nothing. */}
+        {!state.applicationId && children}
+        {/* Bring back stays even once applied: it's the only way out of the Dismissed view. */}
         {state.dismissed ? (
           <Button variant="secondary" size="sm" onClick={onRestore}>
             Bring back
           </Button>
         ) : (
-          <Button variant="secondary" size="sm" aria-pressed={state.saved} onClick={state.saved ? onUnsave : onSave}>
-            {state.saved ? "Saved" : "Save"}
-          </Button>
+          !state.applicationId && (
+            <Button variant="secondary" size="sm" aria-pressed={state.saved} onClick={state.saved ? onUnsave : onSave}>
+              {state.saved ? "Saved" : "Save"}
+            </Button>
+          )
         )}
         {applyUrl && (
           <a href={applyUrl} target="_blank" rel="noopener noreferrer" className={buttonClassName("secondary", "sm")}>
@@ -753,7 +757,7 @@ function PostingDetail({
         <Button variant="secondary" size="sm" aria-disabled={scoring ? true : undefined} onClick={scoring ? undefined : onScore}>
           {scoring ? "Scoring…" : state.score ? "Score again" : "Score"}
         </Button>
-        {!state.dismissed && (
+        {!state.dismissed && !state.applicationId && (
           <Button variant="secondary" size="sm" onClick={onDismiss}>
             Dismiss
           </Button>
