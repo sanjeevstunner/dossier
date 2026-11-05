@@ -18,6 +18,7 @@ import { emailJobKey } from "@/lib/jobs/write-email";
 import { googleConnection } from "@/lib/google/account";
 import { pullInterviewEvents } from "@/lib/google/availability";
 import { loadConversation } from "@/lib/google/inbox-data";
+import { draftReasonFor } from "@/lib/postings";
 import { refineSuggestions } from "@/lib/refine-suggestions";
 import { loadThemes } from "@/lib/theme-data";
 import { userTimeZone } from "@/lib/time-zone";
@@ -44,7 +45,7 @@ export async function generateMetadata({ params }: PageProps<"/applications/[id]
 export default async function ApplicationPage({ params, searchParams }: PageProps<"/applications/[id]">) {
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
   await pullCalendar(id);
-  const [{ application, profile, settings, extracted, resume, letter, files, email, includeReferences, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, catchUpJobs, timeZone, google, emails, themes, origin] =
+  const [{ application, profile, settings, extracted, resume, letter, files, email, includeReferences, letterDate }, aiReady, unitJobs, refineJobs, emailJobs, catchUpJobs, timeZone, google, emails, themes, origin, draftReason] =
     await Promise.all([
       loadDocuments(id),
       isAiConfigured(),
@@ -65,6 +66,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
           startup: { select: { source: true } },
         },
       }),
+      draftReasonFor(id),
     ]);
 
   const match = readJson(matchSchema, application.match);
@@ -110,6 +112,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
         // The agent that prepared it, for "waiting for review".
         agentId: application.awaitingReview ? ((await prisma.agentCandidate.findUnique({ where: { applicationId: application.id }, select: { agentId: true } }))?.agentId ?? null) : null,
         nextInterviewAt,
+        draftReason,
       }}
       timeZone={timeZone}
       posting={{

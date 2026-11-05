@@ -4,7 +4,7 @@ import { PostingSource } from "@/generated/prisma/enums";
 import { JOB_SOURCES, type FoundPosting } from "@/lib/job-search/search";
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { countPostings, dismissPosting, foundFromPosting, listPostings, postingStates, savePosting, storePosting, unmarkPosting } from "./postings";
+import { countPostings, dismissPosting, draftReasonFor, foundFromPosting, listPostings, postingStates, savePosting, storePosting, unmarkPosting } from "./postings";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -131,8 +131,11 @@ describe("postingStates", () => {
     await prisma().job.create({ data: { type: "naukri-easy-apply", key, input: {}, status: "FAILED", error: "Daily limit reached" } });
     expect((await postingStates([found])).get("JSEARCH:job-1")).toMatchObject({ applicationId: draft.id, drafted: true, draftReason: "Daily limit reached" });
 
+    expect(await draftReasonFor(draft.id)).toBe("Daily limit reached");
+
     await prisma().application.update({ where: { id: draft.id }, data: { status: "SENT" } });
     expect((await postingStates([found])).get("JSEARCH:job-1")).toMatchObject({ applicationId: draft.id, drafted: false, draftReason: null });
+    expect(await draftReasonFor(draft.id)).toBeNull();
   });
 
   it("counts applications made from the same link before Find jobs, ignoring tracking", async () => {

@@ -178,6 +178,14 @@ export async function postingStates(found: readonly (PostingRef & { url: string 
   );
 }
 
+/** Why the last easy apply of a Draft's posting failed; null when it isn't a draft or its last apply didn't fail. */
+export async function draftReasonFor(applicationId: string): Promise<string | null> {
+  const posting = await prisma.posting.findUnique({ where: { applicationId }, select: { source: true, externalId: true, application: { select: { status: true } } } });
+  if (posting?.application?.status !== ApplicationStatus.DRAFT) return null;
+  const last = await prisma.job.findFirst({ where: { key: easyApplyJobKey(posting) }, orderBy: { createdAt: "desc" }, select: { status: true, error: true } });
+  return last?.status === JobStatus.FAILED ? last.error : null;
+}
+
 /** Postings with where each stands for the user now. */
 export async function withStates(postings: FoundPosting[]): Promise<ShownPosting[]> {
   const states = await postingStates(postings);

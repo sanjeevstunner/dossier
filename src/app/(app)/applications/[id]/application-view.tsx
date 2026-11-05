@@ -120,6 +120,8 @@ export type ApplicationViewProps = {
     agentId?: string | null;
     /** The next interview, while in Interview (E9-9). */
     nextInterviewAt: Date | null;
+    /** While a Draft: why the easy apply from Find jobs didn't send it. */
+    draftReason?: string | null;
   };
   /** The browser's time zone as it last told the server, for the interview's time. */
   timeZone?: string;
@@ -689,6 +691,11 @@ export function ApplicationView({
           </>
         }
       >
+        {application.status === "DRAFT" && application.draftReason && (
+          <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
+            Easy apply didn&apos;t send this, so it&apos;s still a draft. {application.draftReason}
+          </p>
+        )}
         {/* Its underline runs the header's full width, under the padding too. */}
         <TabsList aria-label="Application" className="-mx-10 px-10">
           <TabsTrigger value="resume">Resume</TabsTrigger>
