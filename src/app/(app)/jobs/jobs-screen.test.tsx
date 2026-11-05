@@ -510,6 +510,14 @@ describe("Naukri's filters", () => {
     expect(screen.getByText(/1 posting of 1,563 from Naukri/)).toBeInTheDocument();
   });
 
+  it("can be hidden for a wider list, and shown again", async () => {
+    renderScreen({ source: "NAUKRI", search: naukriSearch({}) });
+    await userEvent.click(screen.getByRole("button", { name: "Hide filters" }));
+    expect(screen.queryByRole("complementary", { name: "Filters" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show filters" }));
+    expect(screen.getByRole("complementary", { name: "Filters" })).toBeInTheDocument();
+  });
+
   it("aren't shown for other sources", () => {
     renderScreen({ search: { ...stored([posting("1")]), filters } });
     expect(screen.queryByRole("complementary", { name: "Filters" })).not.toBeInTheDocument();

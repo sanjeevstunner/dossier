@@ -82,6 +82,8 @@ export function JobsScreen({
   const [pending, startTransition] = useTransition();
   // A search that didn't work, with what was asked, for Try again.
   const [failed, setFailed] = useState<{ problem: Problem; query: SearchQuery } | null>(null);
+  // Kept across searches, so hiding the filters for a wider list sticks while you search.
+  const [filtersShown, setFiltersShown] = useState(true);
   const header = (
     <>
       <PageHeader
@@ -181,6 +183,8 @@ export function JobsScreen({
                 <NaukriFilters filters={search.filters} chosen={search.query.filters} disabled={pending} onChange={(filters) => run({ ...search.query, filters })} />
               ) : undefined
             }
+            asideShown={filtersShown}
+            onToggleAside={() => setFiltersShown(!filtersShown)}
           />
         ) : (
           <p className="px-10 pb-16 text-sm text-muted">

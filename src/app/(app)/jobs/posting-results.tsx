@@ -35,6 +35,9 @@ export type PostingResultsProps = {
       searching: boolean;
       /** Beside the list: the source's filters for the search (Naukri). */
       aside?: ReactNode;
+      /** Whether `aside` is shown; with `onToggleAside`, the list offers to hide it for a wider view. */
+      asideShown?: boolean;
+      onToggleAside?: () => void;
     }
   | { mode: "saved" | "dismissed" | "recommended"; postings: ShownPosting[] }
 );
@@ -172,7 +175,7 @@ export function PostingResults(props: PostingResultsProps) {
 
   return (
     <div className="flex flex-wrap items-start gap-6 px-10 pb-16">
-      {props.mode === "search" && props.aside}
+      {props.mode === "search" && props.asideShown !== false && props.aside}
       {Object.entries(scoring).map(([key, { jobId }]) =>
         jobId ? <ScoreWatcher key={jobId} jobId={jobId} onChange={(job) => scoringChanged(key, job)} /> : null,
       )}
@@ -195,6 +198,16 @@ export function PostingResults(props: PostingResultsProps) {
               className="underline underline-offset-3 hover:text-ink aria-disabled:text-faint"
             >
               Search again
+            </button>
+          )}
+          {props.mode === "search" && props.aside && props.onToggleAside && (
+            <button
+              type="button"
+              aria-expanded={props.asideShown !== false}
+              onClick={props.onToggleAside}
+              className="underline underline-offset-3 hover:text-ink"
+            >
+              {props.asideShown !== false ? "Hide filters" : "Show filters"}
             </button>
           )}
           {hidden > 0 && (
