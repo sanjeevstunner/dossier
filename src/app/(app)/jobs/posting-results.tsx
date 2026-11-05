@@ -15,7 +15,9 @@ import type { JobView } from "@/lib/jobs/runner";
 import { postedAgo, postingKey, type FoundPosting, type PostingState, type ShownPosting, type StoredSearch } from "@/lib/job-search/search";
 import { arbeitsagenturPage, SOURCE_INFO } from "@/lib/job-search/sources";
 
-import { dismissFoundPosting, loadFullText, restorePosting, savePostingForLater, showMorePostings, startScoringPosting, unsavePosting } from "./actions";
+import { retry } from "@/lib/jobs/actions";
+
+import { dismissFoundPosting, loadFullText, restorePosting, savePostingForLater, showMorePostings, startEasyApply, startScoringPosting, unsavePosting } from "./actions";
 import { useStartApplication } from "./use-start-application";
 
 /** Narrow windows show the posting above the list. */
@@ -277,6 +279,80 @@ function ScoreWatcher({ jobId, onChange }: { jobId: string; onChange: (job: JobV
   return null;
 }
 
+type EasyApplyResult = { applicationId: string; answered: { question: string; answer: string }[] };
+
+/**
+ * "Easy apply with agent" on a Naukri easy apply posting: the agent applies
+ * through NopeRi, answering Naukri's questions from the profile, and puts it
+ * on the board in Sent once Naukri confirms it.
+ */
+function EasyApply({ posting }: { posting: FoundPosting }) {
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const job = useJob<EasyApplyResult>(jobId, revision);
+  const running = jobId !== null && (!job || job.status === "QUEUED" || job.status === "RUNNING");
+
+  const start = async () => {
+    const result = await startEasyApply({ posting });
+    if (!result.ok) return void toast(result.error);
+    setJobId(result.data.jobId);
+  };
+  const again = async () => {
+    if (!jobId) return;
+    const result = await retry({ id: jobId });
+    if (!result.ok) return void toast(result.error);
+    setRevision((n) => n + 1);
+  };
+
+  if (job?.status === "DONE" && job.result) {
+    return (
+      <div role="status" className="flex flex-col gap-1 rounded-card bg-track px-4 py-3 text-meta">
+        <p>
+          Applied on Naukri and added to your board in Sent.{" "}
+          <Link href={`/applications/${job.result.applicationId}`} className="underline underline-offset-2">
+            Open the application
+          </Link>
+        </p>
+        {job.result.answered.length > 0 && (
+          <ul className="text-muted">
+            {job.result.answered.map(({ question, answer }) => (
+              <li key={question}>
+                {question}: {answer}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {job?.status === "FAILED" ? (
+          <Button variant="primary" size="sm" onClick={() => void again()}>
+            Try easy apply again
+          </Button>
+        ) : (
+          <Button variant="primary" size="sm" aria-disabled={running || undefined} onClick={running ? undefined : () => void start()}>
+            {running ? "Applying…" : "Easy apply with agent"}
+          </Button>
+        )}
+        {running && (
+          <span role="status" className="text-meta text-muted">
+            {job?.step ?? "Starting…"}
+          </span>
+        )}
+      </div>
+      {job?.status === "FAILED" && job.error && (
+        <p role="alert" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
+          {job.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** "Start application →" on a posting (E14-8). */
 export function StartButton({ starting, onClick }: { starting: boolean; onClick: () => void }) {
   return (
@@ -514,6 +590,10 @@ function PostingDetail({
 
       {posting.source === "NAUKRI" && text.status !== "loading" && (
         <p className="self-start rounded-card bg-track px-3 py-1 text-meta">{applyUrl ? "Applies on the company site" : "Easy apply on Naukri"}</p>
+      )}
+
+      {posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && !state.applicationId && !state.dismissed && (
+        <EasyApply posting={withoutState(initial)} />
       )}
 
       {state.applicationId && (

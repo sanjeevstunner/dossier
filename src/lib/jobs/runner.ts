@@ -46,6 +46,11 @@ export type JobView<R = unknown> = {
   result: R | null;
 };
 
+/** A failure whose message is written for the user, e.g. what to add before trying again. */
+export class JobFailure extends Error {
+  override name = "JobFailure";
+}
+
 export const JOB_MESSAGES = {
   failed: "Something went wrong while working on this. Try again.",
   interrupted: "Dossier restarted before this finished. Try again.",
@@ -248,10 +253,10 @@ async function execute(id: string, controller: AbortController): Promise<void> {
     // AI failures already say what to do; anything else is logged and kept vague.
     const message = controller.signal.aborted
       ? JOB_MESSAGES.cancelled
-      : error instanceof AiError
+      : error instanceof AiError || error instanceof JobFailure
         ? error.message
         : JOB_MESSAGES.failed;
-    if (!(error instanceof AiError) && !controller.signal.aborted) logServerError(`job ${id}`, error);
+    if (!(error instanceof AiError) && !(error instanceof JobFailure) && !controller.signal.aborted) logServerError(`job ${id}`, error);
     await finish(id, { status: JobStatus.FAILED, error: message }).catch((cause: unknown) => logServerError(`job ${id}`, cause));
   }
 }
