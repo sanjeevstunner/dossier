@@ -2,9 +2,9 @@
 
 import { z } from "zod";
 
-import { JobStatus, Tone } from "@/generated/prisma/enums";
+import { ApplicationStatus, JobStatus, Tone } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
-import { createApplicationFromDocuments } from "@/lib/application-create";
+import { createApplicationFromDocuments, createManualApplication } from "@/lib/application-create";
 import { matchSchema } from "@/lib/application-data";
 import { handOffPastedPosting } from "@/lib/connector/handoff";
 import { readPostingJob } from "@/lib/jobs/read-posting";
@@ -145,6 +145,49 @@ export const createApplication = action(
       tone: input.tone,
       note: input.note,
       claim: { kind: "manual", writeJobId, readJobId: input.readJobId, postingId: postingId ?? null, startupId: startupId ?? null },
+    });
+  },
+);
+
+/** A day as YYYY-MM-DD, which can't be later than tomorrow: today somewhere in the world. */
+const pastDay = z.iso.date().refine((day) => day <= new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), "The date you applied can't be in the future.");
+
+/**
+ * "Add application" after "Continue without reading" or "Add documents
+ * manually": creates it from what the user entered, with nothing written by
+ * the AI. The posting's reading, when there was one, is kept, so the match
+ * shows. The user's own files are uploaded to it afterwards.
+ */
+export const addManualApplication = action(
+  z.object({
+    details: detailsSchema,
+    posting: z.string().trim().max(100_000),
+    postingUrl: z.string().max(2000),
+    /** The posting's reading, when it was read first. */
+    readJobId: z.string().min(1).nullish(),
+    /** The match as shown, with skills added to the profile since. */
+    match: matchSchema.nullish(),
+    email: z.object({ to: z.string().max(1000), subject: z.string().max(1000), body: z.string().max(20_000) }),
+    status: z.enum(ApplicationStatus),
+    /** When it was sent; for a status past Draft. */
+    appliedOn: z.union([z.literal(""), pastDay]),
+    postingId: z.string().min(1).max(100).nullish(),
+    startupId: z.string().min(1).max(100).nullish(),
+  }),
+  async ({ details, posting, postingUrl, readJobId, match, email, status, appliedOn, postingId, startupId }) => {
+    const read = readJobId ? await finishedReading(readJobId) : null;
+    // Midday, so the day stays the same in every time zone; never later than now.
+    const appliedAt = appliedOn ? new Date(Math.min(Date.parse(`${appliedOn}T12:00:00Z`), Date.now())) : null;
+    return createManualApplication({
+      details,
+      posting: read?.input.posting ?? posting,
+      postingUrl: postingLink(postingUrl),
+      reading: read && readJobId ? { ...read.result, match: match ?? read.result.match, readJobId } : null,
+      email,
+      status,
+      appliedAt,
+      postingId: postingId ?? null,
+      startupId: startupId ?? null,
     });
   },
 );

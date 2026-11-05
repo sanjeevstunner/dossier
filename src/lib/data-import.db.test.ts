@@ -277,6 +277,26 @@ describe("importExport (E10-6)", () => {
     expect(await prisma().application.findFirstOrThrow({ where: { company: "Ledgerly" } })).toMatchObject({ showPhoto: null });
   });
 
+  it("restores the user's own resume and cover letter files, and reads older files without them", async () => {
+    const application = await prisma().application.findFirstOrThrow({ where: { company: "Ledgerly" } });
+    const data = Buffer.from("%PDF-1.7 Jane's resume");
+    await prisma().applicationFile.create({ data: { applicationId: application.id, kind: "RESUME", name: "Resume.pdf", type: "application/pdf", size: data.length, data } });
+    const file = JSON.parse(JSON.stringify(await buildExport(prisma(), { now })));
+    expect(file.applications.find((entry: { id: string }) => entry.id === application.id).files).toEqual([
+      expect.objectContaining({ kind: "RESUME", name: "Resume.pdf", data: data.toString("base64") }),
+    ]);
+
+    await prisma().applicationFile.deleteMany();
+    await importExport(prisma(), exportSchema.parse(file));
+    const restored = await prisma().applicationFile.findFirstOrThrow();
+    expect(restored).toMatchObject({ applicationId: application.id, kind: "RESUME", name: "Resume.pdf", type: "application/pdf", size: data.length });
+    expect(Buffer.from(restored.data).equals(data)).toBe(true);
+
+    const older = { ...file, schemaVersion: 5, applications: file.applications.map((entry: object) => ({ ...entry, files: undefined })) };
+    await importExport(prisma(), exportSchema.parse(older));
+    expect(await prisma().applicationFile.count()).toBe(0);
+  });
+
   it("reads files from before facts, with an application's note as its first fact (PRO-14, APP-15)", async () => {
     const file = JSON.parse(JSON.stringify(await buildExport(prisma(), { now })));
     const [first, ...rest] = file.applications;

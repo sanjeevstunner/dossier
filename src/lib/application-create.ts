@@ -1,10 +1,11 @@
 import "server-only";
 
-import { AgentCandidateStatus, ApplicationOrigin, type Tone } from "@/generated/prisma/enums";
+import { AgentCandidateStatus, ApplicationOrigin, ApplicationStatus, type Tone } from "@/generated/prisma/enums";
 import { ActionError } from "@/lib/action";
 import { summaryText, tailoringSummary } from "@/lib/ai/tailoring-summary";
 import { calendarDay } from "@/lib/application-documents";
 import type { Extracted, Match } from "@/lib/application-data";
+import { emailUnits, type EmailParts } from "@/lib/application-email";
 import { documentLabels } from "@/lib/document-labels";
 import { documentLanguage } from "@/lib/document-language";
 import type { WriteDocumentsResult } from "@/lib/jobs/write-documents";
@@ -15,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { loadProfile } from "@/lib/profile-data";
 import { maxPages } from "@/lib/settings";
 import { loadSettings } from "@/lib/settings-data";
+import { advance } from "@/lib/status";
 
 // Creating an application from finished documents (E7-6), shared by New
 // application and the job agent (E16-5): the Draft application, its resume
@@ -65,6 +67,11 @@ export type CreateApplicationInput = {
 };
 
 const CLAIMED = "application:";
+
+/** The title an application gets: the one given, or its role and company. */
+const titleOf = (details: ApplicationDetails) => details.title || [details.role, details.company].filter(Boolean).join(" · ") || "Untitled application";
+
+const deadlineOf = (details: ApplicationDetails) => (details.deadline ? new Date(`${details.deadline}T00:00:00Z`) : null);
 
 /** Creates the application once; creating again with the same claim returns the one that exists. */
 export async function createApplicationFromDocuments({ reading, documents, match, details, postingUrl, tone, note, claim }: CreateApplicationInput): Promise<string> {
@@ -122,13 +129,13 @@ export async function createApplicationFromDocuments({ reading, documents, match
       data: {
         // An agent draft stays on the Agent screen until it's approved (#195).
         ...(claim.kind === "agent" ? { origin: ApplicationOrigin.AGENT, agentScore: claim.score, awaitingReview: true } : {}),
-        title: details.title || [details.role, details.company].filter(Boolean).join(" · ") || "Untitled application",
+        title: titleOf(details),
         company: details.company,
         role: details.role,
         location: details.location,
         mode: details.mode,
         salary: details.salary,
-        deadline: details.deadline ? new Date(`${details.deadline}T00:00:00Z`) : null,
+        deadline: deadlineOf(details),
         postingUrl,
         postingText: reading.posting,
         extracted,
@@ -199,4 +206,64 @@ export async function createApplicationFromDocuments({ reading, documents, match
     }
   }
   return created.id;
+}
+
+export type ManualApplicationInput = {
+  details: ApplicationDetails;
+  /** The posting as pasted; may be empty. */
+  posting: string;
+  /** A checked http(s) link, or "". */
+  postingUrl: string;
+  /** What the AI read, when the posting was read before choosing to add the documents by hand. */
+  reading: (Omit<ApplicationReading, "posting"> & { match: Match; readJobId: string }) | null;
+  /** The email it was sent with; an empty one isn't saved. */
+  email: EmailParts;
+  status: ApplicationStatus;
+  /** When it was sent, for a status past Draft. */
+  appliedAt: Date | null;
+  postingId: string | null;
+  startupId: string | null;
+};
+
+/**
+ * Creates an application the user made without the AI writing anything:
+ * one sent elsewhere, or with their own documents (uploaded afterwards).
+ * Its status is set the way every status change is (`advance`), dated when
+ * it was sent, so the funnel figures count it.
+ */
+export async function createManualApplication({ details, posting, postingUrl, reading, email, status, appliedAt, postingId, startupId }: ManualApplicationInput): Promise<string> {
+  const settings = await loadSettings();
+  const change = advance({ status: ApplicationStatus.DRAFT, furthestStage: null, sentAt: null }, status, appliedAt ?? new Date());
+  const emailDoc = emailUnits({ to: email.to.trim(), subject: email.subject.trim(), body: email.body.trim() });
+  const hasEmail = emailDoc.some((unit) => unit.text);
+
+  return prisma.$transaction(async (tx) => {
+    const application = await tx.application.create({
+      data: {
+        title: titleOf(details),
+        company: details.company,
+        role: details.role,
+        location: details.location,
+        mode: details.mode,
+        salary: details.salary,
+        deadline: deadlineOf(details),
+        postingUrl,
+        postingText: posting,
+        ...(reading
+          ? { extracted: reading.extracted, extractedWith: reading.extractedWith, match: reading.match, matchedWith: reading.matchedWith }
+          : {}),
+        language: settings.docLanguage ?? reading?.extracted.language ?? "English",
+        ...(change ? { ...change.update, events: { create: change.event } } : {}),
+        ...(hasEmail
+          ? { documents: { create: { kind: "EMAIL", units: emailDoc, versions: { create: { units: emailDoc, cause: "WRITTEN" } } } } }
+          : {}),
+      },
+      select: { id: true },
+    });
+    // The reading belongs to it now, and goes when it's deleted.
+    if (reading) await tx.job.updateMany({ where: { id: reading.readJobId }, data: { applicationId: application.id } });
+    if (postingId) await tx.posting.updateMany({ where: { id: postingId, applicationId: null }, data: { applicationId: application.id } });
+    if (startupId) await tx.startup.updateMany({ where: { id: startupId, applicationId: null }, data: { applicationId: application.id } });
+    return application.id;
+  });
 }

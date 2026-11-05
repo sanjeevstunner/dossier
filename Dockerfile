@@ -18,10 +18,12 @@ COPY --chown=node:node package.json yarn.lock .yarnrc.yml ./
 RUN yarn install --immutable && mkdir .next
 # Chromium for PDFs, matching the installed playwright-core, with the system
 # libraries and fonts it needs (installing those takes root). Only the
-# headless shell: printing needs nothing more.
+# headless shell: printing needs nothing more. Also DOSSIER_DATA_DIR's default
+# (backups, downloads), which the node user can't create at the root itself.
 USER root
 RUN node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && mkdir /data && chown node:node /data
 USER node
 EXPOSE 3000
 # The seed is idempotent: built-in themes, an empty profile and default settings.

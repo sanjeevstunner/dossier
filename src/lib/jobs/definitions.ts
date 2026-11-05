@@ -7,6 +7,7 @@ import "./write-documents";
 import "./regenerate-unit";
 import "./refine";
 import "./write-email";
+import "./write-application-document";
 import "./zip-pdfs";
 import "./import-profile";
 import "./draft-reply";
