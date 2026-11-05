@@ -13,10 +13,13 @@ import { useAutosave } from "@/hooks/use-autosave";
 import type { AgentEditable } from "@/lib/agent/view";
 import type { Country } from "@/lib/job-search/countries";
 import { searchHref, type JobSource, type SearchQuery } from "@/lib/job-search/search";
+import { SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { RemoteOnlyField, SearchFields, type SearchFieldErrors } from "../../jobs/search-fields";
 import { saveAgent } from "../actions";
 
+// The BA is never searched on its own (#223).
+const AGENT_SOURCES = ["JSEARCH", "ADZUNA", "NAUKRI"] as const;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MIN_SCORES = [50, 55, 60, 65, 70, 75, 80, 85, 90];
 const SCORE_COUNTS = Array.from({ length: 30 }, (_, index) => index + 1);
@@ -49,7 +52,7 @@ export function AgentConfig({
   id,
   config,
   onChange,
-  source,
+  defaultSource,
   countries,
   timeZone,
   errors,
@@ -60,7 +63,8 @@ export function AgentConfig({
   config: AgentEditable;
   /** Applies a change locally; returns the previous config, to roll back to. */
   onChange: (change: ConfigChange) => AgentEditable;
-  source: JobSource | null;
+  /** The board in Settings → Job search, for an agent without its own. */
+  defaultSource: JobSource | null;
   countries: readonly Country[];
   timeZone: string;
   errors: SearchFieldErrors;
@@ -68,6 +72,7 @@ export function AgentConfig({
   onDelete: () => void;
 }) {
   const [name, setName] = useState(config.name);
+  const source = config.source ?? defaultSource;
   const save = (change: ConfigChange) => {
     const previous = onChange(change);
     void saveAgent({ id, ...change }).then((result) => {
@@ -101,8 +106,21 @@ export function AgentConfig({
           <Link href={searchHref(config.query)} className="font-medium text-ink underline underline-offset-2">
             Find jobs
           </Link>
-          , through the source in Settings → Job search. Postings you saved, dismissed or applied for there, or that another agent found, are left out.
+          , on the job board below. Postings you saved, dismissed or applied for there, or that another agent found, are left out.
         </p>
+        <Select
+          label="Job board"
+          hint="Each board's key is set in Settings → Job search."
+          value={config.source ?? ""}
+          onChange={(event) => save({ source: (event.target.value || null) as JobSource | null })}
+        >
+          <option value="">Settings default{defaultSource ? ` (${SOURCE_INFO[defaultSource].name})` : ": none chosen"}</option>
+          {AGENT_SOURCES.map((board) => (
+            <option key={board} value={board}>
+              {SOURCE_INFO[board].name}
+            </option>
+          ))}
+        </Select>
         <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2" onBlur={flush}>
           <SearchFields value={config.query} onChange={setQuery} source={source} countries={countries} errors={errors} />
           <div className="sm:col-span-2">

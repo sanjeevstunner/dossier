@@ -194,15 +194,28 @@ describe("runAgentScan (E16-3)", () => {
     expect(await stop()).toBe("Choose an AI provider in Settings → AI provider first.");
     fake.ai = true;
     fake.source = null;
-    expect(await stop()).toBe("Choose a job source in Settings → Job search first.");
+    expect(await stop()).toBe("Choose a job board for this agent, or a job source in Settings → Job search.");
     // It never searches the Bundesagentur für Arbeit on its own (#223).
     fake.source = "ARBEITSAGENTUR";
-    expect(await stop()).toBe("The job agent doesn't search the Bundesagentur für Arbeit. Choose JSearch or Adzuna in Settings → Job search for it.");
+    expect(await stop()).toBe("The job agent doesn't search the Bundesagentur für Arbeit. Choose another job board for it.");
     fake.source = "JSEARCH";
     expect(fake.searches).toBe(0);
     // Each is in History, as a run that didn't finish.
     expect((await runs()).map((run) => run.status)).toEqual(["FAILED", "FAILED", "FAILED", "FAILED", "FAILED"]);
     expect(await runAgentScan({ agentId: "gone", manual: true }, context(), now)).toMatchObject({ message: "That agent was deleted." });
+  });
+
+  it("searches its own job board over the one in Settings", async () => {
+    const { searchPostings } = await import("@/lib/job-search");
+    await setAgent({ source: "ADZUNA" });
+    await runAgentScan({ agentId, manual: false }, context(), now);
+    expect(vi.mocked(searchPostings).mock.lastCall?.[0]).toBe("ADZUNA");
+    // With none in Settings, its own still runs; the BA never does (#223).
+    fake.source = null;
+    fake.postings = [];
+    expect((await runAgentScan({ agentId, manual: false }, context(), now)).message).toBe("The search found no postings this time.");
+    await setAgent({ source: "ARBEITSAGENTUR" });
+    expect((await runAgentScan({ agentId, manual: false }, context(), now)).message).toMatch(/doesn't search the Bundesagentur/);
   });
 
   it("isn't held back by Run now's limits: those only warn", async () => {

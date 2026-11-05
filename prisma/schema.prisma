@@ -671,6 +671,8 @@ model Agent {
   enabled               Boolean          @default(false)
   /// The search it runs, as Find jobs asks it (SearchQuery).
   query                 Json
+  /// The job board it searches; null for the one in Settings → Job search.
+  source                PostingSource?
   /// The hour it runs after, in the user's time zone.
   hour                  Int              @default(7)
   /// The weekdays it runs on, 0 = Sunday.

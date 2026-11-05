@@ -68,7 +68,7 @@ describe("Run now (E16-4)", () => {
     expect(await runAgentNow({ id })).toMatchObject({ ok: false, error: "Choose an AI provider in Settings → AI provider first." });
     setup.ai = true;
     setup.source = null;
-    expect(await runAgentNow({ id })).toMatchObject({ ok: false, error: "Choose a job source in Settings → Job search first." });
+    expect(await runAgentNow({ id })).toMatchObject({ ok: false, error: "Choose a job board for this agent, or a job source in Settings → Job search." });
     expect(await runAgentNow({ id: "gone" })).toEqual({ ok: false, error: "That agent no longer exists." });
   });
 

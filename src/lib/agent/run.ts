@@ -10,9 +10,9 @@ import { AiError } from "@/lib/ai/errors";
 import { loadTaskOptions } from "@/lib/ai/task-options";
 import { scorePosting } from "@/lib/ai/tasks";
 import { searchPostings } from "@/lib/job-search";
-import { credentialsFor, loadJobSearchConfig, requestContext } from "@/lib/job-search/config";
+import { credentialsFor, loadJobSearchConfig, requestContext, type JobSearchConfig } from "@/lib/job-search/config";
 import { JobSearchError } from "@/lib/job-search/errors";
-import { postingKey, postingText, type FoundPosting, type SearchQuery } from "@/lib/job-search/search";
+import { postingKey, postingText, type FoundPosting, type JobSource, type SearchQuery } from "@/lib/job-search/search";
 import { startJob, type JobContext } from "@/lib/jobs/runner";
 import { logServerError } from "@/lib/log";
 import { saveScore } from "@/lib/posting-scores";
@@ -48,17 +48,22 @@ const stopped = (message: string): AgentScanResult => ({ found: 0, fresh: 0, sco
 /** Whether a search is complete enough to run: keywords and a country. */
 export const agentQueryReady = (query: SearchQuery) => Boolean(query.keywords.trim() && query.country);
 
+/** The board an agent searches: its own, or else the one in Settings → Job search. */
+export const agentSource = (agent: Pick<AgentConfig, "source">, config: JobSearchConfig): JobSource | null => agent.source ?? config.source;
+
 /** Why the agent can't run at all, in words, or null when it's set up. */
-export async function agentSetupProblem(query: SearchQuery): Promise<string | null> {
+export async function agentSetupProblem(agent: Pick<AgentConfig, "query" | "source">): Promise<string | null> {
+  const { query } = agent;
   if (!query.keywords.trim()) return "Add what this agent should look for first.";
   if (!query.country) return "Choose a country for this agent's search first.";
   if (!(await isAiConfigured())) return "Choose an AI provider in Settings → AI provider first.";
   const config = await loadJobSearchConfig();
-  if (!config.source) return "Choose a job source in Settings → Job search first.";
+  const source = agentSource(agent, config);
+  if (!source) return "Choose a job board for this agent, or a job source in Settings → Job search.";
   // It searches on its own, which the BA's terms forbid most clearly (#223).
-  if (config.source === "ARBEITSAGENTUR") return "The job agent doesn't search the Bundesagentur für Arbeit. Choose JSearch or Adzuna in Settings → Job search for it.";
+  if (source === "ARBEITSAGENTUR") return "The job agent doesn't search the Bundesagentur für Arbeit. Choose another job board for it.";
   try {
-    credentialsFor(config, config.source);
+    credentialsFor(config, source);
   } catch (error) {
     if (error instanceof JobSearchError) return error.message;
     throw error;
@@ -112,7 +117,7 @@ export async function runAgentScan({ agentId, manual }: { agentId: string; manua
     return result;
   };
   try {
-    const setup = await agentSetupProblem(agent.query);
+    const setup = await agentSetupProblem(agent);
     if (setup) return await finish(stopped(setup), true);
     return await scan(agent, runId, step, context, finish);
   } catch (error) {
@@ -130,7 +135,7 @@ async function scan(
 ): Promise<AgentScanResult> {
   await step("Searching for new postings");
   const config = await loadJobSearchConfig();
-  const source = config.source!;
+  const source = agentSource(agent, config)!;
   let postings: FoundPosting[];
   try {
     // The first page only: the agent never asks for a second.

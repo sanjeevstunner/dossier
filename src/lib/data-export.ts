@@ -245,6 +245,8 @@ const agent = z.object({
   name: text,
   enabled: z.boolean(),
   query: z.unknown(),
+  /** Its own job board; absent before agents had one. */
+  source: z.enum(PostingSource).nullable().optional(),
   hour: int,
   days: z.array(int),
   minScore: int,

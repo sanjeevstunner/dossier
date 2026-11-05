@@ -139,7 +139,7 @@ export function AgentDetailScreen({ view, countries }: { view: AgentDetailView; 
               id={view.id}
               config={config}
               onChange={change}
-              source={view.source}
+              defaultSource={view.defaultSource}
               countries={countries}
               timeZone={view.timeZone}
               errors={errors}
