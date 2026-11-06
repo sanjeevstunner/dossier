@@ -30,6 +30,8 @@ export type DocumentSettings = {
   customLanguages: string[];
   fileNamePattern: string;
   includeRefs: boolean;
+  writeCoverLetter: boolean;
+  writeEmail: boolean;
   pageLimit: PageLimit;
 };
 
@@ -229,6 +231,20 @@ export function DocumentsSection({
           description="Add your references to resumes when a posting asks for them. Otherwise they're left out."
           checked={settings.includeRefs}
           onCheckedChange={(includeRefs) => change({ includeRefs })}
+        />
+        <Toggle
+          className="border-t border-line py-4"
+          label="Write a cover letter"
+          description="Write a cover letter with every new application. Off, you can still write one from the application."
+          checked={settings.writeCoverLetter}
+          onCheckedChange={(writeCoverLetter) => change({ writeCoverLetter })}
+        />
+        <Toggle
+          className="border-t border-line py-4"
+          label="Write the email"
+          description="Write the email to send it with as soon as an application is created. Off, write it from its Email tab."
+          checked={settings.writeEmail}
+          onCheckedChange={(writeEmail) => change({ writeEmail })}
         />
       </Card>
     </>

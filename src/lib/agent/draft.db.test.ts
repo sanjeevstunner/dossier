@@ -89,7 +89,7 @@ beforeEach(async () => {
   await seedBuiltIns(prisma());
   Object.assign(source, { text: null, failWriting: 0 });
   // Trimming renders PDFs: not what these tests are about.
-  await saveSettings({ pageLimit: "none" });
+  await saveSettings({ pageLimit: "none", writeCoverLetter: true });
 });
 afterAll(() => prisma().$disconnect());
 

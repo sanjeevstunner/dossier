@@ -43,6 +43,8 @@ describe("stored settings", () => {
       customLanguages: [],
       fileNamePattern: "{name} – {company} – {doc}",
       includeRefs: false,
+      writeCoverLetter: false,
+      writeEmail: false,
       pageLimit: "2",
       nightlyBackup: true,
       jobRetentionHours: 24,

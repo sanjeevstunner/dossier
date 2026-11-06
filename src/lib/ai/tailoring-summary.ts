@@ -116,7 +116,7 @@ export function tailoringSummary({
 
   return showChanges
     ? { intro: `Here's what I tailored for ${where}:`, list, foot }
-    : { intro: `Your tailored resume and cover letter for ${where} are ready.`, list: [], foot };
+    : { intro: `Your tailored ${letter.some(isParagraph) ? "resume and cover letter" : "resume"} for ${where} ${letter.some(isParagraph) ? "are" : "is"} ready.`, list: [], foot };
 }
 
 /** The message as stored: intro, a bulleted list, the footnote. */

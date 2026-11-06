@@ -100,6 +100,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             customLanguages: settings.customLanguages,
             fileNamePattern: settings.fileNamePattern,
             includeRefs: settings.includeRefs,
+            writeCoverLetter: settings.writeCoverLetter,
+            writeEmail: settings.writeEmail,
             pageLimit: settings.pageLimit,
           }}
           preview={await filePreview()}
