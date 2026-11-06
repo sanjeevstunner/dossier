@@ -14,7 +14,7 @@ vi.mock("@/components/toast", () => ({ toast: vi.fn() }));
 
 const updates = { daily: true, available: null };
 const ping: UsagePingView = { host: "telemetry.example.com", choice: "on", source: "app", id: "6f1c0e5a-9b1d-4c3e-8f2a-1d2e3f4a5b6c", production: true };
-const release = { version: "0.2.0", url: "https://github.com/AienTech/dossier/releases/tag/v0.2.0" };
+const release = { version: "0.2.0", url: "https://github.com/sanjeevstunner/dossier/releases/tag/v0.2.0" };
 const facts = [
   { label: "Version", value: "0.1.0" },
   { label: "Database", value: "PostgreSQL · 9.0 MB" },
@@ -89,7 +89,7 @@ describe("About (E10-9)", () => {
   it("shows a newer version a check already found, with how to update", () => {
     render(<AboutSection facts={facts} usagePing={ping} updates={{ daily: true, available: release }} />);
     expect(screen.getByRole("status")).toHaveTextContent("Version 0.2.0 is available.");
-    expect(screen.getByRole("link", { name: "How to update (opens in a new tab)" })).toHaveAttribute("href", "https://github.com/AienTech/dossier/wiki/Upgrading");
+    expect(screen.getByRole("link", { name: "How to update (opens in a new tab)" })).toHaveAttribute("href", "https://github.com/sanjeevstunner/dossier/wiki/Upgrading");
     expect(checkUpdates).not.toHaveBeenCalled();
   });
 

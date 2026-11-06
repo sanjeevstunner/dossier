@@ -5,9 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the idea. Please search the [open and closed issues](https://github.com/AienTech/dossier/issues?q=is%3Aissue) first. If someone has asked for it already, a thumbs-up or a comment there helps more than a new issue.
+        Thanks for the idea. Please search the [open and closed issues](https://github.com/sanjeevstunner/dossier/issues?q=is%3Aissue) first. If someone has asked for it already, a thumbs-up or a comment there helps more than a new issue.
 
-        Dossier is made for one person on a small server. [Known limitations](https://github.com/AienTech/dossier/blob/main/README.md#known-limitations) in the README lists what that leaves out for now.
+        Dossier is made for one person on a small server. [Known limitations](https://github.com/sanjeevstunner/dossier/blob/main/README.md#known-limitations) in the README lists what that leaves out for now.
 
   - type: textarea
     id: problem

@@ -11,7 +11,7 @@ import { UpdateNotice } from "./update-notice";
 vi.mock("@/lib/update-actions", () => ({ dismissUpdate: vi.fn(async () => ({ ok: true, data: null })) }));
 vi.mock("@/components/toast", () => ({ toast: vi.fn() }));
 
-const release = { version: "1.6.0", url: "https://github.com/AienTech/dossier/releases/tag/v1.6.0" };
+const release = { version: "1.6.0", url: "https://github.com/sanjeevstunner/dossier/releases/tag/v1.6.0" };
 const renderNotice = () =>
   render(
     <aside>
@@ -30,7 +30,7 @@ describe("UpdateNotice", () => {
     const notice = screen.getByRole("region", { name: "Dossier 1.6.0 is out" });
     expect(notice).toHaveTextContent("You have 1.5.0. Update to get its fixes and features.");
     expect(screen.getByRole("link", { name: "What's new (opens in a new tab)" })).toHaveAttribute("href", release.url);
-    expect(screen.getByRole("link", { name: "How to update (opens in a new tab)" })).toHaveAttribute("href", "https://github.com/AienTech/dossier/wiki/Upgrading");
+    expect(screen.getByRole("link", { name: "How to update (opens in a new tab)" })).toHaveAttribute("href", "https://github.com/sanjeevstunner/dossier/wiki/Upgrading");
   });
 
   it("goes with Not now, until the next release, and focus moves on", async () => {

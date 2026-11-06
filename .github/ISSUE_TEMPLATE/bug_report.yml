@@ -7,9 +7,9 @@ body:
       value: |
         Thanks for taking the time to report this. Before you do:
 
-        - Look in [Troubleshooting](https://github.com/AienTech/dossier/wiki/Troubleshooting): the fix may already be there.
-        - Search the [open and closed issues](https://github.com/AienTech/dossier/issues?q=is%3Aissue), in case someone has reported it.
-        - Found a security problem? Don't report it here: [report it privately](https://github.com/AienTech/dossier/security/advisories/new) instead.
+        - Look in [Troubleshooting](https://github.com/sanjeevstunner/dossier/wiki/Troubleshooting): the fix may already be there.
+        - Search the [open and closed issues](https://github.com/sanjeevstunner/dossier/issues?q=is%3Aissue), in case someone has reported it.
+        - Found a security problem? Don't report it here: [report it privately](https://github.com/sanjeevstunner/dossier/security/advisories/new) instead.
 
         Everything you write here is public. Leave out passwords, API keys, values from your `.env`, and anything from your profile or applications you'd rather keep to yourself.
 
