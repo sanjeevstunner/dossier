@@ -23,6 +23,8 @@ const initial: DocumentSettings = {
   fileNamePattern: "{name} – {company} – {doc}",
   includeRefs: false,
   pageLimit: "1",
+  writeCoverLetter: false,
+  writeEmail: false,
 };
 const preview = { name: "Jane Doe", company: "Ledgerly", role: "Senior Product Designer" };
 const open = () => render(<DocumentsSection initial={initial} preview={preview} />);

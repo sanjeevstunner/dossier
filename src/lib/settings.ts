@@ -109,6 +109,10 @@ export const settingsSchema = z.object({
   customLanguages: stringList.catch([]),
   fileNamePattern: z.string().catch("{name} – {company} – {doc}"),
   includeRefs: flag(false),
+  /** Write a cover letter with every new application; off leaves it to "Generate with AI". */
+  writeCoverLetter: flag(false),
+  /** Write the email (Email tab) with every new application; off leaves it to "Write the email". */
+  writeEmail: flag(false),
   /** Up to two pages unless chosen (decided 22 October 2026: resumes aren't forced to one page). */
   pageLimit: pageLimit.catch("2"),
   nightlyBackup: flag(true),

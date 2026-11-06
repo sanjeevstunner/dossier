@@ -8,7 +8,9 @@ import type { Extracted, Match } from "@/lib/application-data";
 import { emailUnits, type EmailParts } from "@/lib/application-email";
 import { documentLabels } from "@/lib/document-labels";
 import { documentLanguage } from "@/lib/document-language";
+import { startJob } from "@/lib/jobs/runner";
 import type { WriteDocumentsResult } from "@/lib/jobs/write-documents";
+import { emailJobKey, writeEmailJob } from "@/lib/jobs/write-email";
 import { newFrame, withFrame } from "@/lib/letter-frame";
 import { logServerError } from "@/lib/log";
 import { describeTrim, fitResumeToPages } from "@/lib/page-limit";
@@ -156,13 +158,18 @@ export async function createApplicationFromDocuments({ reading, documents, match
               writtenWith: documents.resumeWith,
               versions: { create: { units: documents.resume, cause: "WRITTEN" } },
             },
-            {
-              kind: "COVER_LETTER",
-              units: letter,
-              themeId: settings.baseThemeId,
-              writtenWith: documents.letterWith,
-              versions: { create: { units: letter, cause: "WRITTEN" } },
-            },
+            // None when "Write a cover letter" is off.
+            ...(documents.letter.length > 0
+              ? [
+                  {
+                    kind: "COVER_LETTER" as const,
+                    units: letter,
+                    themeId: settings.baseThemeId,
+                    writtenWith: documents.letterWith,
+                    versions: { create: { units: letter, cause: "WRITTEN" as const } },
+                  },
+                ]
+              : []),
           ],
         },
         messages: { create: { role: "AI", text: summaryText(summary) } },
@@ -189,6 +196,13 @@ export async function createApplicationFromDocuments({ reading, documents, match
     return { id: application.id, isNew: true };
   });
   if (!created.isNew) return created.id;
+
+  // Settings → Documents → "Write the email": written in the background, as "Write the email" does.
+  if (settings.writeEmail) {
+    await startJob(writeEmailJob, { applicationId: created.id }, { key: emailJobKey(created.id), applicationId: created.id }).catch((error: unknown) =>
+      logServerError("writing the email", error),
+    );
+  }
 
   // E10-10: once created, a resume that runs over its page limit is
   // trimmed, and the opening message says what was cut. A failure here

@@ -100,6 +100,11 @@ export const easyApplyJob = defineJob({
       }
 
       await step("Moving it to Sent");
+      // What the agent told Naukri, kept on the application's Notes.
+      if (answered.length > 0) {
+        const body = ["Answered on Naukri easy apply:", ...answered.map(({ question, answer }) => `\nQ: ${question}\nA: ${answer}`)].join("\n");
+        await prisma.note.create({ data: { applicationId, body } });
+      }
       await applyStatusChange(prisma, applicationId, ApplicationStatus.SENT);
       return { applicationId, answered, missing: [] };
     } catch (error) {

@@ -12,6 +12,8 @@ vi.mock("@/lib/profile-data", async () => {
   const { demoProfile } = await import("@/lib/demo-profile");
   return { loadProfile: async () => demoProfile() };
 });
+const settings = vi.hoisted(() => ({ writeCoverLetter: true }));
+vi.mock("@/lib/settings-data", () => ({ loadSettings: async () => settings }));
 vi.mock("./runner", () => ({ defineJob: <T,>(definition: T) => definition }));
 
 describe("writeDocumentsJob (E7-6)", () => {
@@ -37,5 +39,20 @@ describe("writeDocumentsJob (E7-6)", () => {
     // Strict mode: the fact guard marks what the profile doesn't back.
     expect(result.resume[0]).toMatchObject({ id: "summary", unverified: ["Google"] });
     expect(result.letter.map((unit) => unit.id)).toEqual(["recipient", "greeting", "paragraph:1", "sign-off"]);
+  });
+
+  it("writes no cover letter when the setting is off", async () => {
+    settings.writeCoverLetter = false;
+    provider.current = new MockProvider({ reply: () => ({ summary: "Designer.", roles: [], projects: [], skills: [], education: [] }) });
+    const extracted = {
+      title: "Designer · Ledgerly", company: "Ledgerly", role: "Designer", location: null, mode: null, salary: null, deadline: null,
+      requirements: [], asksForReferences: false, language: "English",
+    };
+    const result = await writeDocumentsJob.run(
+      { readJobId: "read-job", posting: "Ledgerly is hiring.", extracted, match: { items: [] }, tone: "WARM", note: "" },
+      { id: "test-job", step: async () => {}, signal: new AbortController().signal },
+    );
+    expect(result.letter).toEqual([]);
+    settings.writeCoverLetter = true;
   });
 });

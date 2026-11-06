@@ -202,6 +202,8 @@ export const updateSettings = action(
       .optional(),
     fileNamePattern: z.string().max(200).optional(),
     includeRefs: z.boolean().optional(),
+    writeCoverLetter: z.boolean().optional(),
+    writeEmail: z.boolean().optional(),
     pageLimit: z.enum(["1", "2", "none"]).optional(),
     nightlyBackup: z.boolean().optional(),
     jobRetentionHours: z.number().refine(isJobRetention).optional(),
