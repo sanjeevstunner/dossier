@@ -1,7 +1,7 @@
-# Dossier with Docker Compose (see the installation guide, https://github.com/AienTech/dossier/wiki). Save this
+# Dossier with Docker Compose (see the installation guide, https://github.com/sanjeevstunner/dossier/wiki). Save this
 # file as compose.yml in a folder of its own, put POSTGRES_PASSWORD,
 # DOSSIER_PASSWORD (a hash of your password, from `docker run --rm -it
-# ghcr.io/aientech/dossier hash-password`) and DOSSIER_SECRET in a .env file
+# ghcr.io/sanjeevstunner/dossier hash-password`) and DOSSIER_SECRET in a .env file
 # next to it, then:
 #
 #   docker compose up -d
@@ -26,7 +26,7 @@ services:
       retries: 10
 
   app:
-    image: ${DOSSIER_IMAGE:-ghcr.io/aientech/dossier:latest}
+    image: ${DOSSIER_IMAGE:-ghcr.io/sanjeevstunner/dossier:latest}
     restart: unless-stopped
     depends_on:
       db:

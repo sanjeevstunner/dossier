@@ -7,7 +7,7 @@ import { resetData, sql } from "./support";
 // this one, the sidebar says so on every page until "Not now", which holds
 // until a newer release still. Settings → About says so too.
 
-const release = (version: string) => ({ version, url: `https://github.com/AienTech/dossier/releases/tag/v${version}` });
+const release = (version: string) => ({ version, url: `https://github.com/sanjeevstunner/dossier/releases/tag/v${version}` });
 
 /** Stores a release as the one the update check found last. */
 async function found({ version, url }: { version: string; url: string }) {
@@ -38,7 +38,7 @@ test("says a newer release is out until Not now, and again for the next one", as
   const notice = page.getByRole("region", { name: "Dossier 99.0.0 is out" });
   await expect(notice).toBeVisible();
   await expect(notice.getByRole("link", { name: /What's new/ })).toHaveAttribute("href", release("99.0.0").url);
-  await expect(notice.getByRole("link", { name: /How to update/ })).toHaveAttribute("href", "https://github.com/AienTech/dossier/wiki/Upgrading");
+  await expect(notice.getByRole("link", { name: /How to update/ })).toHaveAttribute("href", "https://github.com/sanjeevstunner/dossier/wiki/Upgrading");
   await expectAccessibleSidebar(page);
 
   await page.goto("/settings?section=about");

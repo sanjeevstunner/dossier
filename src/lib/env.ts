@@ -8,7 +8,7 @@ import { isPasswordHash } from "@/lib/auth/password-hash";
 
 const SECRET_MIN_LENGTH = 32;
 const GENERATE_SECRET = "for example the output of `openssl rand -base64 32`";
-const HASH_PASSWORD = "Make one with `docker run --rm -it ghcr.io/aientech/dossier hash-password`";
+const HASH_PASSWORD = "Make one with `docker run --rm -it ghcr.io/sanjeevstunner/dossier hash-password`";
 
 export const AI_PROVIDERS = ["local", "openai", "anthropic", "mistral", "lmstudio"] as const;
 export const JOB_SOURCE_NAMES = ["jsearch", "adzuna", "arbeitsagentur", "naukri", "off"] as const;

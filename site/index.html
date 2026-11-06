@@ -84,14 +84,14 @@
         <a href="#features">Features</a>
         <a href="#privacy">Privacy</a>
         <a href="#install">Install</a>
-        <a href="https://github.com/AienTech/dossier/wiki">Docs</a>
+        <a href="https://github.com/sanjeevstunner/dossier/wiki">Docs</a>
       </nav>
       <div class="nav__end">
         <button class="icon-button" type="button" data-theme-toggle aria-label="Switch to dark mode">
           <svg class="icon icon--moon" aria-hidden="true"><use href="#i-moon"/></svg>
           <svg class="icon icon--sun" aria-hidden="true"><use href="#i-sun"/></svg>
         </button>
-        <a class="button button--ghost button--small" href="https://github.com/AienTech/dossier">
+        <a class="button button--ghost button--small" href="https://github.com/sanjeevstunner/dossier">
           <svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>
           <span>GitHub</span>
           <span class="count" data-stars hidden></span>
@@ -103,7 +103,7 @@
   <main id="main">
     <section class="hero" id="top">
       <div class="wrap hero__text">
-        <a class="release" href="https://github.com/AienTech/dossier/releases/latest" data-release>
+        <a class="release" href="https://github.com/sanjeevstunner/dossier/releases/latest" data-release>
           <span class="release__dot" aria-hidden="true"></span>
           <span data-release-text>Free and open source</span>
           <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>
@@ -335,7 +335,7 @@
           <p class="eyebrow">Privacy</p>
           <h2 class="display" id="privacy-title">Your profile lives with you.</h2>
           <p>Dossier is for one person on a small server: one password, your data in your own PostgreSQL database, and an AI model of your choice.</p>
-          <a class="link" href="https://github.com/AienTech/dossier/wiki/Privacy">What goes where <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="link" href="https://github.com/sanjeevstunner/dossier/wiki/Privacy">What goes where <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
         </header>
         <div class="privacy__grid">
           <div class="point reveal">
@@ -434,7 +434,7 @@
                 <h3>Fetch the Compose file, and make the secrets Dossier needs.</h3>
                 <div class="code" data-code>
                   <pre><code><span class="c-mute">$</span> mkdir ~/dossier &amp;&amp; cd ~/dossier
-<span class="c-mute">$</span> curl -fsSL -o compose.yml https://raw.githubusercontent.com/AienTech/dossier/main/compose.production.yml
+<span class="c-mute">$</span> curl -fsSL -o compose.yml https://raw.githubusercontent.com/sanjeevstunner/dossier/main/compose.production.yml
 <span class="c-mute">$</span> echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" &gt; .env
 <span class="c-mute">$</span> echo "DOSSIER_SECRET=$(openssl rand -base64 32)" &gt;&gt; .env</code></pre>
                   <button class="copy" type="button" data-copy><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
@@ -444,7 +444,7 @@
               <li>
                 <h3>Choose your password.</h3>
                 <div class="code" data-code>
-                  <pre><code><span class="c-mute">$</span> docker run --rm -it --platform linux/amd64 ghcr.io/aientech/dossier hash-password</code></pre>
+                  <pre><code><span class="c-mute">$</span> docker run --rm -it --platform linux/amd64 ghcr.io/sanjeevstunner/dossier hash-password</code></pre>
                   <button class="copy" type="button" data-copy><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
                 </div>
                 <p class="note">It asks for the password twice and prints a line that starts with <code>argon2id:</code>. Add it to <code>.env</code> as <code>DOSSIER_PASSWORD=argon2id:…</code>. Dossier only keeps the hash, never the password.</p>
@@ -455,7 +455,7 @@
                   <pre><code><span class="c-mute">$</span> docker compose up -d</code></pre>
                   <button class="copy" type="button" data-copy><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button>
                 </div>
-                <p class="note">Open <code>http://localhost:3000</code>, sign in, and pick an AI model in <b>Settings → AI provider</b>. The first start downloads the image (about 1.7 GB). <a href="https://github.com/AienTech/dossier/wiki/Choosing-an-AI-provider">Choosing an AI provider</a></p>
+                <p class="note">Open <code>http://localhost:3000</code>, sign in, and pick an AI model in <b>Settings → AI provider</b>. The first start downloads the image (about 1.7 GB). <a href="https://github.com/sanjeevstunner/dossier/wiki/Choosing-an-AI-provider">Choosing an AI provider</a></p>
               </li>
             </ol>
           </div>
@@ -463,24 +463,24 @@
           <div role="tabpanel" id="panel-server" aria-labelledby="tab-server" class="install__server" hidden>
             <p class="install__intro">Put Dossier on a server, on your own domain with HTTPS. Give it at least 2 vCPUs and 2 GB of memory. The installation guide walks through each way, step by step.</p>
             <div class="guides">
-              <a class="guide" href="https://github.com/AienTech/dossier/wiki/Self-host-on-an-Ubuntu-server">
+              <a class="guide" href="https://github.com/sanjeevstunner/dossier/wiki/Self-host-on-an-Ubuntu-server">
                 <b>Ubuntu server</b><span>Docker Compose with Caddy for HTTPS, or Node.js without Docker.</span>
                 <svg class="icon" aria-hidden="true"><use href="#i-out"/></svg>
               </a>
-              <a class="guide" href="https://github.com/AienTech/dossier/wiki/Self-host-with-Coolify">
+              <a class="guide" href="https://github.com/sanjeevstunner/dossier/wiki/Self-host-with-Coolify">
                 <b>Coolify</b><span>The app and PostgreSQL in one resource, with the secrets made for you.</span>
                 <svg class="icon" aria-hidden="true"><use href="#i-out"/></svg>
               </a>
-              <a class="guide" href="https://github.com/AienTech/dossier/wiki/Self-host-with-Dokploy">
+              <a class="guide" href="https://github.com/sanjeevstunner/dossier/wiki/Self-host-with-Dokploy">
                 <b>Dokploy</b><span>The published image and a Dokploy database. Updates take over once healthy.</span>
                 <svg class="icon" aria-hidden="true"><use href="#i-out"/></svg>
               </a>
-              <a class="guide" href="https://github.com/AienTech/dossier/wiki/Self-host-with-CapRover">
+              <a class="guide" href="https://github.com/sanjeevstunner/dossier/wiki/Self-host-with-CapRover">
                 <b>CapRover</b><span>The published image, next to CapRover's PostgreSQL one-click app.</span>
                 <svg class="icon" aria-hidden="true"><use href="#i-out"/></svg>
               </a>
             </div>
-            <p class="install__more">On your own computer, you can also run it with <a href="https://github.com/AienTech/dossier/wiki/Run-locally-with-Docker">plain Docker</a> or <a href="https://github.com/AienTech/dossier/wiki/Run-locally-with-Node.js">Node.js</a>.</p>
+            <p class="install__more">On your own computer, you can also run it with <a href="https://github.com/sanjeevstunner/dossier/wiki/Run-locally-with-Docker">plain Docker</a> or <a href="https://github.com/sanjeevstunner/dossier/wiki/Run-locally-with-Node.js">Node.js</a>.</p>
           </div>
         </div>
 
@@ -506,11 +506,11 @@
             Install Dossier
             <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>
           </a>
-          <a class="button button--secondary" href="https://github.com/AienTech/dossier">
+          <a class="button button--secondary" href="https://github.com/sanjeevstunner/dossier">
             <svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>
             Star on GitHub
           </a>
-          <a class="button button--secondary" href="https://github.com/sponsors/AienTech">
+          <a class="button button--secondary" href="https://github.com/sponsors/sanjeevstunner">
             <svg class="icon icon--heart" aria-hidden="true"><use href="#i-heart"/></svg>
             Sponsor
           </a>
@@ -526,32 +526,32 @@
           <svg class="mark" width="26" height="26" aria-hidden="true"><use href="#i-mark"/></svg>
           <span>Dossier</span>
         </a>
-        <p>Your job search, on your own server. Free software under the <a href="https://github.com/AienTech/dossier/blob/main/LICENSE">GNU AGPL-3.0</a>.</p>
+        <p>Your job search, on your own server. Free software under the <a href="https://github.com/sanjeevstunner/dossier/blob/main/LICENSE">GNU AGPL-3.0</a>.</p>
       </div>
       <nav aria-label="Project">
         <h2>Project</h2>
         <ul>
-          <li><a href="https://github.com/AienTech/dossier">Source code</a></li>
-          <li><a href="https://github.com/AienTech/dossier/releases">Releases</a></li>
-          <li><a href="https://github.com/AienTech/dossier/issues/new/choose">Report a bug</a></li>
-          <li><a href="https://github.com/sponsors/AienTech">Sponsor</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier">Source code</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/releases">Releases</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/issues/new/choose">Report a bug</a></li>
+          <li><a href="https://github.com/sponsors/sanjeevstunner">Sponsor</a></li>
         </ul>
       </nav>
       <nav aria-label="Documentation">
         <h2>Documentation</h2>
         <ul>
-          <li><a href="https://github.com/AienTech/dossier/wiki">Installation guide</a></li>
-          <li><a href="https://github.com/AienTech/dossier/wiki/Choosing-an-AI-provider">Choosing an AI provider</a></li>
-          <li><a href="https://github.com/AienTech/dossier/wiki/Upgrading">Upgrading</a></li>
-          <li><a href="https://github.com/AienTech/dossier/wiki/Troubleshooting">Troubleshooting</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/wiki">Installation guide</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/wiki/Choosing-an-AI-provider">Choosing an AI provider</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/wiki/Upgrading">Upgrading</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/wiki/Troubleshooting">Troubleshooting</a></li>
         </ul>
       </nav>
       <nav aria-label="Policies">
         <h2>Trust</h2>
         <ul>
-          <li><a href="https://github.com/AienTech/dossier/blob/main/PRIVACY.md">Privacy</a></li>
-          <li><a href="https://github.com/AienTech/dossier/blob/main/SECURITY.md">Security</a></li>
-          <li><a href="https://github.com/AienTech/dossier/blob/main/DEVELOPMENT.md">Development</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/blob/main/PRIVACY.md">Privacy</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="https://github.com/sanjeevstunner/dossier/blob/main/DEVELOPMENT.md">Development</a></li>
         </ul>
       </nav>
     </div>

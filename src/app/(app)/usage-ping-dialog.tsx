@@ -9,7 +9,7 @@ import { buttonClassName } from "@/components/ui/button";
 import { chooseUsagePing } from "./actions";
 
 /** PRIVACY.md's section on the usage ping, for the rest of what the question says. */
-export const USAGE_PING_PRIVACY_URL = "https://github.com/AienTech/dossier/blob/main/PRIVACY.md#usage-ping";
+export const USAGE_PING_PRIVACY_URL = "https://github.com/sanjeevstunner/dossier/blob/main/PRIVACY.md#usage-ping";
 
 const LINK = "font-medium text-ink underline underline-offset-2";
 

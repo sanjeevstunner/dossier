@@ -23,7 +23,7 @@ vi.mock("@/lib/prisma", async () => {
 vi.mock("@/lib/env", () => ({ env: {} }));
 
 const prisma = () => db.client!;
-const page = (version: string) => `https://github.com/AienTech/dossier/releases/tag/v${version}`;
+const page = (version: string) => `https://github.com/sanjeevstunner/dossier/releases/tag/v${version}`;
 /** A fetch that answers like GitHub's latest release. */
 const answer = (status: number, body: unknown) => vi.fn<typeof fetch>(async () => Response.json(body, { status }));
 const releaseOf = (version: string) => answer(200, { tag_name: `v${version}`, html_url: page(version) });
@@ -54,7 +54,7 @@ describe("latestRelease (E10-9)", () => {
   it("asks GitHub for the latest release and nothing else", async () => {
     const fetch = releaseOf("0.2.0");
     expect(await latestRelease(fetch)).toEqual({ version: "0.2.0", url: page("0.2.0") });
-    expect(fetch).toHaveBeenCalledWith("https://api.github.com/repos/AienTech/dossier/releases/latest", expect.objectContaining({ cache: "no-store" }));
+    expect(fetch).toHaveBeenCalledWith("https://api.github.com/repos/sanjeevstunner/dossier/releases/latest", expect.objectContaining({ cache: "no-store" }));
     const [, init] = fetch.mock.calls[0];
     expect(init?.method ?? "GET").toBe("GET");
     expect(init?.body).toBeUndefined();
@@ -63,7 +63,7 @@ describe("latestRelease (E10-9)", () => {
   it("asks the fake for the end-to-end tests instead, when set", async () => {
     const fetch = releaseOf("0.2.0");
     await latestRelease(fetch, "http://localhost:3998/github");
-    expect(fetch.mock.calls[0][0]).toBe("http://localhost:3998/github/repos/AienTech/dossier/releases/latest");
+    expect(fetch.mock.calls[0][0]).toBe("http://localhost:3998/github/repos/sanjeevstunner/dossier/releases/latest");
   });
 
   it("can't tell offline, without a release, or from an answer that isn't one", async () => {

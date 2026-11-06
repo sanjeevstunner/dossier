@@ -9,19 +9,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/AienTech/dossier/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/AienTech/dossier?label=release"></a>
-  <a href="https://github.com/AienTech/dossier/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/AienTech/dossier/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/sanjeevstunner/dossier/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/sanjeevstunner/dossier?label=release"></a>
+  <a href="https://github.com/sanjeevstunner/dossier/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sanjeevstunner/dossier/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue"></a>
-  <a href="https://github.com/AienTech/dossier/pkgs/container/dossier"><img alt="Docker image: ghcr.io/aientech/dossier" src="https://img.shields.io/badge/image-ghcr.io%2Faientech%2Fdossier-2496ED?logo=docker&logoColor=white"></a>
+  <a href="https://github.com/sanjeevstunner/dossier/pkgs/container/dossier"><img alt="Docker image: ghcr.io/sanjeevstunner/dossier" src="https://img.shields.io/badge/image-ghcr.io%2Fsanjeevstunner%2Fdossier-2496ED?logo=docker&logoColor=white"></a>
   <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs">
   <img alt="PostgreSQL 18" src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white">
 </p>
 
 Dossier keeps your career history in one profile and turns it into a clean resume. For every job you apply to, it reads the posting, shows how you match, and drafts a tailored resume and cover letter that only use facts from your profile. You refine them in a chat, download them as PDFs and track each application from draft to offer.
 
-It's for one person on a small server: one password, your data in your own PostgreSQL database, and an AI model of your choice. That can be a local model through Ollama or LM Studio, so your profile and documents stay on your own hardware, or a hosted one (any OpenAI-compatible API, Anthropic or Mistral), which then receives what it writes from. [Privacy](https://github.com/AienTech/dossier/wiki/Privacy) says what goes where.
+It's for one person on a small server: one password, your data in your own PostgreSQL database, and an AI model of your choice. That can be a local model through Ollama or LM Studio, so your profile and documents stay on your own hardware, or a hosted one (any OpenAI-compatible API, Anthropic or Mistral), which then receives what it writes from. [Privacy](https://github.com/sanjeevstunner/dossier/wiki/Privacy) says what goes where.
 
-**Get started:** [run it on your computer](#run-it-on-your-computer) in a few minutes, or [self-host it](#self-hosting) on a server. The [installation guide](https://github.com/AienTech/dossier/wiki) covers every way: Docker with or without Compose, Node.js, a plain Ubuntu server, CapRover, Coolify and Dokploy.
+**Get started:** [run it on your computer](#run-it-on-your-computer) in a few minutes, or [self-host it](#self-hosting) on a server. The [installation guide](https://github.com/sanjeevstunner/dossier/wiki) covers every way: Docker with or without Compose, Node.js, a plain Ubuntu server, CapRover, Coolify and Dokploy.
 
 ## Demo
 
@@ -40,8 +40,8 @@ It's for one person on a small server: one password, your data in your own Postg
 - **Never invents experience:** drafts only use facts from your profile. What the posting asks for and your profile doesn't have is shown as a gap, not made up.
 - **Refine:** ask for changes in a chat, edit or regenerate any part (every part of the cover letter too: sender, date, recipient, greeting and sign-off, written in the letter's language), undo AI changes or go back to any earlier version, keep private notes.
 - **Send:** an email to go with each application, to whoever the posting says to send it to, ready to copy or open in your mail app, with the resume and cover letter PDFs to attach. Edit, rewrite or refine it like the documents.
-- **Claude connector (optional):** use Dossier from Claude, on claude.ai, in the Desktop and mobile apps or in Claude's command-line app, on your own Claude plan. Claude can search for jobs, score them against your profile, read your profile and applications, and save the resume and cover letter it writes as a Draft, checked like Dossier's own. It never sends or deletes anything. Without an AI model of Dossier's own, **Write it with Claude** hands a posting to a new Claude chat. Turn it on in Settings → Claude connector (see [Connecting Claude](https://github.com/AienTech/dossier/wiki/Connecting-Claude)).
-- **Gmail and Calendar (optional):** connect your Google account to send an application from your own address with its PDFs attached, see employers' replies next to each application, have the AI read what they ask and draft your answer from your profile, offer interview times you're free, and see your month and the week ahead on the dashboard, with interviews kept in step with Google Calendar both ways. Nothing is sent without your confirmation. Set it up by entering your Google OAuth client in Settings → Google, or with `DOSSIER_GOOGLE_CLIENT_ID` and `DOSSIER_GOOGLE_CLIENT_SECRET` (see [Connecting Gmail and Calendar](https://github.com/AienTech/dossier/wiki/Connecting-Gmail-and-Calendar)).
+- **Claude connector (optional):** use Dossier from Claude, on claude.ai, in the Desktop and mobile apps or in Claude's command-line app, on your own Claude plan. Claude can search for jobs, score them against your profile, read your profile and applications, and save the resume and cover letter it writes as a Draft, checked like Dossier's own. It never sends or deletes anything. Without an AI model of Dossier's own, **Write it with Claude** hands a posting to a new Claude chat. Turn it on in Settings → Claude connector (see [Connecting Claude](https://github.com/sanjeevstunner/dossier/wiki/Connecting-Claude)).
+- **Gmail and Calendar (optional):** connect your Google account to send an application from your own address with its PDFs attached, see employers' replies next to each application, have the AI read what they ask and draft your answer from your profile, offer interview times you're free, and see your month and the week ahead on the dashboard, with interviews kept in step with Google Calendar both ways. Nothing is sent without your confirmation. Set it up by entering your Google OAuth client in Settings → Google, or with `DOSSIER_GOOGLE_CLIENT_ID` and `DOSSIER_GOOGLE_CLIENT_SECRET` (see [Connecting Gmail and Calendar](https://github.com/sanjeevstunner/dossier/wiki/Connecting-Gmail-and-Calendar)).
 - **Track:** a board and a table of every application, and a dashboard with your funnel (last 30 days, 90 days or all time), a week-by-week chart, what's worth a look next, upcoming interviews included, and a calendar.
 - **Your data:** export and import everything as one file, nightly backups, and Delete everything.
 
@@ -78,7 +78,7 @@ All you need is [Docker Desktop](https://docs.docker.com/desktop/) on macOS or W
 
 ```bash
 mkdir ~/dossier && cd ~/dossier
-curl -fsSL -o compose.yml https://raw.githubusercontent.com/AienTech/dossier/main/compose.production.yml
+curl -fsSL -o compose.yml https://raw.githubusercontent.com/sanjeevstunner/dossier/main/compose.production.yml
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 echo "DOSSIER_SECRET=$(openssl rand -base64 32)" >> .env
 ```
@@ -88,7 +88,7 @@ On an Apple Silicon Mac, also run `printf 'services:\n  app:\n    platform: linu
 **2. Choose your password.** This asks for it twice and prints a hash of it, one line that starts with `argon2id:`:
 
 ```bash
-docker run --rm -it --platform linux/amd64 ghcr.io/aientech/dossier hash-password
+docker run --rm -it --platform linux/amd64 ghcr.io/sanjeevstunner/dossier hash-password
 ```
 
 Add that line to `.env` as `DOSSIER_PASSWORD=argon2id:…`, with any text editor. Dossier only keeps the hash, never the password.
@@ -99,27 +99,27 @@ Add that line to `.env` as `DOSSIER_PASSWORD=argon2id:…`, with any text editor
 docker compose up -d
 ```
 
-The first start downloads the image (about 1.7 GB) and sets up the database. Open [http://localhost:3000](http://localhost:3000), sign in with your password, and pick an AI model in **Settings → AI provider** (see [Choosing an AI provider](https://github.com/AienTech/dossier/wiki/Choosing-an-AI-provider)).
+The first start downloads the image (about 1.7 GB) and sets up the database. Open [http://localhost:3000](http://localhost:3000), sign in with your password, and pick an AI model in **Settings → AI provider** (see [Choosing an AI provider](https://github.com/sanjeevstunner/dossier/wiki/Choosing-an-AI-provider)).
 
-`docker compose stop` stops it and `docker compose start` starts it again, with your data kept. It's only reachable from your own computer. The [installation guide's Docker Compose page](https://github.com/AienTech/dossier/wiki/Run-locally-with-Docker-Compose) has more: another port, your time zone, upgrades and removing it.
+`docker compose stop` stops it and `docker compose start` starts it again, with your data kept. It's only reachable from your own computer. The [installation guide's Docker Compose page](https://github.com/sanjeevstunner/dossier/wiki/Run-locally-with-Docker-Compose) has more: another port, your time zone, upgrades and removing it.
 
 ## Self-hosting
 
-To put Dossier on a server, on your own domain with HTTPS, follow the [installation guide](https://github.com/AienTech/dossier/wiki#self-host-on-a-server): a plain Ubuntu server with Docker Compose and Caddy (or Node.js, without Docker), CapRover, Coolify or Dokploy. Give the server at least 2 vCPUs and 2 GB of memory (see [Performance and sizing](#performance-and-sizing)).
+To put Dossier on a server, on your own domain with HTTPS, follow the [installation guide](https://github.com/sanjeevstunner/dossier/wiki#self-host-on-a-server): a plain Ubuntu server with Docker Compose and Caddy (or Node.js, without Docker), CapRover, Coolify or Dokploy. Give the server at least 2 vCPUs and 2 GB of memory (see [Performance and sizing](#performance-and-sizing)).
 
 ## Documentation
 
-The [wiki](https://github.com/AienTech/dossier/wiki) has what comes after installing:
+The [wiki](https://github.com/sanjeevstunner/dossier/wiki) has what comes after installing:
 
-- [Choosing an AI provider](https://github.com/AienTech/dossier/wiki/Choosing-an-AI-provider): a hosted model, or a local one with Ollama or LM Studio.
-- [Choosing a job source](https://github.com/AienTech/dossier/wiki/Choosing-a-job-source): JSearch or Adzuna (and an unofficial one for Germany), and the job agent.
-- [Connecting Gmail and Calendar](https://github.com/AienTech/dossier/wiki/Connecting-Gmail-and-Calendar): your own Google OAuth client, step by step.
-- [Connecting Claude](https://github.com/AienTech/dossier/wiki/Connecting-Claude): the Claude connector, in Claude's apps and on the command line.
-- [Backups and restore](https://github.com/AienTech/dossier/wiki/Backups-and-restore): exports, nightly backups and database dumps.
-- <a name="upgrading"></a>[Upgrading](https://github.com/AienTech/dossier/wiki/Upgrading) to a new version.
-- [Troubleshooting](https://github.com/AienTech/dossier/wiki/Troubleshooting): what the common errors mean, and what to do about them.
-- [Privacy](https://github.com/AienTech/dossier/wiki/Privacy): what stays on your server and what leaves it. [PRIVACY.md](PRIVACY.md) has the details.
-- [Environment variables](https://github.com/AienTech/dossier/wiki/Environment-variables): every setting the server reads.
+- [Choosing an AI provider](https://github.com/sanjeevstunner/dossier/wiki/Choosing-an-AI-provider): a hosted model, or a local one with Ollama or LM Studio.
+- [Choosing a job source](https://github.com/sanjeevstunner/dossier/wiki/Choosing-a-job-source): JSearch or Adzuna (and an unofficial one for Germany), and the job agent.
+- [Connecting Gmail and Calendar](https://github.com/sanjeevstunner/dossier/wiki/Connecting-Gmail-and-Calendar): your own Google OAuth client, step by step.
+- [Connecting Claude](https://github.com/sanjeevstunner/dossier/wiki/Connecting-Claude): the Claude connector, in Claude's apps and on the command line.
+- [Backups and restore](https://github.com/sanjeevstunner/dossier/wiki/Backups-and-restore): exports, nightly backups and database dumps.
+- <a name="upgrading"></a>[Upgrading](https://github.com/sanjeevstunner/dossier/wiki/Upgrading) to a new version.
+- [Troubleshooting](https://github.com/sanjeevstunner/dossier/wiki/Troubleshooting): what the common errors mean, and what to do about them.
+- [Privacy](https://github.com/sanjeevstunner/dossier/wiki/Privacy): what stays on your server and what leaves it. [PRIVACY.md](PRIVACY.md) has the details.
+- [Environment variables](https://github.com/sanjeevstunner/dossier/wiki/Environment-variables): every setting the server reads.
 
 ## Known limitations
 
