@@ -145,6 +145,9 @@ describe("Naukri easy apply agent", () => {
       { question: "Have you worked hands-on with LLMs?", answer: "Yes" },
       { question: "Are you residing in or willing to relocate to Chennai?", answer: "Yes" },
     ]);
+    expect((await prisma().note.findMany({ where: { applicationId: result.applicationId } })).map((note) => note.body)).toEqual([
+      "Answered on Naukri easy apply:\n\nQ: Have you worked hands-on with LLMs?\nA: Yes\n\nQ: Are you residing in or willing to relocate to Chennai?\nA: Yes",
+    ]);
     const application = await prisma().application.findUniqueOrThrow({ where: { id: result.applicationId }, include: { posting: true } });
     expect(application).toMatchObject({ status: "SENT", company: "Acme", role: "Product Designer", postingText: "The whole posting." });
     expect(application.sentAt).not.toBeNull();
