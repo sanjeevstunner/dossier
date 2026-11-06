@@ -14,8 +14,8 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 FROM base AS dev
 RUN chown node:node /app
 USER node
-COPY --chown=node:node package.json yarn.lock .yarnrc.yml ./
-RUN yarn install --immutable && mkdir .next
+COPY --chown=node:node package.json .yarnrc.yml ./
+RUN yarn install --no-immutable && mkdir .next
 # Chromium for PDFs, matching the installed playwright-core, with the system
 # libraries and fonts it needs (installing those takes root). Only the
 # headless shell: printing needs nothing more. Also DOSSIER_DATA_DIR's default
@@ -35,14 +35,14 @@ CMD ["sh", "-c", "yarn prisma generate && yarn prisma migrate deploy && yarn pri
 # Builds without any secrets: the environment is read when the server starts.
 
 FROM base AS deps
-COPY package.json yarn.lock .yarnrc.yml ./
-RUN yarn install --immutable
+COPY package.json .yarnrc.yml ./
+RUN yarn install --no-immutable
 
 FROM deps AS build
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY . .
 RUN yarn prisma generate && yarn build
-# Prisma's CLI for `migrate deploy`, at the version in yarn.lock, with the
+# Prisma's CLI for `migrate deploy`, at the installed version, with the
 # same resolutions as package.json; not the rest of the dev dependencies.
 RUN mkdir /tools && node -e ' \
   const version = (name) => require(`/app/node_modules/${name}/package.json`).version; \

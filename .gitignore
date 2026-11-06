@@ -56,3 +56,10 @@ next-env.d.ts
 /e2e/.auth/
 /playwright-report/
 /test-results/
+
+# package.json is the source of truth: no lockfiles
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+bun.lock
+bun.lockb

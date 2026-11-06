@@ -93,10 +93,10 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ${{ steps.yarn-cache.outputs.dir }}
-          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          key: yarn-${{ runner.os }}-${{ hashFiles('package.json') }}
           restore-keys: yarn-${{ runner.os }}-
 
-      - run: yarn install --immutable
+      - run: yarn install --no-immutable
       - run: yarn prisma generate
       - run: yarn lint
       - run: yarn typecheck
@@ -146,10 +146,10 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ${{ steps.yarn-cache.outputs.dir }}
-          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          key: yarn-${{ runner.os }}-${{ hashFiles('package.json') }}
           restore-keys: yarn-${{ runner.os }}-
 
-      - run: yarn install --immutable
+      - run: yarn install --no-immutable
       - run: yarn prisma generate
       # Headless Chromium, for the tests and for the app's PDFs.
       - run: yarn playwright install --with-deps --only-shell chromium

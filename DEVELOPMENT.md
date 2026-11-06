@@ -31,7 +31,7 @@ Run yarn through `docker/bin/yarn`, which uses the running `app` container or, i
 
 ```bash
 docker/bin/yarn add <package>
-docker/bin/yarn install   # after pulling changes to yarn.lock
+docker/bin/yarn install   # after pulling changes to package.json
 docker/bin/yarn lint
 ```
 
