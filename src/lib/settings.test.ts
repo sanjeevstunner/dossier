@@ -41,6 +41,7 @@ describe("stored settings", () => {
       docLanguage: null,
       resumeLanguage: null,
       customLanguages: [],
+      jobTypes: ["Full-time", "Part-time", "Contract", "Remote", "Apprenticeship"],
       fileNamePattern: "{name} – {company} – {doc}",
       includeRefs: false,
       writeCoverLetter: false,

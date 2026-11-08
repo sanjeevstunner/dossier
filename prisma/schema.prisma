@@ -65,6 +65,8 @@ model Experience {
   role       String            @default("")
   company    String            @default("")
   location   String            @default("")
+  /// Full-time, Contract…: one of the options in Settings (jobTypes), kept as text.
+  jobType    String            @default("")
   startYear  Int?
   /// 1–12, or null when only the year is known.
   startMonth Int?

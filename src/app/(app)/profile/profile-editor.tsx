@@ -28,7 +28,18 @@ import { SECTIONS, sectionHref, type SectionId } from "./sections";
 /** How experience, projects and education are ordered (E4-9), from Settings. */
 export type ProfileOrder = { experience: EntryOrder; projects: EntryOrder; education: EntryOrder };
 
-export function ProfileEditor({ initial, section, order }: { initial: ProfileData; section: SectionId; order: ProfileOrder }) {
+export function ProfileEditor({
+  initial,
+  section,
+  order,
+  jobTypes,
+}: {
+  initial: ProfileData;
+  section: SectionId;
+  order: ProfileOrder;
+  /** The job type options for a role, from Settings → Documents. */
+  jobTypes: string[];
+}) {
   const [profile, setProfile] = useState(initial);
   const saves = useSaveTracker();
 
@@ -58,7 +69,7 @@ export function ProfileEditor({ initial, section, order }: { initial: ProfileDat
       />
     ),
     skills: <SkillsSection profile={profile} update={setProfile} />,
-    experience: <ExperienceSection profile={profile} update={setProfile} order={order.experience} />,
+    experience: <ExperienceSection profile={profile} update={setProfile} order={order.experience} jobTypes={jobTypes} />,
     projects: <ProjectsSection profile={profile} update={setProfile} order={order.projects} />,
     education: <EducationSection profile={profile} update={setProfile} order={order.education} />,
     publications: <PublicationsSection profile={profile} update={setProfile} />,

@@ -40,6 +40,7 @@ export async function loadProfile(): Promise<ProfileData> {
       role: entry.role,
       company: entry.company,
       location: entry.location,
+      jobType: entry.jobType,
       bullets: entry.bullets,
       startYear: entry.startYear,
       startMonth: entry.startMonth,

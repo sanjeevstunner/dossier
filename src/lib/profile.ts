@@ -114,6 +114,7 @@ export type ExperienceItem = DateSpan & {
   role: string;
   company: string;
   location: string;
+  jobType: string;
   bullets: string;
   skillIds: string[];
 };

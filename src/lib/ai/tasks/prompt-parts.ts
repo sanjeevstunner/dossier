@@ -53,6 +53,7 @@ export function profileForPrompt(profile: ProfileData, { includeReferences = fal
         role: entry.role,
         company: entry.company,
         location: entry.location,
+        ...(entry.jobType ? { jobType: entry.jobType } : {}),
         dates: formatDateRange(entry),
         bullets: entry.bullets.split("\n").map((line) => line.trim()).filter(Boolean),
         skillsUsed: entry.skillIds.flatMap((id) => skillNames.get(id) ?? []),

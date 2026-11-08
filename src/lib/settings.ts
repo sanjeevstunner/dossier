@@ -43,6 +43,9 @@ export const isJobRetention = (hours: number) => JOB_RETENTION_OPTIONS.some((opt
 export const jobRetentionLabel = (hours: number) =>
   JOB_RETENTION_OPTIONS.find((option) => option.hours === hours)?.label ?? `${hours} hours`;
 
+/** The job types a role can have (Profile → Experience); the list is edited in Settings → Documents. */
+export const DEFAULT_JOB_TYPES: readonly string[] = ["Full-time", "Part-time", "Contract", "Remote", "Apprenticeship"];
+
 const pageLimit = z.enum(["1", "2", "none"]);
 export type PageLimit = z.infer<typeof pageLimit>;
 
@@ -107,6 +110,8 @@ export const settingsSchema = z.object({
   resumeLanguage: z.string().nullable().catch(null),
   /** Languages added with "Other language…", kept in the list. */
   customLanguages: stringList.catch([]),
+  /** The options for a role's job type (DEFAULT_JOB_TYPES). */
+  jobTypes: stringList.catch([...DEFAULT_JOB_TYPES]),
   fileNamePattern: z.string().catch("{name} – {company} – {doc}"),
   includeRefs: flag(false),
   /** Write a cover letter with every new application; off leaves it to "Generate with AI". */

@@ -205,6 +205,7 @@ export const updateSettings = action(
     writeCoverLetter: z.boolean().optional(),
     writeEmail: z.boolean().optional(),
     pageLimit: z.enum(["1", "2", "none"]).optional(),
+    jobTypes: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
     nightlyBackup: z.boolean().optional(),
     jobRetentionHours: z.number().refine(isJobRetention).optional(),
     updateCheck: z.boolean().optional(),
