@@ -41,6 +41,7 @@ describe("stored settings", () => {
       docLanguage: null,
       resumeLanguage: null,
       customLanguages: [],
+      projectKinds: ["Open-source", "Personal project"],
       fileNamePattern: "{name} – {company} – {doc}",
       includeRefs: false,
       writeCoverLetter: false,

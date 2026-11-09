@@ -28,7 +28,18 @@ import { SECTIONS, sectionHref, type SectionId } from "./sections";
 /** How experience, projects and education are ordered (E4-9), from Settings. */
 export type ProfileOrder = { experience: EntryOrder; projects: EntryOrder; education: EntryOrder };
 
-export function ProfileEditor({ initial, section, order }: { initial: ProfileData; section: SectionId; order: ProfileOrder }) {
+export function ProfileEditor({
+  initial,
+  section,
+  order,
+  projectKinds,
+}: {
+  initial: ProfileData;
+  section: SectionId;
+  order: ProfileOrder;
+  /** The "Other" kinds a project can be part of, from Settings → Profile. */
+  projectKinds: string[];
+}) {
   const [profile, setProfile] = useState(initial);
   const saves = useSaveTracker();
 
@@ -59,7 +70,7 @@ export function ProfileEditor({ initial, section, order }: { initial: ProfileDat
     ),
     skills: <SkillsSection profile={profile} update={setProfile} />,
     experience: <ExperienceSection profile={profile} update={setProfile} order={order.experience} />,
-    projects: <ProjectsSection profile={profile} update={setProfile} order={order.projects} />,
+    projects: <ProjectsSection profile={profile} update={setProfile} order={order.projects} kinds={projectKinds} />,
     education: <EducationSection profile={profile} update={setProfile} order={order.education} />,
     publications: <PublicationsSection profile={profile} update={setProfile} />,
     references: <ReferencesSection profile={profile} update={setProfile} />,

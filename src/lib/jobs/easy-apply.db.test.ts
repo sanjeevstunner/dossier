@@ -149,7 +149,7 @@ describe("Naukri easy apply agent", () => {
       "Answered on Naukri easy apply:\n\nQ: Have you worked hands-on with LLMs?\nA: Yes\n\nQ: Are you residing in or willing to relocate to Chennai?\nA: Yes",
     ]);
     const application = await prisma().application.findUniqueOrThrow({ where: { id: result.applicationId }, include: { posting: true } });
-    expect(application).toMatchObject({ status: "SENT", company: "Acme", role: "Product Designer", postingText: "The whole posting." });
+    expect(application).toMatchObject({ status: "SENT", company: "Acme", role: "Product Designer", postingText: "Acme: Product Designer\n\nBengaluru\n\nThe whole posting." });
     expect(application.sentAt).not.toBeNull();
     expect(application.posting?.externalId).toBe("123");
 

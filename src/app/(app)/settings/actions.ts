@@ -208,6 +208,7 @@ export const updateSettings = action(
     nightlyBackup: z.boolean().optional(),
     jobRetentionHours: z.number().refine(isJobRetention).optional(),
     updateCheck: z.boolean().optional(),
+    projectKinds: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
   }),
   async (changes) => {
     await saveSettings(changes);

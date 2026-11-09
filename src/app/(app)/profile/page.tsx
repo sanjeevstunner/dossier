@@ -15,6 +15,7 @@ export default async function ProfilePage({ searchParams }: PageProps<"/profile"
     <ProfileEditor
       initial={profile}
       section={sectionFromParam(section)}
+      projectKinds={settings.projectKinds}
       order={{ experience: settings.experienceOrder, projects: settings.projectOrder, education: settings.educationOrder }}
     />
   );

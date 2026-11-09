@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { getSession } from "@/lib/auth/session";
@@ -59,6 +59,11 @@ async function readEvents(response: Response): Promise<{ status: string; step: s
     buffer = buffer.slice(buffer.lastIndexOf("\n\n") + 2);
   }
 }
+
+// The runner loads every job type on its first job; keep that cold import out of the test's own timeout.
+beforeAll(async () => {
+  await import("@/lib/jobs/definitions");
+}, 60_000);
 
 beforeEach(async () => {
   newGate();

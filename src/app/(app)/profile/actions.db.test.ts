@@ -176,9 +176,9 @@ describe("profile actions", () => {
     const pandas = await prisma().skill.create({ data: { name: "pandas" } });
     const created = await createProject({});
     if (!created.ok) throw new Error(created.error);
-    expect(created.data).toMatchObject({ name: "", link: "", bullets: "", current: false, skillIds: [] });
+    expect(created.data).toMatchObject({ name: "", link: "", association: "", bullets: "", current: false, skillIds: [] });
 
-    const entry = { ...created.data, name: "Churn predictor", link: "github.com/jane/churn", bullets: "Trained a model\nShipped a dashboard", startYear: 2025, startMonth: 2, current: true };
+    const entry = { ...created.data, name: "Churn predictor", link: "github.com/jane/churn", association: "other:Open-source", bullets: "Trained a model\nShipped a dashboard", startYear: 2025, startMonth: 2, current: true };
     expect(await saveProject(entry)).toEqual({ ok: true, data: null });
     await setProjectSkill({ projectId: entry.id, skillId: python.id, attached: true });
     await setProjectSkill({ projectId: entry.id, skillId: python.id, attached: true }); // twice is fine

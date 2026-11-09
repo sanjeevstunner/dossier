@@ -72,6 +72,7 @@ export function demoProfile(): ProfileData {
       id: entry.id,
       name: entry.name,
       link: entry.link,
+      association: "",
       bullets: entry.bullets,
       ...dateSpan(entry.start, entry.end),
       skillIds: entry.skills.map(skillId),

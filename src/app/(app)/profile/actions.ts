@@ -235,6 +235,7 @@ const projectFields = z.object({
   id,
   name: text(200),
   link: text(500),
+  association: text(300),
   bullets: text(10_000),
   ...dateSpan,
 });
@@ -243,6 +244,7 @@ const projectItem = (entry: z.infer<typeof projectFields>, skillIds: string[] = 
   id: entry.id,
   name: entry.name,
   link: entry.link,
+  association: entry.association,
   bullets: entry.bullets,
   startYear: entry.startYear,
   startMonth: entry.startMonth,

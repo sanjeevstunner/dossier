@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { AiError } from "@/lib/ai/errors";
@@ -58,6 +58,12 @@ const release = (name: string) => eventually(async () => {
   gates.delete(name);
   open!();
 });
+
+// The runner loads every job type on its first job; that cold import is slow
+// and mustn't count against the polling timeouts below.
+beforeAll(async () => {
+  await import("./definitions");
+}, 60_000);
 
 beforeEach(async () => {
   await resetDatabase(prisma());
