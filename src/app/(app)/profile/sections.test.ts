@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { SECTIONS, sectionFromParam, sectionHref } from "./sections";
 
 describe("profile sections", () => {
-  it("come in the order Basics → Skills & languages → Experience → Projects → Education → Publications → References → Facts about me", () => {
+  it("come in the order Basics → Skills & languages → Experience → Education → Projects → Publications → References → Facts about me", () => {
     expect(SECTIONS.map((section) => section.label)).toEqual([
       "Basics",
       "Skills & languages",
       "Experience",
-      "Projects",
       "Education",
+      "Projects",
       "Publications",
       "References",
       "Facts about me",

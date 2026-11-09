@@ -1,0 +1,1 @@
+ALTER TABLE "Project" ADD COLUMN "association" TEXT NOT NULL DEFAULT '';

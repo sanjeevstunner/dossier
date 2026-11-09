@@ -107,6 +107,8 @@ export const settingsSchema = z.object({
   resumeLanguage: z.string().nullable().catch(null),
   /** Languages added with "Other language…", kept in the list. */
   customLanguages: stringList.catch([]),
+  /** The "Other" kinds a project can be part of, besides a role or a degree. */
+  projectKinds: stringList.catch(["Open-source", "Personal project"]),
   fileNamePattern: z.string().catch("{name} – {company} – {doc}"),
   includeRefs: flag(false),
   /** Write a cover letter with every new application; off leaves it to "Generate with AI". */

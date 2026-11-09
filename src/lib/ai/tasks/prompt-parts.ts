@@ -1,7 +1,7 @@
 import type { Creativity } from "@/generated/prisma/enums";
 import type { Extracted, Match } from "@/lib/application-data";
 import { citationText } from "@/lib/citation";
-import { factTexts, formatDateRange, languageLevelLabel, resumePublications, type ProfileData } from "@/lib/profile";
+import { associationLabel, factTexts, formatDateRange, languageLevelLabel, resumePublications, type ProfileData } from "@/lib/profile";
 
 import type { AIProvider } from "../provider";
 
@@ -61,6 +61,7 @@ export function profileForPrompt(profile: ProfileData, { includeReferences = fal
       projects: profile.projects.map((entry) => ({
         id: entry.id,
         name: entry.name,
+        ...(associationLabel(entry.association, profile) ? { partOf: associationLabel(entry.association, profile) } : {}),
         dates: formatDateRange(entry),
         bullets: entry.bullets.split("\n").map((line) => line.trim()).filter(Boolean),
         skillsUsed: entry.skillIds.flatMap((id) => skillNames.get(id) ?? []),

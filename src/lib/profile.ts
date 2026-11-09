@@ -122,6 +122,8 @@ export type ProjectItem = DateSpan & {
   id: string;
   name: string;
   link: string;
+  /** What it was part of: "" (none), "experience:<id>", "education:<id>" or "other:<kind>". */
+  association: string;
   bullets: string;
   skillIds: string[];
 };
@@ -250,4 +252,28 @@ export function experienceMonths(profile: Pick<ProfileData, "experience">, today
     for (let month = start; month <= Math.min(end, now); month++) months.add(month);
   }
   return months.size;
+}
+
+/** "Engineer at Acme", or "" for a role not filled in yet. */
+export const experienceLabel = (entry: { role: string; company: string }) =>
+  [entry.role.trim(), entry.company.trim()].filter(Boolean).join(" at ");
+/** "BSc Computing, Imperial", or "" for a degree not filled in yet. */
+export const educationLabel = (entry: { degree: string; school: string }) =>
+  [entry.degree.trim(), entry.school.trim()].filter(Boolean).join(", ");
+
+/**
+ * A project's association in words: the role, the degree or the other kind
+ * it was part of, or "" for none. A role or degree that was deleted, or isn't filled in, reads as none.
+ */
+export function associationLabel(association: string, profile: Pick<ProfileData, "experience" | "education">): string {
+  const [, kind, value] = /^(experience|education|other):([^]+)$/.exec(association) ?? [];
+  if (kind === "experience") {
+    const entry = profile.experience.find((item) => item.id === value);
+    return entry ? experienceLabel(entry) : "";
+  }
+  if (kind === "education") {
+    const entry = profile.education.find((item) => item.id === value);
+    return entry ? educationLabel(entry) : "";
+  }
+  return kind === "other" ? value : "";
 }

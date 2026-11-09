@@ -96,6 +96,8 @@ model Project {
   name       String         @default("")
   /// Where it can be seen, e.g. its repository or site.
   link       String         @default("")
+  /// What it was part of: "" (none), "experience:<id>", "education:<id>" or "other:<kind>". A deleted role or degree reads as none.
+  association String        @default("")
   startYear  Int?
   startMonth Int?
   endYear    Int?

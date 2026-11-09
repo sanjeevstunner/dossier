@@ -5,9 +5,18 @@ import { useMemo } from "react";
 import { useTrackSave } from "@/components/save-tracker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAutosave } from "@/hooks/use-autosave";
-import { formatDateRange, type EntryOrder, type ProfileData, type ProjectItem } from "@/lib/profile";
+import {
+  associationLabel,
+  educationLabel,
+  experienceLabel,
+  formatDateRange,
+  type EntryOrder,
+  type ProfileData,
+  type ProjectItem,
+} from "@/lib/profile";
 
 import {
   attachNewProjectSkill,
@@ -29,18 +38,28 @@ function ProjectForm({
   entry,
   onChange,
   autoFocus,
+  profile,
+  kinds,
 }: {
   entry: ProjectItem;
   onChange: (entry: ProjectItem) => void;
   autoFocus: boolean;
+  profile: ProfileData;
+  kinds: string[];
 }) {
   const track = useTrackSave();
   // Autosave the text and dates only; skill links save on their own when toggled.
-  const { id, name, link, bullets, startYear, startMonth, endYear, endMonth, current } = entry;
+  const { id, name, link, association, bullets, startYear, startMonth, endYear, endMonth, current } = entry;
   const fields = useMemo(
-    () => ({ id, name, link, bullets, startYear, startMonth, endYear, endMonth, current }),
-    [id, name, link, bullets, startYear, startMonth, endYear, endMonth, current],
+    () => ({ id, name, link, association, bullets, startYear, startMonth, endYear, endMonth, current }),
+    [id, name, link, association, bullets, startYear, startMonth, endYear, endMonth, current],
   );
+  // A role or degree that was deleted reads as None; a kind since removed from Settings stays listed.
+  const selected = associationLabel(association, profile) ? association : "";
+  // Roles and degrees not filled in yet have nothing to show, so they aren't offered.
+  const roles = profile.experience.filter((item) => experienceLabel(item));
+  const degrees = profile.education.filter((item) => educationLabel(item));
+  const otherKinds = selected.startsWith("other:") && !kinds.includes(selected.slice(6)) ? [...kinds, selected.slice(6)] : kinds;
   const { flush } = useAutosave(fields, (value) => track(saveProject(value)));
   const set = (change: Partial<ProjectItem>) => onChange({ ...entry, ...change });
 
@@ -59,6 +78,36 @@ function ProjectForm({
         value={entry.link}
         onChange={(event) => set({ link: event.target.value })}
       />
+      <Select className="col-span-2" label="Part of" value={selected} onChange={(event) => set({ association: event.target.value })}>
+        <option value="">None</option>
+        {roles.length > 0 && (
+          <optgroup label="Experience">
+            {roles.map((item) => (
+              <option key={item.id} value={`experience:${item.id}`}>
+                {experienceLabel(item)}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {degrees.length > 0 && (
+          <optgroup label="Education">
+            {degrees.map((item) => (
+              <option key={item.id} value={`education:${item.id}`}>
+                {educationLabel(item)}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {otherKinds.length > 0 && (
+          <optgroup label="Other">
+            {otherKinds.map((kind) => (
+              <option key={kind} value={`other:${kind}`}>
+                {kind}
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </Select>
       <MonthYearField
         label="Started"
         value={{ month: entry.startMonth, year: entry.startYear }}
@@ -90,7 +139,18 @@ function ProjectForm({
 }
 
 /** Projects (PRO-13): side, open-source, course or thesis work, with the skills used, like roles. */
-export function ProjectsSection({ profile, update, order }: { profile: ProfileData; update: UpdateProfile; order: EntryOrder }) {
+export function ProjectsSection({
+  profile,
+  update,
+  order,
+  kinds,
+}: {
+  profile: ProfileData;
+  update: UpdateProfile;
+  order: EntryOrder;
+  /** The "Other" kinds a project can be part of, from Settings → Profile. */
+  kinds: string[];
+}) {
   const skillNames = (entry: ProjectItem) =>
     profile.skills.filter((skill) => entry.skillIds.includes(skill.id)).map((skill) => skill.name);
 
@@ -106,7 +166,7 @@ export function ProjectsSection({ profile, update, order }: { profile: ProfileDa
       }}
       summary={(entry) => ({
         title: entry.name.trim() || "New project",
-        subtitle: entry.link.trim(),
+        subtitle: [associationLabel(entry.association, profile), entry.link.trim()].filter(Boolean).join(" · "),
         meta: formatDateRange(entry),
         footnote: skillNames(entry).join(" · ") || undefined,
       })}
@@ -115,7 +175,7 @@ export function ProjectsSection({ profile, update, order }: { profile: ProfileDa
       restore={(entry) => restoreProject(entry)}
       renderForm={(entry, { onChange, autoFocus }) => (
         <>
-          <ProjectForm entry={entry} onChange={onChange} autoFocus={autoFocus} />
+          <ProjectForm entry={entry} onChange={onChange} autoFocus={autoFocus} profile={profile} kinds={kinds} />
           <SkillsUsed
             entry={entry}
             noun="project"
