@@ -38,7 +38,7 @@ export function ProfileEditor({
   initial: ProfileData;
   section: SectionId;
   order: ProfileOrder;
-  /** The job type options for a role, from Settings → Documents. */
+  /** The job type options for a role, from Settings → Profile. */
   jobTypes: string[];
   /** The "Other" kinds a project can be part of, from Settings → Profile. */
   projectKinds: string[];

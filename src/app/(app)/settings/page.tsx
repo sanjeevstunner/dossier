@@ -90,7 +90,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           jobRetentionHours={settings.jobRetentionHours}
         />
       ) : section === "profile" ? (
-        <ProfileSection initial={{ projectKinds: settings.projectKinds }} />
+        <ProfileSection initial={{ projectKinds: settings.projectKinds, jobTypes: settings.jobTypes }} />
       ) : section === "documents" ? (
         <DocumentsSection
           // Only these fields: the settings also hold the encrypted API key, which never leaves the server.
@@ -106,7 +106,6 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             writeCoverLetter: settings.writeCoverLetter,
             writeEmail: settings.writeEmail,
             pageLimit: settings.pageLimit,
-            jobTypes: settings.jobTypes,
           }}
           preview={await filePreview()}
         />

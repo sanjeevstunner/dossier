@@ -33,8 +33,6 @@ export type DocumentSettings = {
   writeCoverLetter: boolean;
   writeEmail: boolean;
   pageLimit: PageLimit;
-  /** The job type options for a role in Profile → Experience. */
-  jobTypes: string[];
 };
 
 const POSTING_LANGUAGE = "__posting";
@@ -56,7 +54,6 @@ export function DocumentsSection({
   const [settings, setSettings] = useState(initial);
   const [addingLanguage, setAddingLanguage] = useState(false);
   const [newLanguage, setNewLanguage] = useState("");
-  const [newJobType, setNewJobType] = useState("");
   const pattern = useRef<HTMLInputElement>(null);
 
   const change = (next: Partial<DocumentSettings>) => {
@@ -95,15 +92,6 @@ export function DocumentsSection({
     setAddingLanguage(false);
     setNewLanguage("");
     if (added) toast(`Added ${language}. Output quality depends on how well your model knows it.`);
-  };
-
-  const addJobType = () => {
-    const name = newJobType.trim();
-    if (!name) return;
-    if (!settings.jobTypes.some((type) => type.toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      change({ jobTypes: [...settings.jobTypes, name] });
-    }
-    setNewJobType("");
   };
 
   const languages = [...DOCUMENT_LANGUAGES.map((language) => language.name), ...settings.customLanguages];
@@ -233,48 +221,6 @@ export function DocumentsSection({
             <span>Preview</span>
             <output className="font-mono text-label [overflow-wrap:anywhere] text-ink">{previewName}</output>
           </p>
-        </div>
-      </Card>
-
-      <Card padding="none" className="flex flex-col gap-2.5 px-7 py-[26px]">
-        <span id="job-types" className="text-label text-ink">
-          Job types
-        </span>
-        <p className="text-meta text-muted">The choices for a role in Profile → Experience. Removing one leaves the roles that use it as they are.</p>
-        <ul aria-labelledby="job-types" className="flex flex-wrap gap-1.5">
-          {settings.jobTypes.map((type) => (
-            <li key={type} className="flex items-center gap-1 rounded-full border border-line-field bg-input py-1 pr-1.5 pl-3 text-meta text-ink">
-              {type}
-              <button
-                type="button"
-                aria-label={`Remove ${type}`}
-                className="rounded-full px-1 text-muted hover:bg-hover hover:text-ink"
-                onClick={() => change({ jobTypes: settings.jobTypes.filter((other) => other !== type) })}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="flex gap-1.5 sm:max-w-sm">
-          <Input
-            aria-label="New job type"
-            placeholder="e.g. Freelance"
-            className="min-w-0 flex-1"
-            inputClassName="py-[9px]"
-            maxLength={40}
-            value={newJobType}
-            onChange={(event) => setNewJobType(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                addJobType();
-              }
-            }}
-          />
-          <Button variant="secondary" size="sm" aria-label="Add job type" onClick={addJobType}>
-            Add
-          </Button>
         </div>
       </Card>
 
