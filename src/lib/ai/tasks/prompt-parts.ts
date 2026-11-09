@@ -1,7 +1,7 @@
 import type { Creativity } from "@/generated/prisma/enums";
 import type { Extracted, Match } from "@/lib/application-data";
 import { citationText } from "@/lib/citation";
-import { associationLabel, factTexts, formatDateRange, languageLevelLabel, resumePublications, type ProfileData } from "@/lib/profile";
+import { associationLabel, certificationLine, resumeCertifications, factTexts, formatDateRange, languageLevelLabel, resumePublications, type ProfileData } from "@/lib/profile";
 
 import type { AIProvider } from "../provider";
 
@@ -74,6 +74,7 @@ export function profileForPrompt(profile: ProfileData, { includeReferences = fal
         dates: formatDateRange(entry),
         notes: entry.notes,
       })),
+      ...(profile.certifications.length > 0 ? { certifications: resumeCertifications(profile.certifications).map((entry) => certificationLine(entry)) } : {}),
       // Citations as plain text, without their links, and only those shown on resumes (#218).
       ...(publications.length > 0 ? { publications } : {}),
       ...(includeReferences

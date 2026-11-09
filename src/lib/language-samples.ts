@@ -347,6 +347,7 @@ export function sampleProfile(sample: Sample): ProfileData {
       },
     ],
     publications: [],
+    certifications: [],
     references: [],
     facts: [],
     photo: null,

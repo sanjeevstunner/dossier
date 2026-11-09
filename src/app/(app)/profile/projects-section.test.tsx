@@ -49,6 +49,7 @@ function Harness() {
     projects: [churn, thesis],
     education: [{ id: "e1", degree: "MSc Data Science", school: "TU Delft", notes: "", startYear: 2022, startMonth: 9, endYear: 2024, endMonth: 6, current: false }],
     publications: [],
+    certifications: [],
     references: [],
     facts: [],
     photo: null,

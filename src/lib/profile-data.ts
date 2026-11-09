@@ -17,7 +17,7 @@ export async function loadProfileName(): Promise<string> {
  * publications are always in the order set by hand (#218).
  */
 export async function loadProfile(): Promise<ProfileData> {
-  const [fields, skills, languages, experience, projects, education, publications, references, facts, settings] = await Promise.all([
+  const [fields, skills, languages, experience, projects, education, publications, certifications, references, facts, settings] = await Promise.all([
     prisma.profileField.findMany(),
     prisma.skill.findMany({ orderBy: [{ sort: "asc" }, { createdAt: "asc" }] }),
     prisma.language.findMany({ orderBy: [{ sort: "asc" }, { createdAt: "asc" }] }),
@@ -25,6 +25,7 @@ export async function loadProfile(): Promise<ProfileData> {
     prisma.project.findMany({ include: { skills: { select: { skillId: true } } } }),
     prisma.education.findMany(),
     prisma.publication.findMany({ orderBy: [{ sort: "asc" }, { createdAt: "asc" }] }),
+    prisma.certification.findMany({ orderBy: [{ sort: "asc" }, { createdAt: "asc" }] }),
     prisma.reference.findMany({ orderBy: [{ sort: "asc" }, { createdAt: "asc" }] }),
     loadFacts(null),
     loadSettings(),
@@ -74,6 +75,9 @@ export async function loadProfile(): Promise<ProfileData> {
       endYear: entry.endYear,
       endMonth: entry.endMonth,
       current: entry.current,
+    })),
+    certifications: certifications.map(({ id, name, issuer, issueYear, issueMonth, expiryYear, expiryMonth, credentialId, credentialUrl }) => ({
+      id, name, issuer, issueYear, issueMonth, expiryYear, expiryMonth, credentialId, credentialUrl,
     })),
     publications: publications.map(({ id, citation, link, onResumes }) => ({ id, citation, link, onResumes })),
     references: references.map(({ id, name, relation, company, email, phone }) => ({

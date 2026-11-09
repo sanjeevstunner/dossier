@@ -110,6 +110,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
         tx.language.deleteMany(),
         tx.education.deleteMany(),
         tx.publication.deleteMany(),
+        tx.certification.deleteMany(),
         tx.reference.deleteMany(),
         tx.fact.deleteMany(),
         tx.theme.deleteMany({ where: { builtIn: false } }),
@@ -132,6 +133,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       });
       await tx.education.createMany({ data: profile.education });
       await tx.publication.createMany({ data: profile.publications });
+      await tx.certification.createMany({ data: profile.certifications });
       await tx.reference.createMany({ data: profile.references });
       await tx.fact.createMany({ data: profile.facts });
       await tx.theme.createMany({ data: themes.map((theme) => ({ ...theme, builtIn: false })) });

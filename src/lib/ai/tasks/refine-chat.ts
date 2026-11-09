@@ -6,7 +6,7 @@ import { emailParts } from "@/lib/application-email";
 import { isFrameUnit } from "@/lib/letter-frame";
 import type { ProfileData } from "@/lib/profile";
 import { TONES } from "@/lib/tones";
-import { isPublicationUnit } from "@/lib/unit-text";
+import { isCertificationUnit, isPublicationUnit } from "@/lib/unit-text";
 
 import { guardSources, unverifiedFacts } from "../fact-guard";
 
@@ -37,6 +37,7 @@ const answerSchema = z.object({
 const INSTRUCTIONS = `You help a candidate refine their tailored resume, cover letter and application email for one job, and answer as JSON.
 
 - Change only what the request asks for. Each edit replaces one unit's whole text: give its document (RESUME, COVER_LETTER or EMAIL), its unitId and the new text. For a role or project, write bullets one per line without bullet characters.
+- Never edit a certification (a unit whose unitId starts with "certification:") either: it's the candidate's own entry.
 - Never edit a publication (a resume unit whose unitId starts with "publication:"): it's the candidate's citation, as they wrote it. If asked to, say they can edit it or leave it out themselves.
 - The email goes out with the resume and cover letter attached. Its "to" unit is the recipient ("Name <address>"), "subject" its subject line and "body" the whole message, from the greeting to the sign-off and the candidate's name.
 - tone: set it (WARM, DIRECT or FORMAL) only when the request asks for a different tone for the letter; otherwise null. When you change the tone, rewrite the letter's paragraphs to match. A different tone for the email is an edit to the email, not a new tone.
@@ -119,7 +120,7 @@ export const refineChat: Task<RefineInput, Refinement> = async (provider, input,
       const unit = documents[edit.document].find((entry) => entry.id === edit.unitId);
       const text = edit.text.trim();
       // A publication stays as the candidate wrote it (#218).
-      if (unit && text && text !== unit.text && !isPublicationUnit(unit.id)) {
+      if (unit && text && text !== unit.text && !isPublicationUnit(unit.id) && !isCertificationUnit(unit.id)) {
         // E6-6: in strict mode, note what the profile and posting don't back.
         const checked = edit.document === DocumentKind.EMAIL ? unit.id !== "to" : unit.id !== SIGN_OFF_UNIT && !isFrameUnit(unit.id);
         const unverified = sources && checked ? unverifiedFacts(text, sources) : [];

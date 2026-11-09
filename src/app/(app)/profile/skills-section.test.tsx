@@ -33,6 +33,7 @@ const profile = (): ProfileData => ({
   projects: [],
   education: [],
   publications: [],
+  certifications: [],
   references: [],
   facts: [],
   photo: null,

@@ -142,6 +142,22 @@ model Education {
   updatedAt  DateTime @updatedAt
 }
 
+/// A licence or certification: who issued it, when, and how to check it. Shown word for word on resumes.
+model Certification {
+  id            String   @id @default(cuid())
+  name          String   @default("")
+  issuer        String   @default("")
+  issueYear     Int?
+  issueMonth    Int?
+  expiryYear    Int?
+  expiryMonth   Int?
+  credentialId  String   @default("")
+  credentialUrl String   @default("")
+  sort          Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 /// Private unless included in a document (PRO-8).
 /// A publication (#218), cited the way its author wants: no citation style is enforced.
 model Publication {

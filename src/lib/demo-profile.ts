@@ -86,6 +86,7 @@ export function demoProfile(): ProfileData {
       ...dateSpan(entry.start, entry.end),
     })),
     publications: publications.map(({ id, citation, link }) => ({ id, citation, link, onResumes: true })),
+    certifications: [],
     references: references.map(({ id, name, relation, company, email, phone }) => ({
       id,
       name,

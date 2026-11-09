@@ -176,6 +176,18 @@ export type ProjectItem = DateSpan & {
 export type EducationItem = DateSpan & { id: string; degree: string; school: string; notes: string };
 /** A publication (#218): the citation as written, with **bold** and *italic*, and where to read it. */
 export type PublicationItem = { id: string; citation: string; link: string; onResumes: boolean };
+/** A licence or certification: issued (and maybe expiring) month and year, and where to check it. */
+export type CertificationItem = {
+  id: string;
+  name: string;
+  issuer: string;
+  issueYear: number | null;
+  issueMonth: number | null;
+  expiryYear: number | null;
+  expiryMonth: number | null;
+  credentialId: string;
+  credentialUrl: string;
+};
 export type ReferenceItem = {
   id: string;
   name: string;
@@ -201,6 +213,7 @@ export type ProfileData = {
   education: EducationItem[];
   /** In the order set by hand, with the ones kept off resumes too. */
   publications: PublicationItem[];
+  certifications: CertificationItem[];
   references: ReferenceItem[];
   /** "Facts about me": never on a document, only given to the AI. */
   facts: FactItem[];
@@ -209,6 +222,18 @@ export type ProfileData = {
 /** The facts worth sending: trimmed, without empty ones. */
 export function factTexts(facts: { text: string }[]): string[] {
   return facts.map((fact) => fact.text.trim()).filter(Boolean);
+}
+
+/** The certifications a resume shows: those with a name. */
+export function resumeCertifications(certifications: readonly CertificationItem[]): CertificationItem[] {
+  return certifications.filter((entry) => entry.name.trim() !== "");
+}
+
+/** A certification as one resume line: "AWS Certified Developer, Amazon Web Services, Dec 2023 – Dec 2026". */
+export function certificationLine(entry: CertificationItem, options: DateFormatOptions = {}): string {
+  const issued = formatMonthYear(entry.issueYear, entry.issueMonth, options);
+  const expires = formatMonthYear(entry.expiryYear, entry.expiryMonth, options);
+  return [entry.name.trim(), entry.issuer.trim(), [issued, expires].filter(Boolean).join(" – ")].filter(Boolean).join(", ");
 }
 
 /** The publications a resume shows: those with "Show on resumes" on and a citation. */

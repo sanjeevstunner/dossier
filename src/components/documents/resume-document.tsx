@@ -163,6 +163,37 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
         ))}
       </DocumentSection>
     ),
+    content.certifications.length > 0 && (
+      <DocumentSection key="certifications" title={labels.certifications}>
+        {content.certifications.map((entry) => (
+          <Fragment key={entry.id}>
+            {renderUnit({
+              id: `certification:${entry.id}`,
+              className: styles.publication,
+              children: (
+                <p>
+                  {entry.text}
+                  {entry.link && (
+                    <>
+                      {" "}
+                      {entry.href ? (
+                        <a href={entry.href} target="_blank" rel="noreferrer" className={styles.link}>
+                          <Contact>{entry.link}</Contact>
+                        </a>
+                      ) : (
+                        <span className={styles.link}>
+                          <Contact>{entry.link}</Contact>
+                        </span>
+                      )}
+                    </>
+                  )}
+                </p>
+              ),
+            })}
+          </Fragment>
+        ))}
+      </DocumentSection>
+    ),
     content.publications.length > 0 && (
       <DocumentSection key="publications" title={labels.publications}>
         {content.publications.map((entry) => (

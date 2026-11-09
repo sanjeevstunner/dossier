@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { factTexts, filledBasics, REQUIRED_BASICS, type EntryOrder, type ProfileData } from "@/lib/profile";
 
 import { BasicsSection } from "./basics-section";
+import { CertificationsSection } from "./certifications-section";
 import { EducationSection } from "./education-section";
 import { ExperienceSection } from "./experience-section";
 import { FactsSection } from "./facts-section";
@@ -57,6 +58,7 @@ export function ProfileEditor({
     experience: String(profile.experience.length),
     projects: String(profile.projects.length),
     education: String(profile.education.length),
+    certifications: String(profile.certifications.length),
     publications: String(profile.publications.length),
     references: String(profile.references.length),
     facts: String(factTexts(profile.facts).length),
@@ -74,6 +76,7 @@ export function ProfileEditor({
     skills: <SkillsSection profile={profile} update={setProfile} />,
     experience: <ExperienceSection profile={profile} update={setProfile} order={order.experience} jobTypes={jobTypes} />,
     projects: <ProjectsSection profile={profile} update={setProfile} order={order.projects} kinds={projectKinds} />,
+    certifications: <CertificationsSection profile={profile} update={setProfile} />,
     education: <EducationSection profile={profile} update={setProfile} order={order.education} />,
     publications: <PublicationsSection profile={profile} update={setProfile} />,
     references: <ReferencesSection profile={profile} update={setProfile} />,

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { unitsSchema, type Extracted, type Match, type Unit } from "@/lib/application-data";
 import { publicationLabel } from "@/lib/citation";
 import { documentLabels, ENGLISH_LABELS, languagesLine, type DocumentLabels } from "@/lib/document-labels";
-import { resumePublications, sameName, skillsText, type ProfileData } from "@/lib/profile";
+import { certificationLine, resumeCertifications, resumePublications, sameName, skillsText, type ProfileData } from "@/lib/profile";
 
 import { guardSources, guardUnits } from "../fact-guard";
 
@@ -22,7 +22,7 @@ import {
   type Task,
 } from "./prompt-parts";
 
-export const TAILOR_RESUME_VERSION = "tailor-resume@9";
+export const TAILOR_RESUME_VERSION = "tailor-resume@10";
 
 const answerSchema = z.object({
   summary: z.string(),
@@ -41,7 +41,7 @@ const INSTRUCTIONS = `You tailor a candidate's resume to one job, as JSON.
 - The profile's bullets are source facts, not text to reuse. Never copy or lightly edit a bullet, and never paste a role or project description in as it is: write every bullet fresh as a concise, self-contained resume bullet (action verb, what was done, how, and the result or scale where the profile gives one). Merge, split or reorder facts as needed, and drop what doesn't help. Rewriting must keep every fact, tool, number and outcome that matters: change the wording, never the substance or the level of detail.
 - skills: the candidate's own skills, most relevant to this job first. Copy their names exactly; you may leave out ones that don't help.
 - education: every entry by id, with its notes shortened or left empty.
-- The profile's publications go on the resume word for word, so don't answer with them; the summary may mention them.`;
+- The profile's publications and certifications go on the resume as they are, so don't answer with them; the summary may mention them.`;
 
 /** SET-9: asked for when "Resume length" has a limit; anything still over is trimmed afterwards (E10-10). */
 function pageFit(maxPages: number | null | undefined): string | null {
@@ -134,6 +134,11 @@ export function resumeUnits(profile: ProfileData, answer: z.infer<typeof answerS
       id: `education:${entry.id}`,
       label: entry.degree || entry.school,
       text: (notes.get(entry.id) ?? entry.notes).trim(),
+    })),
+    ...resumeCertifications(profile.certifications).map((entry) => ({
+      id: `certification:${entry.id}`,
+      label: entry.name.trim(),
+      text: certificationLine(entry, { locale: labels.locale, present: labels.present }),
     })),
     ...resumePublications(profile.publications).map((entry) => ({
       id: `publication:${entry.id}`,
