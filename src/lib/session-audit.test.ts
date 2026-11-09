@@ -52,7 +52,8 @@ describe("session checks (E11-5)", () => {
       return source.match(/^\s*["']use server["'];?\s*$/gm)?.length !== (isActionFile(source) ? 1 : undefined);
     });
     expect(inline).toEqual([]);
-  });
+    // Reads every source file, which takes seconds on a slow disk.
+  }, 30_000);
 
   it("checks the session on every page but the sign-in page", () => {
     // The (app) layout checks for everything inside it; print pages take the renderer's token too.

@@ -25,18 +25,18 @@ export const SECTIONS = [
     hint: "Add the roles you're proud of. Rough bullet points are totally fine: each application gets its own polished version.",
   },
   {
-    id: "projects",
-    optional: true,
-    label: "Projects",
-    title: "Projects",
-    hint: "Side projects, open source, coursework or a thesis: things you built that show what you can do, especially when your roles don't say it yet.",
-  },
-  {
     id: "education",
     optional: false,
     label: "Education",
     title: "Education",
     hint: "Degrees, courses, certificates: anything that helps tell your story.",
+  },
+  {
+    id: "projects",
+    optional: true,
+    label: "Projects",
+    title: "Projects",
+    hint: "Side projects, open source, coursework or a thesis: things you built that show what you can do, especially when your roles don't say it yet.",
   },
   {
     id: "publications",

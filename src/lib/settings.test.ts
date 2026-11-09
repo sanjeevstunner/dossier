@@ -42,6 +42,7 @@ describe("stored settings", () => {
       resumeLanguage: null,
       customLanguages: [],
       jobTypes: ["Full-time", "Part-time", "Contract", "Remote", "Apprenticeship"],
+      projectKinds: ["Open-source", "Personal project"],
       fileNamePattern: "{name} – {company} – {doc}",
       includeRefs: false,
       writeCoverLetter: false,

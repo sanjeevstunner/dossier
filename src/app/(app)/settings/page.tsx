@@ -27,6 +27,7 @@ import { DocumentsSection } from "./documents-section";
 import { GoogleSection } from "./google-section";
 import { GoogleNotice } from "./google-notice";
 import { JobSearchSection } from "./job-search-section";
+import { ProfileSection } from "./profile-section";
 import { AboutSection, type AboutFacts, type UsagePingView } from "./about-section";
 import { ConnectorSection } from "./connector-section";
 import { settingsSectionFromParam } from "./sections";
@@ -88,6 +89,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           }}
           jobRetentionHours={settings.jobRetentionHours}
         />
+      ) : section === "profile" ? (
+        <ProfileSection initial={{ projectKinds: settings.projectKinds }} />
       ) : section === "documents" ? (
         <DocumentsSection
           // Only these fields: the settings also hold the encrypted API key, which never leaves the server.

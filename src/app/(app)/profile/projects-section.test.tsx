@@ -25,6 +25,7 @@ const churn: ProjectItem = {
   id: "p1",
   name: "Churn predictor",
   link: "github.com/jane/churn",
+  association: "",
   bullets: "Trained a gradient-boosted model on 2 years of usage data",
   startYear: 2025,
   startMonth: 2,
@@ -46,7 +47,7 @@ function Harness() {
     languages: [],
     experience: [],
     projects: [churn, thesis],
-    education: [],
+    education: [{ id: "e1", degree: "MSc Data Science", school: "TU Delft", notes: "", startYear: 2022, startMonth: 9, endYear: 2024, endMonth: 6, current: false }],
     publications: [],
     references: [],
     facts: [],
@@ -55,7 +56,7 @@ function Harness() {
   useEffect(() => {
     latest = state;
   });
-  return <ProjectsSection order="date" profile={state} update={(change) => setState(change)} />;
+  return <ProjectsSection order="date" profile={state} update={(change) => setState(change)} kinds={["Open-source", "Personal project"]} />;
 }
 
 const header = (name: RegExp | string) => screen.getByRole("button", { name, expanded: false });
@@ -88,6 +89,25 @@ describe("ProjectsSection (PRO-13)", () => {
       { timeout: 2000 },
     );
     expect(saveProject).not.toHaveBeenCalledWith(expect.objectContaining({ skillIds: expect.anything() }));
+  });
+
+  it("links a project to a degree or another kind, None by default", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(header(/Thesis: fair ranking/));
+    const partOf = screen.getByLabelText("Part of");
+    expect(partOf).toHaveValue("");
+    await user.selectOptions(partOf, "MSc Data Science, TU Delft");
+    await waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ id: "p2", association: "education:e1" })), {
+      timeout: 2000,
+    });
+    await user.click(screen.getByRole("button", { name: /Thesis: fair ranking/, expanded: true }));
+    expect(header(/Thesis: fair ranking/)).toHaveTextContent("MSc Data Science, TU Delft");
+    await user.click(header(/Thesis: fair ranking/));
+    await user.selectOptions(screen.getByLabelText("Part of"), "Open-source");
+    await waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ association: "other:Open-source" })), {
+      timeout: 2000,
+    });
   });
 
   it("adds a blank project and opens it with the cursor in Project", async () => {

@@ -102,6 +102,7 @@ const project = z.object({
   id: text,
   name: text,
   link: text,
+  association: text.default(""),
   ...span,
   bullets: text,
   sort: int,

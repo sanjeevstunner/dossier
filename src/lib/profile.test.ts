@@ -4,6 +4,7 @@ import { LanguageLevel } from "@/generated/prisma/enums";
 
 import {
   ageOn,
+  associationLabel,
   BASICS_FIELDS,
   basicsFromFields,
   byStartDateDesc,
@@ -16,6 +17,7 @@ import {
   languageLevelLabel,
   profileStrength,
   type DateSpan,
+  type ProfileData,
 } from "./profile";
 
 const span = (overrides: Partial<DateSpan>): DateSpan => ({
@@ -190,3 +192,23 @@ describe("inEntryOrder (E4-9)", () => {
   });
 });
 
+
+describe("associationLabel", () => {
+  const profile = {
+    experience: [
+      { id: "x1", role: "Engineer", company: "Acme" },
+      { id: "x2", role: " ", company: "" },
+    ],
+    education: [{ id: "e1", degree: "BSc", school: "" }],
+  } as unknown as Pick<ProfileData, "experience" | "education">;
+
+  it("names the role, degree or kind, and reads a missing one as none", () => {
+    expect(associationLabel("experience:x1", profile)).toBe("Engineer at Acme");
+    expect(associationLabel("education:e1", profile)).toBe("BSc");
+    expect(associationLabel("other:Open-source", profile)).toBe("Open-source");
+    expect(associationLabel("experience:gone", profile)).toBe("");
+    expect(associationLabel("experience:x2", profile)).toBe("");
+    expect(associationLabel("", profile)).toBe("");
+    expect(associationLabel("nonsense", profile)).toBe("");
+  });
+});

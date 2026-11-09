@@ -53,6 +53,7 @@ export async function loadProfile(): Promise<ProfileData> {
       id: entry.id,
       name: entry.name,
       link: entry.link,
+      association: entry.association,
       bullets: entry.bullets,
       startYear: entry.startYear,
       startMonth: entry.startMonth,

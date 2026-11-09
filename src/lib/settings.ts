@@ -112,6 +112,8 @@ export const settingsSchema = z.object({
   customLanguages: stringList.catch([]),
   /** The options for a role's job type (DEFAULT_JOB_TYPES). */
   jobTypes: stringList.catch([...DEFAULT_JOB_TYPES]),
+  /** The "Other" kinds a project can be part of, besides a role or a degree. */
+  projectKinds: stringList.catch(["Open-source", "Personal project"]),
   fileNamePattern: z.string().catch("{name} – {company} – {doc}"),
   includeRefs: flag(false),
   /** Write a cover letter with every new application; off leaves it to "Generate with AI". */
