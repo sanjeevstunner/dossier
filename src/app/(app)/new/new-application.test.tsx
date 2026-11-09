@@ -504,7 +504,9 @@ describe("adding an application by hand", () => {
     expect(startReadingPosting).not.toHaveBeenCalled();
     expect(screen.queryByText("Suggested by AI. Change it if you like")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "How you match" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Title"), "Designer · Ledgerly");
     await user.type(screen.getByLabelText("Company"), "Ledgerly");
+    await user.type(screen.getByLabelText("Role"), "Designer");
     await user.click(screen.getByRole("button", { name: "Add documents manually →" }));
 
     expect(screen.getByRole("heading", { name: "Your documents" })).toBeInTheDocument();

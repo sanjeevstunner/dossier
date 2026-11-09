@@ -38,7 +38,7 @@ describe("ThemePicker", () => {
     const signal = screen.getByRole("button", { name: "Signal theme" });
     const name = within(signal).getByText("Jane Doe");
     expect(name).toHaveStyle({ color: "#ffffff" });
-    expect(name.parentElement).toHaveStyle({ background: "#1f3a5f" });
+    expect(name.parentElement).toHaveStyle({ backgroundColor: "#1f3a5f" });
   });
 
   it("lists your own themes (RES-4)", () => {
