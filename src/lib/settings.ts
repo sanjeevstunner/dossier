@@ -43,7 +43,7 @@ export const isJobRetention = (hours: number) => JOB_RETENTION_OPTIONS.some((opt
 export const jobRetentionLabel = (hours: number) =>
   JOB_RETENTION_OPTIONS.find((option) => option.hours === hours)?.label ?? `${hours} hours`;
 
-/** The job types a role can have (Profile → Experience); the list is edited in Settings → Documents. */
+/** The job types a role can have (Profile → Experience); the list is edited in Settings → Profile. */
 export const DEFAULT_JOB_TYPES: readonly string[] = ["Full-time", "Part-time", "Contract", "Remote", "Apprenticeship"];
 
 const pageLimit = z.enum(["1", "2", "none"]);

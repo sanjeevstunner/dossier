@@ -25,7 +25,6 @@ const initial: DocumentSettings = {
   pageLimit: "1",
   writeCoverLetter: false,
   writeEmail: false,
-  jobTypes: ["Full-time", "Remote"],
 };
 const preview = { name: "Jane Doe", company: "Ledgerly", role: "Senior Product Designer" };
 const open = () => render(<DocumentsSection initial={initial} preview={preview} />);
@@ -54,17 +53,6 @@ describe("Documents settings (E10-3)", () => {
     expect(options[0]).toBe("The posting's language");
     expect(options).toHaveLength(1 + 21 + 1 + 1);
     expect(options.slice(-2)).toEqual(["Farsi", "Other language…"]);
-  });
-
-  it("adds and removes job types", async () => {
-    const user = userEvent.setup();
-    open();
-    await user.type(screen.getByLabelText("New job type"), "Freelance{Enter}");
-    expect(updateSettings).toHaveBeenLastCalledWith({ jobTypes: ["Full-time", "Remote", "Freelance"] });
-    await user.type(screen.getByLabelText("New job type"), "remote{Enter}");
-    expect(updateSettings).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole("button", { name: "Remove Remote" }));
-    expect(updateSettings).toHaveBeenLastCalledWith({ jobTypes: ["Full-time", "Freelance"] });
   });
 
   it("saves each choice at once", async () => {
