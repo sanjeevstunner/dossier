@@ -38,7 +38,7 @@ vi.mock("./write-documents", async () => {
   const { demoLetterUnits, demoResumeUnits } = await import("@/lib/demo-profile");
   return {
     writeDocumentsJob: {
-      run: async () => ({ resume: demoResumeUnits(), resumeWith: "tailor-resume@8", letter: demoLetterUnits(), letterWith: "write-cover-letter@6" }),
+      run: async () => ({ resume: demoResumeUnits(), resumeWith: "tailor-resume@9", letter: demoLetterUnits(), letterWith: "write-cover-letter@6" }),
     },
   };
 });

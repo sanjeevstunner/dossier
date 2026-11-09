@@ -3,7 +3,7 @@ import { z } from "zod";
 import { unitsSchema, type Extracted, type Match, type Unit } from "@/lib/application-data";
 import { publicationLabel } from "@/lib/citation";
 import { documentLabels, ENGLISH_LABELS, languagesLine, type DocumentLabels } from "@/lib/document-labels";
-import { resumePublications, sameName, type ProfileData } from "@/lib/profile";
+import { resumePublications, sameName, skillsText, type ProfileData } from "@/lib/profile";
 
 import { guardSources, guardUnits } from "../fact-guard";
 
@@ -22,7 +22,7 @@ import {
   type Task,
 } from "./prompt-parts";
 
-export const TAILOR_RESUME_VERSION = "tailor-resume@8";
+export const TAILOR_RESUME_VERSION = "tailor-resume@9";
 
 const answerSchema = z.object({
   summary: z.string(),
@@ -117,9 +117,8 @@ export function resumeUnits(profile: ProfileData, answer: z.infer<typeof answerS
   const roles = new Map(answer.roles.map((role) => [role.id, role.bullets]));
   const projects = new Map(answer.projects.map((project) => [project.id, project.bullets]));
   const notes = new Map(answer.education.map((entry) => [entry.id, entry.notes]));
-  const skills = [
-    ...new Set(answer.skills.flatMap((name) => profile.skills.find((skill) => sameName(skill.name, name))?.name ?? [])),
-  ];
+  // The profile's own skills in the answer's order; skillsText puts them in the profile's groups.
+  const skills = [...new Set(answer.skills.flatMap((name) => profile.skills.find((skill) => sameName(skill.name, name)) ?? []))];
   const units: Unit[] = [
     { id: "summary", label: "Summary", text: answer.summary.trim() },
     ...profile.experience.map((entry) => {
@@ -130,7 +129,7 @@ export function resumeUnits(profile: ProfileData, answer: z.infer<typeof answerS
       const bullets = (projects.get(entry.id) ?? entry.bullets.split("\n")).map((line) => line.trim()).filter(Boolean);
       return { id: `project:${entry.id}`, label: `${entry.name || "Untitled"} project`, text: bullets.join("\n") };
     }),
-    { id: "skills", label: "Skills", text: skills.join(" · ") },
+    { id: "skills", label: "Skills", text: skillsText(skills, profile.groupSkills !== false) },
     ...profile.education.map((entry) => ({
       id: `education:${entry.id}`,
       label: entry.degree || entry.school,

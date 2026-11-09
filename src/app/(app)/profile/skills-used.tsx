@@ -6,9 +6,11 @@ import { useTrackSave } from "@/components/save-tracker";
 import { toast } from "@/components/toast";
 import { ToggleChip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
+import { Toggle } from "@/components/ui/toggle";
 import type { ActionResult } from "@/lib/action";
-import { sameName, type SkillItem } from "@/lib/profile";
+import { groupSkills, sameName, type SkillItem } from "@/lib/profile";
 
+import { updateSettings } from "../settings/actions";
 import type { UpdateProfile } from "./skills-section";
 
 /** A role or project, as far as its skill links go. */
@@ -23,6 +25,7 @@ export function SkillsUsed({
   entry,
   noun,
   skills,
+  grouped,
   update,
   setLinks,
   attach,
@@ -32,6 +35,8 @@ export function SkillsUsed({
   /** "role" or "project", for the input's label. */
   noun: string;
   skills: SkillItem[];
+  /** Show the skills in the groups the AI made (Settings), when there are any. */
+  grouped: boolean;
   update: UpdateProfile;
   /** Changes the entry's links in the profile's state. */
   setLinks: (change: (skillIds: string[]) => string[]) => void;
@@ -52,6 +57,16 @@ export function SkillsUsed({
     const result = await track(attach(skillId, on));
     if (!result.ok) {
       setLinks(() => before);
+      toast(result.error);
+    }
+  }
+
+  /** Saves the switch in Settings, which Skills & languages and the resumes follow too. */
+  async function setGrouped(next: boolean) {
+    update((current) => ({ ...current, groupSkills: next }));
+    const result = await track(updateSettings({ groupSkills: next }));
+    if (!result.ok) {
+      update((current) => ({ ...current, groupSkills: !next }));
       toast(result.error);
     }
   }
@@ -78,6 +93,17 @@ export function SkillsUsed({
     setLinks((skillIds) => (skillIds.includes(skill.id) ? skillIds : [...skillIds, skill.id]));
   }
 
+  const groups = groupSkills(skills);
+  const chips = (list: SkillItem[]) => (
+    <div className="flex flex-wrap gap-1.5">
+      {list.map((skill) => (
+        <ToggleChip key={skill.id} check selected={entry.skillIds.includes(skill.id)} onClick={() => void toggle(skill.id)}>
+          {skill.name}
+        </ToggleChip>
+      ))}
+    </div>
+  );
+
   return (
     <div role="group" aria-labelledby={labelId} className="flex flex-col gap-2.5 pt-1">
       <div className="flex items-baseline justify-between gap-3">
@@ -90,20 +116,20 @@ export function SkillsUsed({
             : "Add skills in Skills & languages, or type one below"}
         </span>
       </div>
-      {skills.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {skills.map((skill) => (
-            <ToggleChip
-              key={skill.id}
-              check
-              selected={entry.skillIds.includes(skill.id)}
-              onClick={() => void toggle(skill.id)}
-            >
-              {skill.name}
-            </ToggleChip>
-          ))}
-        </div>
+      {groups && (
+        <Toggle label="Group by category" description="Off shows every skill as one list, everywhere." checked={grouped} onCheckedChange={(next) => void setGrouped(next)} />
       )}
+      {skills.length > 0 &&
+        (grouped && groups ? (
+          groups.map((group) => (
+            <section key={group.name} className="flex flex-col gap-1.5" aria-label={group.name}>
+              <h4 className="text-xs font-medium text-muted">{group.name}</h4>
+              {chips(group.skills)}
+            </section>
+          ))
+        ) : (
+          chips(skills)
+        ))}
       <Input
         aria-label={`Add a new skill to this ${noun}`}
         placeholder="New skill? Type it and press Enter to add it to your profile too"

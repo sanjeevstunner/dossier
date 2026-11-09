@@ -35,6 +35,8 @@ model Skill {
   /// Unique ignoring case ("Figma" and "figma" are the same skill).
   name        String            @unique @db.Citext
   sort        Int               @default(0)
+  /// The group the AI put it in ("Cloud"); empty when not grouped.
+  group       String            @default("")
   experiences ExperienceSkill[]
   projects    ProjectSkill[]
   createdAt   DateTime          @default(now())

@@ -6,6 +6,10 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { JobStatus, LanguageLevel } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
+import { getAiProvider } from "@/lib/ai";
+import { isAiConfigured } from "@/lib/ai/config";
+import { loadTaskOptions } from "@/lib/ai/task-options";
+import { groupSkillsTask } from "@/lib/ai/tasks";
 import { prisma } from "@/lib/prisma";
 import { fieldsFromBasics, inEntryOrder } from "@/lib/profile";
 import { findOrCreateSkill, firstSort, nextSort } from "@/lib/profile-entries";
@@ -92,6 +96,20 @@ const skillName = z.string().trim().min(1, "Type a skill first.").max(100);
 
 /** Adds a skill (PRO-3). An existing one, in any case, is returned instead of a duplicate. */
 export const addSkill = action(z.object({ name: skillName }), ({ name }) => findOrCreateSkill(name));
+
+/**
+ * "Organise with AI": the AI sorts every skill into a group, saved on the
+ * skill so the profile and the resumes show them. Returns each skill's group.
+ */
+export const organiseSkills = action(z.object({}), async () => {
+  if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first.");
+  const skills = await prisma.skill.findMany({ orderBy: [{ sort: "asc" }, { createdAt: "asc" }] });
+  if (skills.length < 2) throw new ActionError("Add a few skills first.");
+  const [provider, options] = await Promise.all([getAiProvider(), loadTaskOptions()]);
+  const { data } = await groupSkillsTask(provider, { skills: skills.map((skill) => skill.name) }, options);
+  await prisma.$transaction(skills.map((skill) => prisma.skill.update({ where: { id: skill.id }, data: { group: data.get(skill.name) ?? "" } })));
+  return { groups: skills.map((skill) => ({ id: skill.id, group: data.get(skill.name) ?? "" })) };
+});
 
 /** Removes a skill; the database also detaches it from every role (PRO-3). */
 export const removeSkill = action(z.object({ id }), async ({ id }) => {

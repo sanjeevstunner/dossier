@@ -204,6 +204,8 @@ export const updateSettings = action(
     includeRefs: z.boolean().optional(),
     writeCoverLetter: z.boolean().optional(),
     writeEmail: z.boolean().optional(),
+    groupSkills: z.boolean().optional(),
+    autoGroupSkills: z.boolean().optional(),
     pageLimit: z.enum(["1", "2", "none"]).optional(),
     jobTypes: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
     nightlyBackup: z.boolean().optional(),

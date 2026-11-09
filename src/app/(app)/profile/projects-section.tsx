@@ -180,6 +180,7 @@ export function ProjectsSection({
             entry={entry}
             noun="project"
             skills={profile.skills}
+            grouped={profile.groupSkills !== false}
             update={update}
             setLinks={(change) =>
               update((current) => ({

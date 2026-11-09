@@ -157,6 +157,7 @@ export function ExperienceSection({
             entry={entry}
             noun="role"
             skills={profile.skills}
+            grouped={profile.groupSkills !== false}
             update={update}
             setLinks={(change) =>
               update((current) => ({

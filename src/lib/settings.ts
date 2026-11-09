@@ -116,6 +116,10 @@ export const settingsSchema = z.object({
   projectKinds: stringList.catch(["Open-source", "Personal project"]),
   fileNamePattern: z.string().catch("{name} – {company} – {doc}"),
   includeRefs: flag(false),
+  /** Show skills in the groups the AI made; off shows one list everywhere. */
+  groupSkills: flag(true),
+  /** Group skills again whenever one is added. */
+  autoGroupSkills: flag(false),
   /** Write a cover letter with every new application; off leaves it to "Generate with AI". */
   writeCoverLetter: flag(false),
   /** Write the email (Email tab) with every new application; off leaves it to "Write the email". */
