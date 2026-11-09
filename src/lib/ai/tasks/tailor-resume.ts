@@ -22,7 +22,7 @@ import {
   type Task,
 } from "./prompt-parts";
 
-export const TAILOR_RESUME_VERSION = "tailor-resume@7";
+export const TAILOR_RESUME_VERSION = "tailor-resume@8";
 
 const answerSchema = z.object({
   summary: z.string(),
@@ -38,6 +38,7 @@ const INSTRUCTIONS = `You tailor a candidate's resume to one job, as JSON.
 - summary: 2–3 sentences in the first person without "I" at the start of every sentence, about the candidate as this job would see them.
 - roles: every role from the profile, by id, with 2–5 bullets each. Lead with what this job cares about, keep each bullet to one line, and start with a verb.
 - projects: every project from the profile, by id, with 1–3 bullets each, written like the roles' bullets: what was built and what it shows that this job cares about.
+- The profile's bullets are source facts, not text to reuse. Never copy or lightly edit a bullet, and never paste a role or project description in as it is: write every bullet fresh as a concise, self-contained resume bullet (action verb, what was done, how, and the result or scale where the profile gives one). Merge, split or reorder facts as needed, and drop what doesn't help. Rewriting must keep every fact, tool, number and outcome that matters: change the wording, never the substance or the level of detail.
 - skills: the candidate's own skills, most relevant to this job first. Copy their names exactly; you may leave out ones that don't help.
 - education: every entry by id, with its notes shortened or left empty.
 - The profile's publications go on the resume word for word, so don't answer with them; the summary may mention them.`;
