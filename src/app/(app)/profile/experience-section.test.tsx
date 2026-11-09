@@ -36,6 +36,7 @@ const northwind: ExperienceItem = {
   role: "Senior Product Designer",
   company: "Northwind Logistics",
   location: "Rotterdam",
+  jobType: "Remote",
   bullets: "Led the redesign",
   startYear: 2021,
   startMonth: 3,
@@ -66,7 +67,7 @@ function Harness({ order = "date" }: { order?: EntryOrder }) {
   useEffect(() => {
     latest = state;
   });
-  return <ExperienceSection order={order} profile={state} update={(change) => setState(change)} />;
+  return <ExperienceSection order={order} profile={state} update={(change) => setState(change)} jobTypes={["Full-time", "Contract"]} />;
 }
 
 const header = (name: RegExp | string) => screen.getByRole("button", { name, expanded: false });
@@ -78,10 +79,21 @@ describe("ExperienceSection", () => {
     render(<Harness />);
     const card = screen.getByRole("button", { name: /Senior Product Designer/, expanded: false });
     expect(card).toHaveAttribute("aria-expanded", "false");
-    expect(card).toHaveTextContent("Northwind Logistics · Rotterdam");
+    expect(card).toHaveTextContent("Northwind Logistics · Rotterdam · Remote");
     expect(card).toHaveTextContent("Mar 2021 – Present");
     expect(card).toHaveTextContent("Design systems");
     expect(screen.getByRole("button", { name: /Product Designer.*Fieldnote/ })).toHaveTextContent("Jun 2018 – Feb 2021");
+  });
+
+  it("offers the job types from Settings, keeps one taken out of the list, and saves the choice", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(header(/Senior Product Designer/));
+    const select = screen.getByLabelText("Job type") as HTMLSelectElement;
+    expect(select).toHaveDisplayValue("Remote");
+    expect([...select.options].map((option) => option.text)).toEqual(["—", "Full-time", "Contract", "Remote"]);
+    await user.selectOptions(select, "Contract");
+    await waitFor(() => expect(saveExperience).toHaveBeenLastCalledWith(expect.objectContaining({ id: "e1", jobType: "Contract" })), { timeout: 2000 });
   });
 
   it("opens one card at a time", async () => {
@@ -140,7 +152,7 @@ describe("ExperienceSection", () => {
   it("shows the empty state", () => {
     function Empty() {
       const [state, setState] = useState<ProfileData>({ basics: {} as ProfileData["basics"], skills: [], languages: [], experience: [], projects: [], education: [], publications: [], references: [], facts: [], photo: null });
-      return <ExperienceSection order="date" profile={state} update={(change) => setState(change)} />;
+      return <ExperienceSection order="date" profile={state} update={(change) => setState(change)} jobTypes={[]} />;
     }
     render(<Empty />);
     expect(screen.getByText("Nothing here yet. Add your first one below.")).toBeInTheDocument();

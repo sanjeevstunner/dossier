@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAutosave } from "@/hooks/use-autosave";
 import { formatDateRange, type EntryOrder, type ExperienceItem, type ProfileData } from "@/lib/profile";
@@ -29,18 +30,22 @@ function ExperienceForm({
   entry,
   onChange,
   autoFocus,
+  jobTypes,
 }: {
   entry: ExperienceItem;
   onChange: (entry: ExperienceItem) => void;
   autoFocus: boolean;
+  jobTypes: string[];
 }) {
   const track = useTrackSave();
   // Autosave the text and dates only; skill links save on their own when toggled.
-  const { id, role, company, location, bullets, startYear, startMonth, endYear, endMonth, current } = entry;
+  const { id, role, company, location, jobType, bullets, startYear, startMonth, endYear, endMonth, current } = entry;
   const fields = useMemo(
-    () => ({ id, role, company, location, bullets, startYear, startMonth, endYear, endMonth, current }),
-    [id, role, company, location, bullets, startYear, startMonth, endYear, endMonth, current],
+    () => ({ id, role, company, location, jobType, bullets, startYear, startMonth, endYear, endMonth, current }),
+    [id, role, company, location, jobType, bullets, startYear, startMonth, endYear, endMonth, current],
   );
+  // A type taken out of the list in Settings still shows on the roles that have it.
+  const options = jobType && !jobTypes.includes(jobType) ? [...jobTypes, jobType] : jobTypes;
   const { flush } = useAutosave(fields, (value) => track(saveExperience(value)));
   const set = (change: Partial<ExperienceItem>) => onChange({ ...entry, ...change });
 
@@ -66,6 +71,19 @@ function ExperienceForm({
         value={entry.location}
         onChange={(event) => set({ location: event.target.value })}
       />
+      <Select
+        className="col-span-2"
+        label="Job type"
+        value={entry.jobType}
+        onChange={(event) => set({ jobType: event.target.value })}
+      >
+        <option value="">—</option>
+        {options.map((type) => (
+          <option key={type} value={type}>
+            {type}
+          </option>
+        ))}
+      </Select>
       <MonthYearField
         label="Started"
         value={{ month: entry.startMonth, year: entry.startYear }}
@@ -99,7 +117,17 @@ function ExperienceForm({
 const roleTitle = (entry: ExperienceItem) => entry.role.trim() || "New role";
 
 /** Work experience (PRO-5): one card open at a time, autosaved, with Undo on Remove. */
-export function ExperienceSection({ profile, update, order }: { profile: ProfileData; update: UpdateProfile; order: EntryOrder }) {
+export function ExperienceSection({
+  profile,
+  update,
+  order,
+  jobTypes,
+}: {
+  profile: ProfileData;
+  update: UpdateProfile;
+  order: EntryOrder;
+  jobTypes: string[];
+}) {
   const skillNames = (entry: ExperienceItem) =>
     profile.skills.filter((skill) => entry.skillIds.includes(skill.id)).map((skill) => skill.name);
 
@@ -115,7 +143,7 @@ export function ExperienceSection({ profile, update, order }: { profile: Profile
       }}
       summary={(entry) => ({
         title: roleTitle(entry),
-        subtitle: [entry.company, entry.location].filter((part) => part.trim()).join(" · "),
+        subtitle: [entry.company, entry.location, entry.jobType].filter((part) => part.trim()).join(" · "),
         meta: formatDateRange(entry),
         footnote: skillNames(entry).join(" · ") || undefined,
       })}
@@ -124,7 +152,7 @@ export function ExperienceSection({ profile, update, order }: { profile: Profile
       restore={(entry) => restoreExperience(entry)}
       renderForm={(entry, { onChange, autoFocus }) => (
         <>
-          <ExperienceForm entry={entry} onChange={onChange} autoFocus={autoFocus} />
+          <ExperienceForm entry={entry} onChange={onChange} autoFocus={autoFocus} jobTypes={jobTypes} />
           <SkillsUsed
             entry={entry}
             noun="role"

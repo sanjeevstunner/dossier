@@ -64,6 +64,7 @@ export function demoProfile(): ProfileData {
       role: entry.role,
       company: entry.company,
       location: entry.location,
+      jobType: "",
       bullets: entry.bullets,
       ...dateSpan(entry.start, entry.end),
       skillIds: entry.skills.map(skillId),

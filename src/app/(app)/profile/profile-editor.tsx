@@ -32,11 +32,14 @@ export function ProfileEditor({
   initial,
   section,
   order,
+  jobTypes,
   projectKinds,
 }: {
   initial: ProfileData;
   section: SectionId;
   order: ProfileOrder;
+  /** The job type options for a role, from Settings → Documents. */
+  jobTypes: string[];
   /** The "Other" kinds a project can be part of, from Settings → Profile. */
   projectKinds: string[];
 }) {
@@ -69,7 +72,7 @@ export function ProfileEditor({
       />
     ),
     skills: <SkillsSection profile={profile} update={setProfile} />,
-    experience: <ExperienceSection profile={profile} update={setProfile} order={order.experience} />,
+    experience: <ExperienceSection profile={profile} update={setProfile} order={order.experience} jobTypes={jobTypes} />,
     projects: <ProjectsSection profile={profile} update={setProfile} order={order.projects} kinds={projectKinds} />,
     education: <EducationSection profile={profile} update={setProfile} order={order.education} />,
     publications: <PublicationsSection profile={profile} update={setProfile} />,

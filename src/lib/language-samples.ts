@@ -322,6 +322,7 @@ export function sampleProfile(sample: Sample): ProfileData {
         role: sample.headline,
         company: sample.company,
         location: sample.city,
+        jobType: "",
         bullets: sample.bullet,
         startYear: 2021,
         startMonth: 3,

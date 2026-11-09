@@ -106,6 +106,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             writeCoverLetter: settings.writeCoverLetter,
             writeEmail: settings.writeEmail,
             pageLimit: settings.pageLimit,
+            jobTypes: settings.jobTypes,
           }}
           preview={await filePreview()}
         />

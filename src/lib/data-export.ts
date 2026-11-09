@@ -89,6 +89,7 @@ const experience = z.object({
   role: text,
   company: text,
   location: text,
+  jobType: text.default(""),
   ...span,
   bullets: text,
   sort: int,
