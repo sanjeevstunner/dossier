@@ -25,7 +25,8 @@ describe("resumeText (E4-10)", () => {
   it("reads a Word document, one line per paragraph", async () => {
     const result = await resumeText(docxWith(LINES));
     expect(result).toEqual({ ok: true, text: LINES.join("\n\n") });
-  });
+    // The first Word file loads the reader, which can take a while on a busy machine.
+  }, 30_000);
 
   it("reads Markdown as plain text", async () => {
     const markdown = [

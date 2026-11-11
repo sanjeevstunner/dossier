@@ -45,6 +45,8 @@ describe("stored settings", () => {
       projectKinds: ["Open-source", "Personal project"],
       fileNamePattern: "{name} – {company} – {doc}",
       includeRefs: false,
+      groupSkills: true,
+      autoGroupSkills: false,
       writeCoverLetter: false,
       writeEmail: false,
       pageLimit: "2",

@@ -99,6 +99,8 @@ describe("the Run now warnings", () => {
     expect(runLimitWarning([], limits, now)).toBeNull();
     expect(runLimitWarning([run("2026-10-20T11:35:00Z")], limits, now)).toBe("This agent ran less than an hour ago. Its wait is over in 35 minutes.");
     expect(runLimitWarning([run("2026-10-20T10:59:00Z")], limits, now)).toBeNull();
+    // A run seconds ago still has all of its hour to wait: said in minutes, not "1 hour".
+    expect(runLimitWarning([run("2026-10-20T11:59:30Z")], limits, now)).toBe("This agent ran less than an hour ago. Its wait is over in 60 minutes.");
     expect(runLimitWarning([run("2026-10-20T11:35:00Z")], { ...limits, manualIntervalMinutes: 0 }, now)).toBeNull();
     expect(runLimitWarning([run("2026-10-20T11:50:00Z")], { ...limits, manualIntervalMinutes: 15 }, now)).toBe("This agent ran less than 15 minutes ago. Its wait is over in 5 minutes.");
   });

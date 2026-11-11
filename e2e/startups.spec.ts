@@ -12,10 +12,12 @@ test.beforeAll(resetData);
 
 async function expectAccessible(page: Page) {
   const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
-  expect(violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical").map((violation) => violation.id)).toEqual([]);
+  expect(violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical").map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`)).toEqual([]);
 }
 
 test("finds hiring startups with the addresses they publish, and leaves alone what it should", async ({ page }) => {
+  // A toast fading in is half transparent, which axe reads as low contrast.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/startups");
   await expect(page.getByRole("note")).toContainText("Press Refresh to look for startups.");
   await page.getByRole("button", { name: "Refresh" }).click();

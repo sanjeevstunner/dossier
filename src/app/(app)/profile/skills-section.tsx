@@ -174,7 +174,7 @@ function SkillsCard({ profile, update }: { profile: ProfileData; update: UpdateP
             <Button variant="secondary" disabled={organising} onClick={() => void organise()}>
               {organising ? "Organising…" : "Organise with AI"}
             </Button>
-            <span className="text-meta text-muted">Groups your skills so they're easy to scan, on the profile and on resumes.</span>
+            <span className="text-meta text-muted">Groups your skills so they&apos;re easy to scan, on the profile and on resumes.</span>
           </div>
           <Toggle
             label="Show skills in groups"

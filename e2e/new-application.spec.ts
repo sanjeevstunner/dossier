@@ -31,8 +31,10 @@ test("reads a posting, shows the match and writes tailored documents", async ({ 
 
   await expect(page.getByRole("heading", { level: 1, name: "Senior Product Designer, Payments · Ledgerly" })).toBeVisible();
   await expect(page.getByRole("article", { name: "Resume" })).toContainText("Jane Doe");
+  // The cover letter isn't written with the application unless Settings says so, so ask for it.
   await page.getByRole("tab", { name: "Cover letter" }).click();
-  await expect(page.getByText("Payments are where trust is won or lost")).toBeVisible();
+  await page.getByRole("button", { name: "Generate with AI" }).click();
+  await expect(page.getByText("Payments are where trust is won or lost")).toBeVisible({ timeout: 30_000 });
   // What you told the AI is the application's first fact (APP-15).
   await page.getByRole("tab", { name: /Job posting/ }).click();
   await expect(page.getByRole("region", { name: "Facts for this application" }).getByRole("textbox", { name: "Fact 1", exact: true })).toHaveValue("I'm moving to Amsterdam in January.");
@@ -51,6 +53,7 @@ test("adds an application sent elsewhere by hand, then has the AI catch up", asy
   await page.goto("/new?fresh=1");
   await page.getByLabel("Job posting").fill(POSTING);
   await page.getByRole("button", { name: "Continue without reading" }).click();
+  await page.getByLabel("Title").fill("Product Designer · Ledgerly");
   await page.getByLabel("Company").fill("Ledgerly");
   await page.getByLabel("Role").fill("Product Designer");
   await page.getByRole("button", { name: "Add documents manually →" }).click();

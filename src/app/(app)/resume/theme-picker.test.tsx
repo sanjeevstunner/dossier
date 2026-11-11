@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -30,13 +30,13 @@ describe("ThemePicker", () => {
     for (const name of ["Classic", "Modern", "Minimal", "Technical", "Ledger", "Signal", "Studio", "Chronicle", "Folio", "Console", "Atlas"]) {
       expect(screen.getByRole("button", { name: `${name} theme` })).toBeInTheDocument();
     }
-    expect(screen.getAllByText("Jane Doe")).toHaveLength(12);
+    expect(document.querySelectorAll("[data-name='Jane Doe']")).toHaveLength(12);
   });
 
   it("sketches a banner theme's name on its accent, in the color that reads on it", () => {
     renderPicker();
     const signal = screen.getByRole("button", { name: "Signal theme" });
-    const name = within(signal).getByText("Jane Doe");
+    const name = signal.querySelector<HTMLElement>("[data-name='Jane Doe']")!;
     expect(name).toHaveStyle({ color: "#ffffff" });
     expect(name.parentElement).toHaveStyle({ backgroundColor: "#1f3a5f" });
   });

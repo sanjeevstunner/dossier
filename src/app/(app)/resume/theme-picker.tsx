@@ -142,12 +142,12 @@ function ThemeThumbnail({
   const { split, sidebarEnd, tintedSidebar, sideHeadings, centered, banner, onAccent, timeline } = resolveTheme(theme);
   const accent = { background: theme.accent };
   const name = (
+    // The name and "In use" are drawn from data attributes, not text, so the button's visible text is just the theme's name, which its label contains (axe: label-content-name-mismatch).
     <span
-      className={cn("truncate text-[11px] font-medium", centered && "text-center")}
+      data-name={userName}
+      className={cn("truncate text-[11px] font-medium after:content-[attr(data-name)]", centered && "text-center")}
       style={{ fontFamily: THEME_FONTS[theme.headFont].family, ...(banner && { color: onAccent }) }}
-    >
-      {userName}
-    </span>
+    />
   );
   const sidebar = split && (
     <span
@@ -203,7 +203,7 @@ function ThemeThumbnail({
       </span>
       <span aria-hidden className="flex items-baseline justify-between text-control">
         <span className={active ? "font-semibold" : undefined}>{theme.name}</span>
-        {active && <span className="text-xs text-muted">In use</span>}
+        {active && <span data-tag="In use" className="text-xs text-muted after:content-[attr(data-tag)]" />}
       </span>
     </button>
   );

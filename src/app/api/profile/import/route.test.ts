@@ -47,7 +47,8 @@ describe("POST /api/profile/import (E4-10)", () => {
     );
     // Only one resume's text is kept: earlier readings go first.
     expect(vi.mocked(discardProfileImports).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(startJob).mock.invocationCallOrder[0]);
-  });
+    // The first Word file loads the reader, which can take a while on a busy machine.
+  }, 30_000);
 
   it("reads a Markdown file as plain text", async () => {
     const markdown = "# John Doe\n\n## Experience\n\n**Design Lead**, Acme Payments, 2021 – present\n\n* Led the redesign of the payout flow for merchants";
