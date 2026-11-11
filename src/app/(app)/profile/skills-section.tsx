@@ -8,10 +8,12 @@ import { Card } from "@/components/ui/card";
 import { RemovableChip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Toggle } from "@/components/ui/toggle";
 import { LanguageLevel } from "@/generated/prisma/enums";
-import { LANGUAGE_LEVELS, languageLevelLabel, sameName, type ProfileData } from "@/lib/profile";
+import { LANGUAGE_LEVELS, languageLevelLabel, sameName, shownSkillGroups, type ProfileData, type SkillItem } from "@/lib/profile";
 
-import { addLanguage, addSkill, removeLanguage, removeSkill, setLanguageLevel } from "./actions";
+import { updateSettings } from "../settings/actions";
+import { addLanguage, addSkill, organiseSkills, removeLanguage, removeSkill, setLanguageLevel } from "./actions";
 import { useTrackSave } from "@/components/save-tracker";
 
 export type UpdateProfile = (change: (profile: ProfileData) => ProfileData) => void;
@@ -47,6 +49,7 @@ export function ChipCard({
 function SkillsCard({ profile, update }: { profile: ProfileData; update: UpdateProfile }) {
   const track = useTrackSave();
   const [draft, setDraft] = useState("");
+  const [organising, setOrganising] = useState(false);
 
   const roleCount = (skillId: string) =>
     profile.experience.filter((entry) => entry.skillIds.includes(skillId)).length;
@@ -73,6 +76,31 @@ function SkillsCard({ profile, update }: { profile: ProfileData; update: UpdateP
         ? current
         : { ...current, skills: [...current.skills, skill] },
     );
+    if (profile.autoGroupSkills) void organise();
+  }
+
+  /** "Organise with AI": the AI groups every skill; the groups show here and on the resumes. */
+  async function organise() {
+    setOrganising(true);
+    const result = await track(organiseSkills({}));
+    setOrganising(false);
+    if (!result.ok) {
+      toast(result.error);
+      return;
+    }
+    const groups = new Map(result.data.groups.map(({ id, group }) => [id, group]));
+    update((current) => ({ ...current, skills: current.skills.map((skill) => ({ ...skill, group: groups.get(skill.id) ?? skill.group })) }));
+  }
+
+  /** Saves a switch in Settings and shows it here at once. */
+  async function setSwitch(change: { groupSkills: boolean } | { autoGroupSkills: boolean }) {
+    const before = profile;
+    update((current) => ({ ...current, ...change }));
+    const result = await track(updateSettings(change));
+    if (!result.ok) {
+      update(() => before);
+      toast(result.error);
+    }
   }
 
   async function remove(id: string) {
@@ -99,26 +127,39 @@ function SkillsCard({ profile, update }: { profile: ProfileData; update: UpdateP
     void add();
   };
 
+  const groups = shownSkillGroups(profile);
+  const chips = (skills: SkillItem[], label: string) => (
+    <ul className="flex flex-wrap gap-2" aria-label={label}>
+      {skills.map((skill) => {
+        const roles = roleCount(skill.id);
+        return (
+          <li key={skill.id}>
+            <RemovableChip
+              meta={roles > 0 ? `${roles} ${roles === 1 ? "role" : "roles"}` : undefined}
+              removeLabel={`Remove ${skill.name}`}
+              onRemove={() => void remove(skill.id)}
+            >
+              {skill.name}
+            </RemovableChip>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   return (
     <ChipCard title="Skills" count={profile.skills.length}>
-      {profile.skills.length > 0 && (
-        <ul className="flex flex-wrap gap-2" aria-label="Your skills">
-          {profile.skills.map((skill) => {
-            const roles = roleCount(skill.id);
-            return (
-              <li key={skill.id}>
-                <RemovableChip
-                  meta={roles > 0 ? `${roles} ${roles === 1 ? "role" : "roles"}` : undefined}
-                  removeLabel={`Remove ${skill.name}`}
-                  onRemove={() => void remove(skill.id)}
-                >
-                  {skill.name}
-                </RemovableChip>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {profile.skills.length > 0 &&
+        (groups ? (
+          groups.map((group) => (
+            <section key={group.name} className="flex flex-col gap-2" aria-label={group.name}>
+              <h4 className="text-meta font-medium text-muted">{group.name}</h4>
+              {chips(group.skills, group.name)}
+            </section>
+          ))
+        ) : (
+          chips(profile.skills, "Your skills")
+        ))}
       <Input
         aria-label="Add a skill"
         placeholder="e.g. Accessibility"
@@ -127,6 +168,28 @@ function SkillsCard({ profile, update }: { profile: ProfileData; update: UpdateP
         onKeyDown={onKeyDown}
         enterKeyHint="done"
       />
+      {profile.skills.length > 1 && (
+        <div className="flex flex-col gap-3 border-t border-line pt-4">
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" disabled={organising} onClick={() => void organise()}>
+              {organising ? "Organising…" : "Organise with AI"}
+            </Button>
+            <span className="text-meta text-muted">Groups your skills so they&apos;re easy to scan, on the profile and on resumes.</span>
+          </div>
+          <Toggle
+            label="Show skills in groups"
+            description="Off shows every skill as one list, everywhere."
+            checked={profile.groupSkills !== false}
+            onCheckedChange={(groupSkills) => void setSwitch({ groupSkills })}
+          />
+          <Toggle
+            label="Organise automatically"
+            description="Groups your skills again whenever you add one."
+            checked={profile.autoGroupSkills === true}
+            onCheckedChange={(autoGroupSkills) => void setSwitch({ autoGroupSkills })}
+          />
+        </div>
+      )}
     </ChipCard>
   );
 }

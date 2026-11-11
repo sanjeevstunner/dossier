@@ -23,7 +23,7 @@ import { CATCH_UP_KINDS, documentJobKey, writeApplicationDocumentJob } from "@/l
 import { resumeText } from "@/lib/resume-text";
 import { prisma } from "@/lib/prisma";
 import { findOrCreateSkill } from "@/lib/profile-entries";
-import { cleanUnitText, isPublicationUnit, unitName } from "@/lib/unit-text";
+import { cleanUnitText, isCertificationUnit, isPublicationUnit, unitName } from "@/lib/unit-text";
 
 const GONE = "That application no longer exists.";
 const PART_GONE = "That part of the document no longer exists. Reload the page to see what's there now.";
@@ -149,6 +149,9 @@ export const startRegenerating = action(
     // The sender, date and signature come from the profile and the day, not the AI (E8-11).
     if ((frame && !WRITTEN_FRAME_UNITS.has(unitId)) || (document === DocumentKind.EMAIL && !WRITTEN_EMAIL_UNITS.has(unitId))) {
       throw new ActionError("This part isn't written by the AI. Edit it instead.");
+    }
+    if (document === DocumentKind.RESUME && isCertificationUnit(unitId)) {
+      throw new ActionError("A certification stays as you entered it. Edit it in your profile instead.");
     }
     // A publication is the user's own citation (#218).
     if (document === DocumentKind.RESUME && isPublicationUnit(unitId)) {

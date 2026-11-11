@@ -17,6 +17,11 @@ export function isBulletUnit(unitId: string): boolean {
   return unitId.startsWith("experience:") || unitId.startsWith("project:");
 }
 
+/** Whether a unit holds a certification: the user's own entry, which the AI never rewrites. */
+export function isCertificationUnit(unitId: string): boolean {
+  return unitId.startsWith("certification:");
+}
+
 /** Whether a unit holds a publication (#218): the user's citation, which the AI never rewrites. */
 export function isPublicationUnit(unitId: string): boolean {
   return unitId.startsWith("publication:");
@@ -33,7 +38,7 @@ export function cleanUnitText(unitId: string, text: string): string {
  */
 export function unitName(unit: { id: string; label: string }): string {
   const label = unit.label.trim();
-  if (["experience:", "project:", "education:", "publication:"].some((prefix) => unit.id.startsWith(prefix))) return label || "entry";
+  if (["experience:", "project:", "education:", "certification:", "publication:"].some((prefix) => unit.id.startsWith(prefix))) return label || "entry";
   if (unit.id.startsWith("paragraph:")) {
     const name = label.toLowerCase() || "paragraph";
     return /\bparagraph$/.test(name) ? name : `${name} paragraph`;

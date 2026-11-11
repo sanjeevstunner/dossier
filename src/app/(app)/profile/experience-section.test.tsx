@@ -60,6 +60,7 @@ function Harness({ order = "date" }: { order?: EntryOrder }) {
     projects: [],
     education: [],
     publications: [],
+    certifications: [],
     references: [],
     facts: [],
     photo: null,
@@ -151,7 +152,7 @@ describe("ExperienceSection", () => {
 
   it("shows the empty state", () => {
     function Empty() {
-      const [state, setState] = useState<ProfileData>({ basics: {} as ProfileData["basics"], skills: [], languages: [], experience: [], projects: [], education: [], publications: [], references: [], facts: [], photo: null });
+      const [state, setState] = useState<ProfileData>({ basics: {} as ProfileData["basics"], skills: [], languages: [], experience: [], projects: [], education: [], publications: [], certifications: [], references: [], facts: [], photo: null });
       return <ExperienceSection order="date" profile={state} update={(change) => setState(change)} jobTypes={[]} />;
     }
     render(<Empty />);

@@ -37,7 +37,7 @@ const minutesText = (minutes: number) =>
 /** "Its wait is over in 25 minutes." */
 function waitText(ms: number): string {
   const minutes = Math.max(1, Math.ceil(ms / 60_000));
-  if (minutes < 60) return `Its wait is over in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
+  if (minutes <= 60) return `Its wait is over in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
   const hours = Math.ceil(minutes / 60);
   return `Its wait is over in ${hours} ${hours === 1 ? "hour" : "hours"}.`;
 }

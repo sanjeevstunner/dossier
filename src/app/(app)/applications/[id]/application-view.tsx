@@ -35,7 +35,7 @@ import type { WriteEmailResult } from "@/lib/jobs/write-email";
 import type { FactItem, ProfileData } from "@/lib/profile";
 import type { RefineSuggestions } from "@/lib/refine-suggestions";
 import { hasSidebar, type ThemeData } from "@/lib/themes";
-import { cleanUnitText, isPublicationUnit, unitName } from "@/lib/unit-text";
+import { cleanUnitText, isCertificationUnit, isPublicationUnit, unitName } from "@/lib/unit-text";
 
 import {
   addMatchSkill,
@@ -565,7 +565,7 @@ export function ApplicationView({
         kind === DocumentKind.EMAIL
           ? WRITTEN_EMAIL_UNITS.has(id)
           : kind === DocumentKind.RESUME
-            ? !isPublicationUnit(id)
+            ? !isPublicationUnit(id) && !isCertificationUnit(id)
             : !isFrameUnit(id) || WRITTEN_FRAME_UNITS.has(id);
       return (
         <UnitFrame

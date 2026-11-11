@@ -3,7 +3,7 @@ import { z } from "zod";
 import { unitsSchema, type Extracted, type Match, type Unit } from "@/lib/application-data";
 import { publicationLabel } from "@/lib/citation";
 import { documentLabels, ENGLISH_LABELS, languagesLine, type DocumentLabels } from "@/lib/document-labels";
-import { resumePublications, sameName, type ProfileData } from "@/lib/profile";
+import { certificationLine, resumeCertifications, resumePublications, sameName, skillsText, type ProfileData } from "@/lib/profile";
 
 import { guardSources, guardUnits } from "../fact-guard";
 
@@ -22,7 +22,7 @@ import {
   type Task,
 } from "./prompt-parts";
 
-export const TAILOR_RESUME_VERSION = "tailor-resume@7";
+export const TAILOR_RESUME_VERSION = "tailor-resume@10";
 
 const answerSchema = z.object({
   summary: z.string(),
@@ -38,9 +38,10 @@ const INSTRUCTIONS = `You tailor a candidate's resume to one job, as JSON.
 - summary: 2–3 sentences in the first person without "I" at the start of every sentence, about the candidate as this job would see them.
 - roles: every role from the profile, by id, with 2–5 bullets each. Lead with what this job cares about, keep each bullet to one line, and start with a verb.
 - projects: every project from the profile, by id, with 1–3 bullets each, written like the roles' bullets: what was built and what it shows that this job cares about.
+- The profile's bullets are source facts, not text to reuse. Never copy or lightly edit a bullet, and never paste a role or project description in as it is: write every bullet fresh as a concise, self-contained resume bullet (action verb, what was done, how, and the result or scale where the profile gives one). Merge, split or reorder facts as needed, and drop what doesn't help. Rewriting must keep every fact, tool, number and outcome that matters: change the wording, never the substance or the level of detail.
 - skills: the candidate's own skills, most relevant to this job first. Copy their names exactly; you may leave out ones that don't help.
 - education: every entry by id, with its notes shortened or left empty.
-- The profile's publications go on the resume word for word, so don't answer with them; the summary may mention them.`;
+- The profile's publications and certifications go on the resume as they are, so don't answer with them; the summary may mention them.`;
 
 /** SET-9: asked for when "Resume length" has a limit; anything still over is trimmed afterwards (E10-10). */
 function pageFit(maxPages: number | null | undefined): string | null {
@@ -116,9 +117,8 @@ export function resumeUnits(profile: ProfileData, answer: z.infer<typeof answerS
   const roles = new Map(answer.roles.map((role) => [role.id, role.bullets]));
   const projects = new Map(answer.projects.map((project) => [project.id, project.bullets]));
   const notes = new Map(answer.education.map((entry) => [entry.id, entry.notes]));
-  const skills = [
-    ...new Set(answer.skills.flatMap((name) => profile.skills.find((skill) => sameName(skill.name, name))?.name ?? [])),
-  ];
+  // The profile's own skills in the answer's order; skillsText puts them in the profile's groups.
+  const skills = [...new Set(answer.skills.flatMap((name) => profile.skills.find((skill) => sameName(skill.name, name)) ?? []))];
   const units: Unit[] = [
     { id: "summary", label: "Summary", text: answer.summary.trim() },
     ...profile.experience.map((entry) => {
@@ -129,11 +129,16 @@ export function resumeUnits(profile: ProfileData, answer: z.infer<typeof answerS
       const bullets = (projects.get(entry.id) ?? entry.bullets.split("\n")).map((line) => line.trim()).filter(Boolean);
       return { id: `project:${entry.id}`, label: `${entry.name || "Untitled"} project`, text: bullets.join("\n") };
     }),
-    { id: "skills", label: "Skills", text: skills.join(" · ") },
+    { id: "skills", label: "Skills", text: skillsText(skills, profile.groupSkills !== false) },
     ...profile.education.map((entry) => ({
       id: `education:${entry.id}`,
       label: entry.degree || entry.school,
       text: (notes.get(entry.id) ?? entry.notes).trim(),
+    })),
+    ...resumeCertifications(profile.certifications).map((entry) => ({
+      id: `certification:${entry.id}`,
+      label: entry.name.trim(),
+      text: certificationLine(entry, { locale: labels.locale, present: labels.present }),
     })),
     ...resumePublications(profile.publications).map((entry) => ({
       id: `publication:${entry.id}`,

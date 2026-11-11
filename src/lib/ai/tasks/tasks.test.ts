@@ -217,7 +217,7 @@ describe("tailorResume", () => {
 
   it("returns units, keeping only real roles and the profile's own skills (APP-4)", async () => {
     const { data, promptVersion } = await tailorResume(model(answer), { profile, extracted, match: null, facts: [], posting }, options);
-    expect(promptVersion).toBe("tailor-resume@7");
+    expect(promptVersion).toBe("tailor-resume@10");
     expect(data.map((unit) => unit.id)).toEqual([
       "summary",
       "experience:e1",

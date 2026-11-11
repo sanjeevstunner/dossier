@@ -5,7 +5,7 @@ import { PhotoPosition, PhotoShape, type PaperSize, type ThemeLayout } from "@/g
 import { cn } from "@/lib/cn";
 import { documentLabels } from "@/lib/document-labels";
 import { documentLanguage } from "@/lib/document-language";
-import type { ProfileData } from "@/lib/profile";
+import { parseSkillsText, type ProfileData } from "@/lib/profile";
 import { resumeContent, type ResumeContent, type ResumeOptions } from "@/lib/resume-content";
 import { PHOTO_SHAPES, resolveTheme, type ThemeData } from "@/lib/themes";
 
@@ -66,7 +66,7 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
     ),
     content.skills && (
       <DocumentSection key="skills" title={labels.skills}>
-        {renderUnit({ id: "skills", children: <p>{content.skills}</p> })}
+        {renderUnit({ id: "skills", children: <SkillLines text={content.skills} /> })}
       </DocumentSection>
     ),
     content.languages && (
@@ -158,6 +158,37 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
               className: styles.entry,
               head: <EntryHead title={entry.degree} at={entry.school} dates={entry.dates} timeline={resolved.timeline} />,
               children: entry.notes && <p className={styles.muted}>{entry.notes}</p>,
+            })}
+          </Fragment>
+        ))}
+      </DocumentSection>
+    ),
+    content.certifications.length > 0 && (
+      <DocumentSection key="certifications" title={labels.certifications}>
+        {content.certifications.map((entry) => (
+          <Fragment key={entry.id}>
+            {renderUnit({
+              id: `certification:${entry.id}`,
+              className: styles.publication,
+              children: (
+                <p>
+                  {entry.text}
+                  {entry.link && (
+                    <>
+                      {" "}
+                      {entry.href ? (
+                        <a href={entry.href} target="_blank" rel="noreferrer" className={styles.link}>
+                          <Contact>{entry.link}</Contact>
+                        </a>
+                      ) : (
+                        <span className={styles.link}>
+                          <Contact>{entry.link}</Contact>
+                        </span>
+                      )}
+                    </>
+                  )}
+                </p>
+              ),
             })}
           </Fragment>
         ))}
@@ -300,4 +331,14 @@ function EntryHead({ title, at, dates, timeline }: { title: string; at: ReactNod
       {!timeline && datesSpan}
     </div>
   );
+}
+
+/** The skills as one paragraph, or one per group with its name in bold. */
+function SkillLines({ text }: { text: string }) {
+  return parseSkillsText(text).map((line, index) => (
+    <p key={index}>
+      {line.group && <strong>{line.group}: </strong>}
+      {line.skills}
+    </p>
+  ));
 }

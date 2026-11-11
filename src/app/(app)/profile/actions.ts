@@ -6,6 +6,10 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { JobStatus, LanguageLevel } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
+import { getAiProvider } from "@/lib/ai";
+import { isAiConfigured } from "@/lib/ai/config";
+import { loadTaskOptions } from "@/lib/ai/task-options";
+import { groupSkillsTask } from "@/lib/ai/tasks";
 import { prisma } from "@/lib/prisma";
 import { fieldsFromBasics, inEntryOrder } from "@/lib/profile";
 import { findOrCreateSkill, firstSort, nextSort } from "@/lib/profile-entries";
@@ -92,6 +96,20 @@ const skillName = z.string().trim().min(1, "Type a skill first.").max(100);
 
 /** Adds a skill (PRO-3). An existing one, in any case, is returned instead of a duplicate. */
 export const addSkill = action(z.object({ name: skillName }), ({ name }) => findOrCreateSkill(name));
+
+/**
+ * "Organise with AI": the AI sorts every skill into a group, saved on the
+ * skill so the profile and the resumes show them. Returns each skill's group.
+ */
+export const organiseSkills = action(z.object({}), async () => {
+  if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first.");
+  const skills = await prisma.skill.findMany({ orderBy: [{ sort: "asc" }, { createdAt: "asc" }] });
+  if (skills.length < 2) throw new ActionError("Add a few skills first.");
+  const [provider, options] = await Promise.all([getAiProvider(), loadTaskOptions()]);
+  const { data } = await groupSkillsTask(provider, { skills: skills.map((skill) => skill.name) }, options);
+  await prisma.$transaction(skills.map((skill) => prisma.skill.update({ where: { id: skill.id }, data: { group: data.get(skill.name) ?? "" } })));
+  return { groups: skills.map((skill) => ({ id: skill.id, group: data.get(skill.name) ?? "" })) };
+});
 
 /** Removes a skill; the database also detaches it from every role (PRO-3). */
 export const removeSkill = action(z.object({ id }), async ({ id }) => {
@@ -410,6 +428,63 @@ export const reorderPublications = action(z.object({ ids: z.array(id) }), async 
       throw new ActionError("The list changed in the meantime. Reload the page and try again.");
     }
     for (const [sort, entryId] of ids.entries()) await tx.publication.update({ where: { id: entryId }, data: { sort } });
+  });
+  return null;
+});
+
+// ─── Certifications ──────────────────────────────────────────────────────────
+
+const certificationFields = z.object({
+  id,
+  name: text(200),
+  issuer: text(200),
+  issueYear: year,
+  issueMonth: month,
+  expiryYear: year,
+  expiryMonth: month,
+  credentialId: text(80),
+  credentialUrl: text(500),
+});
+
+const certificationItem = ({ id, name, issuer, issueYear, issueMonth, expiryYear, expiryMonth, credentialId, credentialUrl }: z.infer<typeof certificationFields>) => ({
+  id, name, issuer, issueYear, issueMonth, expiryYear, expiryMonth, credentialId, credentialUrl,
+});
+
+/** "+ Add a certification": a blank entry at the top, where the newest usually goes. */
+export const createCertification = action(z.object({}), async () =>
+  certificationItem(await prisma.certification.create({ data: { sort: await firstSort(prisma.certification) } })),
+);
+
+/** Autosaves a certification. Saving one that was just removed does nothing. */
+export const saveCertification = action(certificationFields, async ({ id, ...data }) => {
+  await prisma.certification.updateMany({ where: { id }, data });
+  return null;
+});
+
+export const removeCertification = action(z.object({ id }), async ({ id }) => {
+  await prisma.certification.deleteMany({ where: { id } });
+  return null;
+});
+
+/** Puts a removed certification back; the list then saves its place in the order. */
+export const restoreCertification = action(certificationFields, async (entry) =>
+  certificationItem(
+    await prisma.certification.upsert({
+      where: { id: entry.id },
+      create: { ...entry, sort: await nextSort(prisma.certification) },
+      update: {},
+    }),
+  ),
+);
+
+/** Saves the certifications' order: `ids` is every certification, in the new order. */
+export const reorderCertifications = action(z.object({ ids: z.array(id) }), async ({ ids }) => {
+  await prisma.$transaction(async (tx) => {
+    const known = new Set((await tx.certification.findMany({ select: { id: true } })).map((entry) => entry.id));
+    if (ids.length !== known.size || new Set(ids).size !== ids.length || !ids.every((entryId) => known.has(entryId))) {
+      throw new ActionError("The list changed in the meantime. Reload the page and try again.");
+    }
+    for (const [sort, entryId] of ids.entries()) await tx.certification.update({ where: { id: entryId }, data: { sort } });
   });
   return null;
 });

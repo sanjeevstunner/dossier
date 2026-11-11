@@ -83,7 +83,7 @@ test("finds, scores, drafts and dismisses, and never brings a posting back", asy
   await expect(page.getByText(/^This agent ran less than an hour ago\. Its wait is over in \d+ minutes\.$/)).toBeVisible();
   await page.getByRole("button", { name: "Run anyway" }).click();
   await expect(page.getByText("No new postings this time.").first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("list", { name: "Runs" }).getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("list", { name: "Runs" }).locator(":scope > li")).toHaveCount(2);
 
   // A second agent with the same search finds nothing new either: what one saw, all have.
   await newAgent(page);

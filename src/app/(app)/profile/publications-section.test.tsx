@@ -35,6 +35,7 @@ function Harness() {
     projects: [],
     education: [],
     publications: [rossi, hidden],
+    certifications: [],
     references: [],
     facts: [],
     photo: null,

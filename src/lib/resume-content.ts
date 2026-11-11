@@ -1,7 +1,7 @@
 import type { Unit } from "@/lib/application-data";
 import { ageLabel, ENGLISH_LABELS, languagesLine, type DocumentLabels } from "@/lib/document-labels";
 import { publicationHref, publicationLink } from "@/lib/citation";
-import { ageOn, formatDateRange, resumePublications, type Basics, type ProfileData } from "@/lib/profile";
+import { ageOn, certificationLine, formatDateRange, resumeCertifications, resumePublications, skillsText, type Basics, type ProfileData } from "@/lib/profile";
 
 // What a resume shows, worked out from the profile (the base resume) or from
 // a tailored document's units, so the renderer only has to lay it out.
@@ -42,6 +42,15 @@ export type ResumeContent = {
     /** "doi.org/10.1038/…", without "https://". */
     link: string;
     /** What the link opens, or null when it isn't a web address. */
+    href: string | null;
+  }[];
+  /** Certifications, as entered, in the profile's order. */
+  certifications: {
+    id: string;
+    /** "AWS Certified Developer, Amazon Web Services, Dec 2023 – Dec 2026" */
+    text: string;
+    /** The credential link without "https://", or "". */
+    link: string;
     href: string | null;
   }[];
   /** "Figma · User research · …" */
@@ -126,6 +135,12 @@ export function resumeContent(
     link: displayLink(publicationLink(entry.link)),
     href: publicationHref(entry.link),
   });
+  const certification = (entry: ProfileData["certifications"][number], text: string) => ({
+    id: entry.id,
+    text: text.trim(),
+    link: displayLink(publicationLink(entry.credentialUrl)),
+    href: publicationHref(entry.credentialUrl),
+  });
   const education = (entry: ProfileData["education"][number], notes: string) => ({
     id: entry.id,
     degree: entry.degree.trim(),
@@ -144,7 +159,8 @@ export function resumeContent(
     projects: profile.projects.map((entry) => project(entry, entry.bullets)),
     education: profile.education.map((entry) => education(entry, entry.notes)),
     publications: resumePublications(profile.publications).map((entry) => publication(entry, entry.citation)),
-    skills: profile.skills.map((skill) => skill.name).join(" · "),
+    certifications: resumeCertifications(profile.certifications).map((entry) => certification(entry, certificationLine(entry, dates))),
+    skills: skillsText(profile.skills, profile.groupSkills !== false),
     languages: languagesLine(profile.languages, labels),
     references: includeReferences
       ? profile.references.map((reference) => ({
@@ -176,6 +192,9 @@ export function resumeContent(
     content.projects = withUnit("project:", profile.projects).map(({ entry, text }) => project(entry, text));
     content.education = withUnit("education:", profile.education).map(({ entry, text }) =>
       education(entry, text),
+    );
+    content.certifications = withUnit("certification:", profile.certifications).flatMap(({ entry, text }) =>
+      text.trim() ? [certification(entry, text)] : [],
     );
     content.publications = withUnit("publication:", profile.publications).flatMap(({ entry, text }) =>
       text.trim() ? [publication(entry, text)] : [],

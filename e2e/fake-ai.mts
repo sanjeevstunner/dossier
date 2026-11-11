@@ -135,6 +135,8 @@ const answers: Record<string, (messages: Message[]) => unknown> = {
     return { reply: "Done. I made the summary shorter.", edits: [{ document: "RESUME", unitId: "summary", text: shorter }], tone: null, declined: false };
   },
 
+  skill_groups: () => ({ groups: [{ name: "Design", skills: ["Figma", "Accessibility", "Design systems"] }] }),
+
   extracted_profile: () => ({
     basics: {
       name: "John Doe",

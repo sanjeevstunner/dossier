@@ -39,6 +39,13 @@ export const SECTIONS = [
     hint: "Side projects, open source, coursework or a thesis: things you built that show what you can do, especially when your roles don't say it yet.",
   },
   {
+    id: "certifications",
+    optional: true,
+    label: "Certifications",
+    title: "Licences & certifications",
+    hint: "Certificates and licences you hold, with who issued them. Resumes show them as you enter them.",
+  },
+  {
     id: "publications",
     optional: true,
     label: "Publications",

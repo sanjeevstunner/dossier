@@ -107,7 +107,52 @@ export function fieldsFromBasics(basics: Basics): Record<ProfileKey, string | nu
   return { ...(fields as Record<BasicsField, string | null>), showAge: basics.showAge ? "true" : null };
 }
 
-export type SkillItem = { id: string; name: string };
+export type SkillItem = { id: string; name: string; /** The AI's group for it; empty or missing when not grouped. */ group?: string };
+
+export const OTHER_SKILLS = "Other";
+export type SkillGroup<T extends { group?: string } = SkillItem> = { name: string; skills: T[] };
+
+/** The skills in their groups (the group of the first skill first, "Other" last), or null when none is grouped. */
+export function groupSkills<T extends { group?: string }>(skills: readonly T[]): SkillGroup<T>[] | null {
+  if (!skills.some((skill) => skill.group)) return null;
+  const groups = new Map<string, T[]>();
+  for (const skill of skills) groups.set(skill.group || OTHER_SKILLS, [...(groups.get(skill.group || OTHER_SKILLS) ?? []), skill]);
+  const other = groups.get(OTHER_SKILLS);
+  groups.delete(OTHER_SKILLS);
+  return [...groups, ...(other ? [[OTHER_SKILLS, other] as const] : [])].map(([name, list]) => ({ name, skills: list }));
+}
+
+/** The groups to show: null when "Disable groups" is on or nothing is grouped. */
+export function shownSkillGroups(profile: Pick<ProfileData, "skills" | "groupSkills">): SkillGroup[] | null {
+  return profile.groupSkills === false ? null : groupSkills(profile.skills);
+}
+
+/** Skills as resume text: one "Group: a · b" line per group, or "a · b" when not grouped. */
+export function skillsText(skills: readonly { name: string; group?: string }[], grouped = true): string {
+  const groups = grouped ? groupSkills(skills) : null;
+  return groups
+    ? groups.map((group) => `${group.name}: ${group.skills.map((skill) => skill.name).join(" · ")}`).join("\n")
+    : skills.map((skill) => skill.name).join(" · ");
+}
+
+/** Skills text as lines of an optional group name and its skills (a flat list has one line, no name). */
+export function parseSkillsText(text: string): { group: string | null; skills: string }[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const colon = line.indexOf(": ");
+      return colon > 0 && !line.slice(0, colon).includes(" · ")
+        ? { group: line.slice(0, colon), skills: line.slice(colon + 2) }
+        : { group: null, skills: line };
+    });
+}
+
+/** The skill names in skills text, grouped or not. */
+export function skillNamesIn(text: string): string[] {
+  return parseSkillsText(text).flatMap((line) => line.skills.split(" · ")).map((name) => name.trim()).filter(Boolean);
+}
 export type LanguageItem = { id: string; name: string; level: LanguageLevel };
 export type ExperienceItem = DateSpan & {
   id: string;
@@ -131,6 +176,18 @@ export type ProjectItem = DateSpan & {
 export type EducationItem = DateSpan & { id: string; degree: string; school: string; notes: string };
 /** A publication (#218): the citation as written, with **bold** and *italic*, and where to read it. */
 export type PublicationItem = { id: string; citation: string; link: string; onResumes: boolean };
+/** A licence or certification: issued (and maybe expiring) month and year, and where to check it. */
+export type CertificationItem = {
+  id: string;
+  name: string;
+  issuer: string;
+  issueYear: number | null;
+  issueMonth: number | null;
+  expiryYear: number | null;
+  expiryMonth: number | null;
+  credentialId: string;
+  credentialUrl: string;
+};
 export type ReferenceItem = {
   id: string;
   name: string;
@@ -146,12 +203,17 @@ export type ProfileData = {
   /** The photo for resumes (#224); null without one. Never given to the AI. */
   photo: ProfilePhoto | null;
   skills: SkillItem[];
+  /** Whether skills show in their groups; false (Settings) shows one list. Missing means yes. */
+  groupSkills?: boolean;
+  /** Whether adding a skill groups them again (Settings). */
+  autoGroupSkills?: boolean;
   languages: LanguageItem[];
   experience: ExperienceItem[];
   projects: ProjectItem[];
   education: EducationItem[];
   /** In the order set by hand, with the ones kept off resumes too. */
   publications: PublicationItem[];
+  certifications: CertificationItem[];
   references: ReferenceItem[];
   /** "Facts about me": never on a document, only given to the AI. */
   facts: FactItem[];
@@ -160,6 +222,18 @@ export type ProfileData = {
 /** The facts worth sending: trimmed, without empty ones. */
 export function factTexts(facts: { text: string }[]): string[] {
   return facts.map((fact) => fact.text.trim()).filter(Boolean);
+}
+
+/** The certifications a resume shows: those with a name. */
+export function resumeCertifications(certifications: readonly CertificationItem[]): CertificationItem[] {
+  return certifications.filter((entry) => entry.name.trim() !== "");
+}
+
+/** A certification as one resume line: "AWS Certified Developer, Amazon Web Services, Dec 2023 – Dec 2026". */
+export function certificationLine(entry: CertificationItem, options: DateFormatOptions = {}): string {
+  const issued = formatMonthYear(entry.issueYear, entry.issueMonth, options);
+  const expires = formatMonthYear(entry.expiryYear, entry.expiryMonth, options);
+  return [entry.name.trim(), entry.issuer.trim(), [issued, expires].filter(Boolean).join(" – ")].filter(Boolean).join(", ");
 }
 
 /** The publications a resume shows: those with "Show on resumes" on and a citation. */
