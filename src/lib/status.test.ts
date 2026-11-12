@@ -23,8 +23,9 @@ function moves(start: StatusFields, ...statuses: S[]): StatusFields {
 }
 
 describe("status list", () => {
-  it("lists all eight statuses in order, with labels, colours, groups and toasts", () => {
+  it("lists all nine statuses in order, with labels, colours, groups and toasts", () => {
     expect(STATUSES.map((status) => status.label)).toEqual([
+      "Scored",
       "Draft",
       "Sent",
       "Screening",
@@ -40,6 +41,7 @@ describe("status list", () => {
       toast: "An interview! You've got this.",
     });
     expect(STATUSES.filter((status) => isInProgress(status.value)).map((status) => status.label)).toEqual([
+      "Scored",
       "Draft",
       "Sent",
       "Screening",
@@ -54,6 +56,12 @@ describe("advance", () => {
   it("does nothing when the status doesn't change", () => {
     expect(advance(draft, S.DRAFT, now)).toBeNull();
     expect(advance({ status: S.OFFER, furthestStage: "OFFER", sentAt: earlier }, S.OFFER, now)).toBeNull();
+  });
+
+  it("treats Scored like Draft: moving to Sent marks it sent, moving on to Draft doesn't", () => {
+    const scored: StatusFields = { status: S.SCORED, furthestStage: null, sentAt: null };
+    expect(advance(scored, S.DRAFT, now)?.update).toEqual({ status: S.DRAFT, furthestStage: null, sentAt: null });
+    expect(advance(scored, S.SENT, now)?.update.sentAt).toEqual(now);
   });
 
   it("marks a draft as sent on its first move out of Draft", () => {

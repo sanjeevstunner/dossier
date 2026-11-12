@@ -205,6 +205,9 @@ export async function naukriApplyInfo(credentials: Credentials, jobId: string, c
   return answer.data;
 }
 
+/** Naukri's limit for a text answer (NopeRi's API docs); a question's own `maxLength` wins. */
+export const NAUKRI_TEXT_MAX = 100;
+
 export const questionSchema = z.object({
   id: z.string().min(1),
   text: z.string(),
@@ -215,6 +218,8 @@ export const questionSchema = z.object({
   /** Naukri fills it from the Naukri profile (CTC, notice period…), so it's left out of the answers. */
   skippable: z.boolean().catch(false),
   prefill: z.array(z.string()).catch([]),
+  /** A text answer's limit, when the API gives one; otherwise NAUKRI_TEXT_MAX. */
+  maxLength: z.number().int().positive().optional().catch(undefined),
 });
 export type NaukriQuestion = z.output<typeof questionSchema>;
 /** Text answers as strings, choice answers as lists of option labels, keyed by question id. */

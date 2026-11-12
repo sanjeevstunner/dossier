@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ApplicationStatus } from "@/generated/prisma/enums";
+import { DocumentKind, type ApplicationStatus } from "@/generated/prisma/enums";
 import { matchSchema, matchScore } from "@/lib/application-data";
 import { sortRows, updatedAgo, type Sort } from "@/lib/applications-list";
 import { formatCalendarDate, formatShortDate } from "@/lib/dates";
@@ -19,6 +19,12 @@ export type ApplicationRow = {
   /** "Apply by" on draft cards, e.g. "3 Oct 2026". */
   deadline: string | null;
   match: { hit: number; total: number } | null;
+  /** The posting's fit with the profile, 0–100, kept when a saved posting was scored. */
+  score: number | null;
+  /** The user uploaded their own resume, which lets a scored application be marked sent. */
+  hasUploadedResume: boolean;
+  /** Came from a Naukri posting, so the job agent can apply for it. */
+  agentApply: boolean;
   /** When it was sent, e.g. "18 Aug"; null while never sent. */
   sent: string | null;
   /** "Today", "3 days ago"… */
@@ -42,6 +48,9 @@ export async function loadApplicationRows({ archived, sort }: { archived: boolea
       archivedAt: true,
       deadline: true,
       match: true,
+      score: true,
+      files: { where: { kind: DocumentKind.RESUME }, select: { id: true } },
+      posting: { select: { source: true } },
       sentAt: true,
       updatedAt: true,
     },
@@ -58,6 +67,9 @@ export async function loadApplicationRows({ archived, sort }: { archived: boolea
       archived: application.archivedAt !== null,
       deadline: application.deadline ? formatCalendarDate(application.deadline) : null,
       match: match.success && match.data.items.length > 0 ? matchScore(match.data) : null,
+      score: application.score,
+      hasUploadedResume: application.files.length > 0,
+      agentApply: application.posting?.source === "NAUKRI",
       sentAt: application.sentAt,
       updatedAt: application.updatedAt,
     };
@@ -67,5 +79,25 @@ export async function loadApplicationRows({ archived, sort }: { archived: boolea
     sent: sentAt ? formatShortDate(sentAt, now) : null,
     updated: updatedAgo(updatedAt, now),
     updatedAt: updatedAt.getTime(),
+  }));
+}
+
+/** A saved posting that hasn't been scored yet: the board's Saved column (read-only). */
+export type SavedRow = { id: string; company: string; title: string; place: string; saved: string; savedAt: number };
+
+/** Saved postings with no application: newest first. Scoring one makes it an application in Scored. */
+export async function loadSavedRows(now = new Date()): Promise<SavedRow[]> {
+  const postings = await prisma.posting.findMany({
+    where: { savedAt: { not: null }, dismissedAt: null, applicationId: null },
+    orderBy: { savedAt: "desc" },
+    select: { id: true, company: true, title: true, place: true, savedAt: true },
+  });
+  return postings.map(({ savedAt, ...posting }) => ({
+    ...posting,
+    company: posting.company.trim(),
+    title: posting.title.trim() || "Untitled posting",
+    place: posting.place.trim(),
+    saved: updatedAgo(savedAt!, now),
+    savedAt: savedAt!.getTime(),
   }));
 }

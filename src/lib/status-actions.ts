@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { ApplicationStatus } from "@/generated/prisma/enums";
+import { ApplicationStatus, DocumentKind } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
 import { approveCandidate } from "@/lib/agent/draft";
 import { prisma } from "@/lib/prisma";
@@ -20,6 +20,20 @@ function refreshEverything() {
 }
 
 /**
+ * A scored application has no written resume yet, and moves on by itself:
+ * to Draft when the resume is written. The user can only mark it sent, and
+ * only with a resume they uploaded.
+ */
+async function checkScoredMove(id: string, to: ApplicationStatus) {
+  if (to === ApplicationStatus.SCORED) throw new ActionError("Scored is automatic: it's where a saved posting lands once it's scored.");
+  const found = await prisma.application.findUnique({ where: { id }, select: { status: true } });
+  if (found?.status !== ApplicationStatus.SCORED) return;
+  if (to !== ApplicationStatus.SENT) throw new ActionError("A scored application moves to Draft when its resume is written, or to Sent once you've uploaded your resume.");
+  const upload = await prisma.applicationFile.findUnique({ where: { applicationId_kind: { applicationId: id, kind: DocumentKind.RESUME } }, select: { id: true } });
+  if (!upload) throw new ActionError("Upload your resume first, or write one.");
+}
+
+/**
  * Moves an application to another status. Every status change in the app goes
  * through here: the application page, the board and the table. Returns the
  * event id for Undo, or null when the status didn't change.
@@ -32,6 +46,7 @@ export const setStatus = action(
       const pending = await prisma.agentCandidate.findFirst({ where: { applicationId: id, application: { awaitingReview: true } }, select: { id: true } });
       if (pending) await approveCandidate(pending.id);
     }
+    await checkScoredMove(id, to);
     const result = await applyStatusChange(prisma, id, to);
     if (result.outcome === "not-found") throw new ActionError(NOT_FOUND);
     if (result.outcome === "unchanged") return { eventId: null };

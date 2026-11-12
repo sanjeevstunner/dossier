@@ -35,6 +35,8 @@ describe("stored settings", () => {
       creativity: "BALANCED",
       strict: true,
       showDiff: true,
+      confirmApplyAnswers: false,
+      confirmApplyResume: false,
       paper: "A4",
       dateFormat: "DAY_MONTH_YEAR",
       defaultTone: "WARM",

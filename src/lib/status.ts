@@ -17,6 +17,7 @@ export type StatusInfo = {
 
 /** All statuses, in board and menu order. */
 export const STATUSES: readonly StatusInfo[] = [
+  { value: ApplicationStatus.SCORED, label: "Scored", color: "var(--color-status-scored)", group: "in-progress", toast: "Moved back to scored." },
   { value: ApplicationStatus.DRAFT, label: "Draft", color: "var(--color-status-draft)", group: "in-progress", toast: "Moved back to draft." },
   { value: ApplicationStatus.SENT, label: "Sent", color: "var(--color-status-sent)", group: "in-progress", toast: "Marked as sent. Fingers crossed!" },
   { value: ApplicationStatus.SCREENING, label: "Screening", color: "var(--color-status-screening)", group: "in-progress", toast: "In screening. They're taking a look." },
@@ -32,6 +33,9 @@ export function statusInfo(status: ApplicationStatus): StatusInfo {
   if (!info) throw new Error(`Unknown status: ${status}`);
   return info;
 }
+
+/** Not sent yet: scored, or a draft. Anything else means the application went out. */
+export const isUnsent = (status: ApplicationStatus): boolean => status === ApplicationStatus.SCORED || status === ApplicationStatus.DRAFT;
 
 export function isInProgress(status: ApplicationStatus): boolean {
   return statusInfo(status).group === "in-progress";
@@ -95,7 +99,7 @@ export function advance(application: StatusFields, to: ApplicationStatus, now: D
   if (application.status === to) return null;
 
   let { furthestStage, sentAt } = application;
-  if (to !== ApplicationStatus.DRAFT && to !== ApplicationStatus.DECLINED) {
+  if (!isUnsent(to) && to !== ApplicationStatus.DECLINED) {
     sentAt ??= now;
     furthestStage = higherStage(furthestStage, FunnelStage.SENT);
   }

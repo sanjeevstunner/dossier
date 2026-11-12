@@ -10,6 +10,7 @@ import { JobSearchError } from "@/lib/job-search/errors";
 import { naukriApplyInfo } from "@/lib/job-search/naukri";
 import { fullPosting, fullText, naukriSignIn } from "@/lib/job-search/find";
 import { foundPostingSchema, JOB_SOURCES, postingKey, searchQuerySchema } from "@/lib/job-search/search";
+import { reviewedAnswersSchema } from "@/lib/easy-apply-answers";
 import { easyApplyJob, easyApplyJobKey } from "@/lib/jobs/easy-apply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { scoreJobKey, scorePostingJob } from "@/lib/jobs/score-posting";
@@ -100,12 +101,12 @@ export const startScoringPosting = action(z.object({ posting: foundPostingSchema
  * background, answering its questions from the profile; an apply under way is
  * followed, not started again. Once Naukri confirms it, it's on the board in Sent.
  */
-export const startEasyApply = action(z.object({ posting: foundPostingSchema }), async ({ posting }) => {
+export const startEasyApply = action(z.object({ posting: foundPostingSchema, answers: reviewedAnswersSchema.optional(), resumeConfirmed: z.boolean().optional() }), async ({ posting, answers, resumeConfirmed }) => {
   if (posting.source !== "NAUKRI") throw new ActionError("Only Naukri postings can be applied to from here.");
   if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first: it answers Naukri's questions.");
   const key = easyApplyJobKey(posting);
   const [unfinished] = await findUnfinishedJobs(key);
-  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting }, { key })) };
+  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting, answers, resumeConfirmed }, { key })) };
 });
 
 /** Where a posting stands now: after an easy apply ends, so it shows applied without a reload. */

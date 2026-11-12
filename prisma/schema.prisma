@@ -368,8 +368,10 @@ model Setting {
 // ─── Applications (E2-3) ─────────────────────────────────────────────────────
 // The JSON columns are validated with the zod schemas in src/lib/application-data.ts.
 
-/// PRD §8. Draft…Offer are "in progress"; Accepted, Rejected and Declined are "closed".
+/// PRD §8. Scored…Offer are "in progress"; Accepted, Rejected and Declined are "closed".
+/// Scored: a saved posting was scored against the profile; no resume written yet.
 enum ApplicationStatus {
+  SCORED
   DRAFT
   SENT
   SCREENING
@@ -444,6 +446,11 @@ model Application {
   /// The prompt version that wrote `match`.
   matchedWith         String?
   status              ApplicationStatus @default(DRAFT)
+  /// 0–100 fit with the profile, copied from the posting's score when a saved posting is scored; null otherwise.
+  score               Int?
+  /// JSON lists of strings, with `score`.
+  scoreReasons        Json?
+  scoreRedFlags       Json?
   /// The furthest stage ever reached; null while never sent. Only the status module changes it.
   furthestStage       FunnelStage?
   sentAt              DateTime?

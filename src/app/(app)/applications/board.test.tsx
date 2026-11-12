@@ -8,7 +8,8 @@ import { DEFAULT_SORT } from "@/lib/applications-list";
 
 import { ApplicationsScreen } from "./applications-screen";
 
-vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })) }));
+vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })), startEasyApplyForApplication: vi.fn() }));
+vi.mock("./[id]/actions", () => ({ startCatchingUp: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), usePathname: () => null }));
 vi.mock("@/components/change-status", () => ({ changeStatus: vi.fn(async () => true) }));
 
@@ -22,6 +23,9 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
   archived: false,
   deadline: null,
   match: { hit: 5, total: 7 },
+  score: null,
+  hasUploadedResume: false,
+  agentApply: false,
   sent: "20 Sep",
   updated: "2 days ago",
   updatedAt: Date.UTC(2026, 8, 26),
@@ -36,15 +40,61 @@ const rows = [
 ];
 const params = { view: "board" as const, filter: "all" as const, q: "", sort: DEFAULT_SORT, archived: false };
 const open = (extra = {}) =>
-  render(<ApplicationsScreen params={params} rows={rows} counts={{ all: 4, active: 4, closed: 0 }} summary="4 applications" empty={false} archivedCount={0} {...extra} />);
+  render(<ApplicationsScreen params={params} saved={[]} rows={rows} counts={{ all: 4, active: 4, closed: 0 }} summary="4 applications" empty={false} archivedCount={0} {...extra} />);
 const column = (name: string) => screen.getByRole("region", { name: new RegExp(`^${name} `) });
 
 beforeEach(() => vi.mocked(changeStatus).mockClear());
+
+describe("Saved and Scored", () => {
+  const saved = [{ id: "p1", company: "Zenith Labs", title: "Design Lead", place: "Berlin", saved: "Today", savedAt: Date.UTC(2026, 10, 10) }];
+  const scored = row("scored", { company: "Zenith Labs", status: "SCORED", score: 82, match: null });
+
+  it("shows saved postings in a Saved column before Scored, read-only", () => {
+    open({ saved, rows: [scored, ...rows] });
+    const regions = screen.getAllByRole("region").map((region) => region.getAttribute("aria-labelledby"));
+    expect(regions.slice(0, 3)).toEqual(["board-SAVED", "board-SCORED", "board-DRAFT"]);
+    const card = within(column("Saved")).getByRole("link", { name: "Design Lead" });
+    expect(card).toHaveAttribute("href", "/jobs?view=saved");
+    expect(within(column("Saved")).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("shows a scored application's fit, and only offers Sent, disabled without an uploaded resume", async () => {
+    const user = userEvent.setup();
+    open({ rows: [scored] });
+    expect(within(column("Scored")).getByText("82/100 fit")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Actions for/ }));
+    expect(screen.getByRole("menuitemradio", { name: "Sent" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByRole("menuitemradio", { name: "Draft" })).not.toBeInTheDocument();
+  });
+});
+
+describe("a scored card's actions", () => {
+  const scored = (extra: Partial<ApplicationRow> = {}) => row("scored", { company: "Zenith Labs", status: "SCORED", score: 82, match: null, ...extra });
+
+  it("offers Write resume, and Apply with agent for a Naukri posting", () => {
+    open({ rows: [scored({ agentApply: true })] });
+    const scoredColumn = column("Scored");
+    expect(within(scoredColumn).getByRole("button", { name: "Write resume" })).toBeInTheDocument();
+    expect(within(scoredColumn).getByRole("button", { name: "Apply with agent" })).toBeInTheDocument();
+  });
+
+  it("leaves out Apply with agent for other sources, and Write resume once a resume is uploaded", () => {
+    open({ rows: [scored({ hasUploadedResume: true })] });
+    expect(screen.queryByRole("button", { name: "Apply with agent" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Write resume" })).not.toBeInTheDocument();
+  });
+
+  it("shows no action buttons on other statuses", () => {
+    open({ rows: [row("sent", { agentApply: true })] });
+    expect(screen.queryByRole("button", { name: "Apply with agent" })).not.toBeInTheDocument();
+  });
+});
 
 describe("the board (E9-2)", () => {
   it("has a column per status in the filter, with counts", () => {
     open();
     expect(screen.getAllByRole("region").map((region) => region.getAttribute("aria-labelledby"))).toEqual([
+      "board-SCORED",
       "board-DRAFT",
       "board-SENT",
       "board-SCREENING",

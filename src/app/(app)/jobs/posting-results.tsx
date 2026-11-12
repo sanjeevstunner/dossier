@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode, type Ref } from "react";
 
 import { ScoreBadge } from "@/components/score-badge";
 import { linksAttribution, SourceAttribution } from "@/components/source-attribution";
@@ -20,6 +20,8 @@ import { arbeitsagenturPage, SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { retry } from "@/lib/jobs/actions";
 
+import { saveReviewedAnswers } from "../applications/actions";
+import { AnswerReview, type ReviewedValues } from "./answer-review";
 import { dismissFoundPosting, loadFullText, loadPostingState, restorePosting, savePostingForLater, showMorePostings, startEasyApply, startScoringPosting, unsavePosting } from "./actions";
 import { useStartApplication } from "./use-start-application";
 
@@ -293,7 +295,10 @@ function ScoreWatcher({ jobId, onChange }: { jobId: string; onChange: (job: JobV
   return null;
 }
 
-type EasyApplyResult = { applicationId: string; answered: { question: string; answer: string }[]; missing?: string[] };
+/** What the review form shows (ReviewQuestion in easy-apply-answers). */
+type ReviewProps = ComponentProps<typeof AnswerReview>["review"];
+
+type EasyApplyResult = { applicationId: string; answered: { question: string; answer: string }[]; missing?: string[]; review?: ReviewProps };
 
 /**
  * "Easy apply with agent" on a Naukri easy apply posting: the agent applies
@@ -321,10 +326,21 @@ export function EasyApply({
   // Why it isn't sent: this apply's failure, or the last one's, kept with the draft.
   const failure = job?.status === "FAILED" ? job.error : jobId === null ? draftReason : null;
 
-  const start = async () => {
-    const result = await startEasyApply({ posting });
+  const [kept, setKept] = useState(false);
+  const start = async (answers?: ReviewedValues, resumeConfirmed?: boolean) => {
+    const result = await startEasyApply({ posting, answers, resumeConfirmed });
     if (!result.ok) return void toast(result.error);
+    setKept(false);
     setJobId(result.data.jobId);
+  };
+  // The answers are kept on the application's facts, so a later apply, by the AI or the user, uses them.
+  const keep = async (applicationId: string, review: ReviewProps, answers: ReviewedValues, moveToDraft: boolean) => {
+    const pairs = review.questions.flatMap((question) => {
+      const value = answers[question.id];
+      return value === undefined ? [] : [{ question: question.text, answer: Array.isArray(value) ? value.join(", ") : value }];
+    });
+    const result = toastResult(await saveReviewedAnswers({ applicationId, answers: pairs, moveToDraft }));
+    return result.ok;
   };
   const again = async () => {
     if (!jobId) return;
@@ -333,8 +349,42 @@ export function EasyApply({
     setRevision((n) => n + 1);
   };
 
+  if (job?.status === "DONE" && job.result?.review) {
+    const { applicationId, review } = job.result;
+    if (kept) {
+      return (
+        <p role="status" className="rounded-card bg-track px-4 py-3 text-meta">
+          Added to your draft. Nothing was sent.{" "}
+          {!onApplication && (
+            <Link href={`/applications/${applicationId}`} className="underline underline-offset-2">
+              Open the application
+            </Link>
+          )}
+        </p>
+      );
+    }
+    return (
+      <AnswerReview
+        key={jobId}
+        applicationId={applicationId}
+        review={review}
+        onSend={async (answers) => {
+          // The same answers go on the facts first, then the agent sends them.
+          // Sending from the form means the resume (when it was shown) is confirmed too.
+          if (await keep(applicationId, review, answers, false)) await start(answers, true);
+        }}
+        onKeep={async (answers) => {
+          if (await keep(applicationId, review, answers, true)) {
+            setKept(true);
+            onEnded();
+          }
+        }}
+      />
+    );
+  }
+
   if (job?.status === "DONE" && job.result?.missing?.length) {
-    return <MissingFacts key={jobId} applicationId={job.result.applicationId} missing={job.result.missing} onSaved={start} />;
+    return <MissingFacts key={jobId} applicationId={job.result.applicationId} missing={job.result.missing} onSaved={() => start()} />;
   }
 
   if (job?.status === "DONE" && job.result) {
@@ -742,10 +792,10 @@ function PostingDetail({
 
       {state.drafted && (
         <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
-          Drafted on your board, not sent yet.{" "}
+          On your board, not sent yet.{" "}
           {!easyApply && state.draftReason && <>{state.draftReason} </>}
           <Link href={`/applications/${state.applicationId}`} className="underline underline-offset-2">
-            Open the draft
+            Open the application
           </Link>
         </p>
       )}

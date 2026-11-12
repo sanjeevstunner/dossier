@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
-import { DocumentKind, VersionCause } from "@/generated/prisma/enums";
+import { ApplicationStatus, DocumentKind, VersionCause } from "@/generated/prisma/enums";
 import { getAiProvider } from "@/lib/ai";
 import { loadTaskOptions } from "@/lib/ai/task-options";
 import { extractPosting, matchRequirements, tailorResume, writeCoverLetter } from "@/lib/ai/tasks";
@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 import { loadFactTexts, loadProfile } from "@/lib/profile-data";
 import { maxPages } from "@/lib/settings";
 import { loadSettings } from "@/lib/settings-data";
+import { applyStatusChange } from "@/lib/status-changes";
 
 import { defineJob } from "./runner";
 
@@ -122,6 +123,9 @@ export const writeApplicationDocumentJob = defineJob({
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { kind };
       throw error;
     }
+
+    // A scored application has its resume now: it's a draft, ready to send.
+    if (kind === "resume" && application.status === ApplicationStatus.SCORED) await applyStatusChange(prisma, applicationId, ApplicationStatus.DRAFT);
 
     // E10-10: trimmed to the page limit, as at creation. A failure leaves it as written.
     const limit = maxPages(settings.pageLimit);

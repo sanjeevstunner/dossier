@@ -681,7 +681,7 @@ export function ApplicationView({
                 From the job agent · waiting for review
               </Link>
             )}
-            <StatusControl id={application.id} status={application.status} interviewAt={application.nextInterviewAt} timeZone={timeZone} />
+            <StatusControl id={application.id} status={application.status} hasUploadedResume={Boolean(files.resume)} interviewAt={application.nextInterviewAt} timeZone={timeZone} />
             {ownFileOnScreen ? (
               <a href={fileHref(application.id, ownFileOnScreen, true)} className={buttonClassName("secondary", "md")}>
                 Download
@@ -702,9 +702,9 @@ export function ApplicationView({
       >
         {easyApply ? (
           <DraftEasyApply posting={easyApply} draftReason={application.draftReason ?? null} onEnded={() => router.refresh()} />
-        ) : application.status === "DRAFT" && application.draftReason && (
+        ) : (application.status === "DRAFT" || application.status === "SCORED") && application.draftReason && (
           <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
-            Easy apply didn&apos;t send this, so it&apos;s still a draft. {application.draftReason}
+            Easy apply didn&apos;t send this, so it&apos;s still {application.status === "SCORED" ? "scored" : "a draft"}. {application.draftReason}
           </p>
         )}
         {/* Its underline runs the header's full width, under the padding too. */}

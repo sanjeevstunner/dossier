@@ -9,7 +9,8 @@ import { DEFAULT_SORT, type ListParams } from "@/lib/applications-list";
 import { ApplicationsScreen } from "./applications-screen";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
-vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })) }));
+vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })), startEasyApplyForApplication: vi.fn() }));
+vi.mock("./[id]/actions", () => ({ startCatchingUp: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => null }));
 vi.mock("@/components/change-status", () => ({ changeStatus: vi.fn(async () => true) }));
 
@@ -23,6 +24,9 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
   archived: false,
   deadline: null,
   match: { hit: 5, total: 7 },
+  score: null,
+  hasUploadedResume: false,
+  agentApply: false,
   sent: "20 Sep",
   updated: "2 days ago",
   updatedAt: Date.UTC(2026, 8, 26),
@@ -31,7 +35,7 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
 const rows = [row("kestrel", { company: "Kestrel Maps", role: "Product Designer, Mobile", match: null }), row("draft", { status: "DRAFT", sent: null, location: "" })];
 const params: ListParams = { view: "table", filter: "all", q: "", sort: DEFAULT_SORT, archived: false };
 const open = (extra: Partial<ListParams> = {}) =>
-  render(<ApplicationsScreen params={{ ...params, ...extra }} rows={rows} counts={{ all: 2, active: 2, closed: 0 }} summary="2 applications" empty={false} archivedCount={0} />);
+  render(<ApplicationsScreen params={{ ...params, ...extra }} saved={[]} rows={rows} counts={{ all: 2, active: 2, closed: 0 }} summary="2 applications" empty={false} archivedCount={0} />);
 
 beforeEach(() => {
   router.push.mockClear();

@@ -7,7 +7,7 @@ import { loadTaskOptions } from "@/lib/ai/task-options";
 import { scorePosting } from "@/lib/ai/tasks";
 import { fullText } from "@/lib/job-search/find";
 import { foundPostingSchema, postingKey, postingText, type FoundPosting } from "@/lib/job-search/search";
-import { saveScore } from "@/lib/posting-scores";
+import { keepScoreOnApplication, saveScore } from "@/lib/posting-scores";
 import { loadProfile } from "@/lib/profile-data";
 
 import { defineJob } from "./runner";
@@ -38,6 +38,7 @@ export const scorePostingJob = defineJob({
       { ...options, signal },
     );
     await saveScore(posting, data, promptVersion);
+    await keepScoreOnApplication(posting, data);
     return data;
   },
 });

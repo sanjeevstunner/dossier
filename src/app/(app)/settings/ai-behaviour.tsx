@@ -11,7 +11,7 @@ import type { Creativity } from "@/generated/prisma/enums";
 
 import { updateSettings } from "./actions";
 
-type Behaviour = { creativity: Creativity; strict: boolean; showDiff: boolean };
+type Behaviour = { creativity: Creativity; strict: boolean; showDiff: boolean; confirmApplyAnswers: boolean; confirmApplyResume: boolean };
 
 const CREATIVITY_OPTIONS: { value: Creativity; label: string }[] = [
   { value: "FAITHFUL", label: "Faithful" },
@@ -75,6 +75,22 @@ export function AiBehaviour({ initial }: { initial: Behaviour }) {
         checked={behaviour.showDiff}
         onCheckedChange={(showDiff) => change({ showDiff })}
       />
+      <Toggle
+        className="border-t border-line py-4"
+        label="Confirm easy apply answers"
+        description="Easy apply with agent shows the answers it would send to Naukri's questions, and your resume, so you can edit them first. Then send them with the agent, or keep it as a draft."
+        checked={behaviour.confirmApplyAnswers}
+        onCheckedChange={(confirmApplyAnswers) => change({ confirmApplyAnswers })}
+      />
+      {behaviour.confirmApplyAnswers && (
+        <Toggle
+          className="py-4 pl-8"
+          label="Also confirm the resume"
+          description="Before anything is sent, show the resume that goes with the apply too. Leave it off to confirm only the answers."
+          checked={behaviour.confirmApplyResume}
+          onCheckedChange={(confirmApplyResume) => change({ confirmApplyResume })}
+        />
+      )}
     </Card>
   );
 }

@@ -30,9 +30,12 @@ export function StatusControl({
   status,
   interviewAt = null,
   timeZone,
+  hasUploadedResume = false,
 }: {
   id: string;
   status: ApplicationStatus;
+  /** A scored application can only be sent with a resume the user uploaded. */
+  hasUploadedResume?: boolean;
   interviewAt?: Date | null;
   timeZone?: string;
 }) {
@@ -41,6 +44,9 @@ export function StatusControl({
   const [interview, setInterview] = useState<"edit" | "ask" | null>(null);
   const askForDate = useRef(false);
   const { label } = statusInfo(shown);
+  // Scored moves to Draft by itself, when the resume is written: from there the user can only send it.
+  const scored = shown === ApplicationStatus.SCORED;
+  const choices = STATUSES.filter((entry) => (scored ? entry.value === ApplicationStatus.SCORED || entry.value === ApplicationStatus.SENT : entry.value !== ApplicationStatus.SCORED));
 
   const move = (to: ApplicationStatus) => {
     if (to === shown) return;
@@ -77,8 +83,8 @@ export function StatusControl({
         >
           <DropdownMenuLabel>Move this application to</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={shown} onValueChange={(value) => move(value as ApplicationStatus)}>
-            {STATUSES.map((entry) => (
-              <DropdownMenuRadioItem key={entry.value} value={entry.value}>
+            {choices.map((entry) => (
+              <DropdownMenuRadioItem key={entry.value} value={entry.value} disabled={scored && entry.value === ApplicationStatus.SENT && !hasUploadedResume}>
                 <StatusDot status={entry.value} />
                 {entry.label}
               </DropdownMenuRadioItem>
@@ -96,7 +102,7 @@ export function StatusControl({
           onOpenChange={(open) => setInterview(open ? "edit" : null)}
         />
       )}
-      {shown === ApplicationStatus.DRAFT && <Button onClick={() => move(ApplicationStatus.SENT)}>Mark as sent</Button>}
+      {(shown === ApplicationStatus.DRAFT || (scored && hasUploadedResume)) && <Button onClick={() => move(ApplicationStatus.SENT)}>Mark as sent</Button>}
     </>
   );
 }

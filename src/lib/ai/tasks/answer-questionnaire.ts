@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { NaukriAnswers, NaukriQuestion } from "@/lib/job-search/naukri";
+import { NAUKRI_TEXT_MAX, type NaukriAnswers, type NaukriQuestion } from "@/lib/job-search/naukri";
 import type { ProfileData } from "@/lib/profile";
 
 import { profileForPrompt, system, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
@@ -52,9 +52,6 @@ export type QuestionnaireAnswers = {
   missing: string[];
 };
 
-/** Naukri's limit for a text answer. */
-const MAX_TEXT = 100;
-
 /**
  * The model's answers, trusting nothing: choices must be option keys of their
  * question and are sent as labels (as Naukri's own page does), text is short
@@ -70,7 +67,7 @@ export function answersFrom(questions: NaukriQuestion[], given: z.infer<typeof a
     const value = answer?.found ? answer.answer.trim() : "";
     const keys = (question.type === "multi" ? value.split(",") : [value]).map((key) => key.trim()).filter(Boolean);
     const ok = question.type === "text" ? value !== "" : keys.length > 0 && keys.every((key) => key in question.options);
-    if (ok) answers[question.id] = question.type === "text" ? value.slice(0, MAX_TEXT) : keys.map((key) => question.options[key]);
+    if (ok) answers[question.id] = question.type === "text" ? value.slice(0, question.maxLength ?? NAUKRI_TEXT_MAX) : keys.map((key) => question.options[key]);
     else if (question.required) missing.push(answer?.missing.trim() || question.text || `Question ${question.id}`);
   }
   return { answers, missing };

@@ -78,6 +78,7 @@
   --color-flash: light-dark(oklch(0.95 0.05 90), rgb(240 200 90 / 0.16)); /* briefly marks content that changed */
 
   /* Application statuses (dots and bars; the label next to them is ink) */
+  --color-status-scored: oklch(0.65 0.08 160);
   --color-status-draft: light-dark(#a29d94, #827c73);
   --color-status-sent: oklch(0.62 0.09 250);
   --color-status-screening: oklch(0.62 0.09 205);
