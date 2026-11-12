@@ -268,8 +268,11 @@ function CardFace({ row, lifted = false, onOpen, actions }: { row: ApplicationRo
 function ScoredActions({ row }: { row: ApplicationRow }) {
   const router = useRouter();
   const [jobId, setJobId] = useState<string | null>(null);
+  // "Confirm easy apply answers" is on: the agent stopped before sending, for the user's answers.
+  const [needsAnswers, setNeedsAnswers] = useState(false);
   const job = useJob(jobId, 0, (update) => {
     if (update.status === "DONE" || update.status === "FAILED") {
+      if (update.status === "DONE" && (update.result as { review?: unknown } | null)?.review) setNeedsAnswers(true);
       if (update.status === "FAILED") toast(update.error ?? "That didn't work.");
       setJobId(null);
       router.refresh();
@@ -302,6 +305,11 @@ function ScoredActions({ row }: { row: ApplicationRow }) {
         </Button>
       )}
       {running && <span role="status" className="text-xs text-muted">{job?.step ?? "Starting…"}</span>}
+      {needsAnswers && !running && (
+        <span role="status" className="text-xs text-muted">
+          Needs your answers before it&apos;s sent. Open the application.
+        </span>
+      )}
     </div>
   );
 }

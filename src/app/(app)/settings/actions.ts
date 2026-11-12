@@ -189,6 +189,7 @@ export const updateSettings = action(
     creativity: z.enum(Creativity).optional(),
     strict: z.boolean().optional(),
     showDiff: z.boolean().optional(),
+    confirmApplyAnswers: z.boolean().optional(),
     paper: z.enum(PaperSize).optional(),
     dateFormat: z.enum(DateFormat).optional(),
     defaultTone: z.enum(Tone).optional(),

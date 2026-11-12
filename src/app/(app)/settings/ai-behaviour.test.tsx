@@ -16,7 +16,7 @@ vi.mock("@/components/toast", () => ({
   },
 }));
 
-const initial = { creativity: "BALANCED" as const, strict: true, showDiff: true };
+const initial = { creativity: "BALANCED" as const, strict: true, showDiff: true, confirmApplyAnswers: false };
 
 beforeEach(() => vi.mocked(updateSettings).mockClear());
 
@@ -49,6 +49,15 @@ describe("AI behaviour (E10-2)", () => {
     await user.click(screen.getByRole("switch", { name: "Never invent experience" }));
     expect(updateSettings).toHaveBeenLastCalledWith({ strict: false });
     expect(screen.getByRole("status")).toHaveTextContent("Heads up: drafts may now stretch beyond your profile. Double-check before sending.");
+  });
+
+  it("saves the easy apply confirmation switch", async () => {
+    const user = userEvent.setup();
+    render(<AiBehaviour initial={initial} />);
+    const toggle = screen.getByRole("switch", { name: "Confirm easy apply answers" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    await user.click(toggle);
+    expect(updateSettings).toHaveBeenLastCalledWith({ confirmApplyAnswers: true });
   });
 
   it("goes back when a save fails", async () => {
