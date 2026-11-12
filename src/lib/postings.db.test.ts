@@ -91,7 +91,11 @@ describe("postings", () => {
 
 describe("the Saved and Dismissed views (E14-7)", () => {
   it("lists saved and dismissed postings, newest first, and counts them", async () => {
-    const application = await prisma().application.create({ data: { title: "From Find jobs" } });
+    // Scored is still to be worked on, so it stays in Saved; a draft has moved to the board.
+    const application = await prisma().application.create({ data: { title: "From Find jobs", status: "SCORED" } });
+    const drafted = await prisma().application.create({ data: { title: "Drafted one", status: "DRAFT" } });
+    await savePosting({ ...found, externalId: "drafted", title: "Drafted" });
+    await prisma().posting.update({ where: { source_externalId: { source: "JSEARCH", externalId: "drafted" } }, data: { applicationId: drafted.id } });
     await savePosting({ ...found, externalId: "older", title: "Older" });
     await prisma().posting.update({ where: { source_externalId: { source: "JSEARCH", externalId: "older" } }, data: { savedAt: new Date("2026-09-01"), applicationId: application.id } });
     await savePosting({ ...found, externalId: "newer", title: "Newer" });

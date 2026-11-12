@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Posting } from "@/generated/prisma/client";
+import type { Posting, Prisma } from "@/generated/prisma/client";
 import { ApplicationStatus, JobStatus } from "@/generated/prisma/enums";
 import { linkKey, postingKey, type FoundPosting, type JobSource, type PostingState, type ShownPosting } from "@/lib/job-search/search";
 import { stringsOf } from "@/lib/agent/candidates";
@@ -98,10 +98,19 @@ export async function unmarkPosting(ref: PostingRef, mark: "saved" | "dismissed"
   });
 }
 
+/**
+ * Saved postings that are still to be worked on: once an application made
+ * from one is a draft or further, it has left Saved (it's on the board).
+ */
+const stillSaved: Prisma.PostingWhereInput = {
+  savedAt: { not: null },
+  OR: [{ applicationId: null }, { application: { status: ApplicationStatus.SCORED } }],
+};
+
 /** The Saved or Dismissed view (E14-7): newest first, with where each stands. */
 export async function listPostings(view: "saved" | "dismissed"): Promise<ShownPosting[]> {
   const rows = await prisma.posting.findMany({
-    where: view === "saved" ? { savedAt: { not: null } } : { dismissedAt: { not: null } },
+    where: view === "saved" ? stillSaved : { dismissedAt: { not: null } },
     orderBy: view === "saved" ? { savedAt: "desc" } : { dismissedAt: "desc" },
   });
   const states = await postingStates(rows.map(foundFromPosting));
@@ -114,7 +123,7 @@ export async function listPostings(view: "saved" | "dismissed"): Promise<ShownPo
 /** How many postings are saved and dismissed, for the views' tabs. */
 export async function countPostings(): Promise<{ saved: number; dismissed: number }> {
   const [saved, dismissed] = await Promise.all([
-    prisma.posting.count({ where: { savedAt: { not: null } } }),
+    prisma.posting.count({ where: stillSaved }),
     prisma.posting.count({ where: { dismissedAt: { not: null } } }),
   ]);
   return { saved, dismissed };
@@ -168,7 +177,7 @@ export async function postingStates(found: readonly (PostingRef & { url: string 
         postingKey(posting),
         {
           postingId: row?.id ?? null,
-          saved: Boolean(row?.savedAt),
+          saved: Boolean(row?.savedAt) && (!row?.application || row.application.status === ApplicationStatus.SCORED),
           dismissed: Boolean(row?.dismissedAt),
           applicationId: application?.id ?? null,
           drafted,
