@@ -103,6 +103,8 @@ export const settingsSchema = z.object({
   showDiff: flag(true),
   /** Easy apply with agent stops to show its answers for review before it sends them. */
   confirmApplyAnswers: flag(false),
+  /** With that on, the resume that goes with the apply is shown for confirming first too. */
+  confirmApplyResume: flag(false),
   paper: z.enum(PaperSize).catch(PaperSize.A4),
   dateFormat: z.enum(DateFormat).catch(DateFormat.DAY_MONTH_YEAR),
   defaultTone: z.enum(Tone).catch(Tone.WARM),

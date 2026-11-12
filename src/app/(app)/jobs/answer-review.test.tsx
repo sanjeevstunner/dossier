@@ -54,4 +54,17 @@ describe("AnswerReview", () => {
     expect(onKeep).toHaveBeenCalledWith({ t: "3", c: ["No"], m: ["Git"] });
     expect(onSend).not.toHaveBeenCalled();
   });
+
+  it("confirms just the resume when there are no questions, and says questions come next", async () => {
+    const { onSend, user } = open({ review: { questions: [], resume: "uploaded" } });
+    expect(screen.getByText(/Check the resume that will be sent/)).toBeInTheDocument();
+    expect(screen.getByText(/Resume that will be sent/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Send with Naukri agent" }));
+    expect(onSend).toHaveBeenCalledWith({});
+  });
+
+  it("leaves the resume out when only the answers are confirmed", () => {
+    open({ review: { questions, resume: null } });
+    expect(screen.queryByText(/Resume that will be sent/)).not.toBeInTheDocument();
+  });
 });

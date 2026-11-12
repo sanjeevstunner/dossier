@@ -101,12 +101,12 @@ export const startScoringPosting = action(z.object({ posting: foundPostingSchema
  * background, answering its questions from the profile; an apply under way is
  * followed, not started again. Once Naukri confirms it, it's on the board in Sent.
  */
-export const startEasyApply = action(z.object({ posting: foundPostingSchema, answers: reviewedAnswersSchema.optional() }), async ({ posting, answers }) => {
+export const startEasyApply = action(z.object({ posting: foundPostingSchema, answers: reviewedAnswersSchema.optional(), resumeConfirmed: z.boolean().optional() }), async ({ posting, answers, resumeConfirmed }) => {
   if (posting.source !== "NAUKRI") throw new ActionError("Only Naukri postings can be applied to from here.");
   if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first: it answers Naukri's questions.");
   const key = easyApplyJobKey(posting);
   const [unfinished] = await findUnfinishedJobs(key);
-  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting, answers }, { key })) };
+  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting, answers, resumeConfirmed }, { key })) };
 });
 
 /** Where a posting stands now: after an easy apply ends, so it shows applied without a reload. */

@@ -43,8 +43,8 @@ export { easyApplyJobKey };
  */
 export const easyApplyJob = defineJob({
   type: "naukri-easy-apply",
-  /** `answers`: the user's reviewed answers, sent as they are in place of the agent's. */
-  input: z.object({ posting: foundPostingSchema, answers: reviewedAnswersSchema.optional() }),
+  /** `answers`: the user's reviewed answers, sent as they are in place of the agent's. `resumeConfirmed`: the user has seen the resume that goes out. */
+  input: z.object({ posting: foundPostingSchema, answers: reviewedAnswersSchema.optional(), resumeConfirmed: z.boolean().optional() }),
   /** `missing` lists what the profile doesn't say: then nothing was sent, and the facts the user adds let it try again. */
   result: z.object({
     applicationId: z.string(),
@@ -64,11 +64,12 @@ export const easyApplyJob = defineJob({
             suggested: z.union([z.string(), z.array(z.string())]),
           }),
         ),
-        resume: z.enum(["written", "uploaded"]),
+        /** Set while the resume still needs confirming, before the first apply; null once it has been. */
+        resume: z.enum(["written", "uploaded"]).nullable(),
       })
       .optional(),
   }),
-  async run({ posting, answers: reviewed }, job) {
+  async run({ posting, answers: reviewed, resumeConfirmed }, job) {
     const { step, signal } = job;
     if (posting.source !== "NAUKRI") throw new JobFailure("Only Naukri postings can be applied to from here.");
     const credentials = credentialsFor(await loadJobSearchConfig(), "NAUKRI");
@@ -82,6 +83,12 @@ export const easyApplyJob = defineJob({
 
       await step("Tailoring your resume");
       const { applicationId, resume, resumeSource } = await tailoredResume(posting, job);
+
+      // The first apply sends the resume (and applies, when there are no questions), so it's confirmed before it.
+      const settings = await loadSettings();
+      if (settings.confirmApplyAnswers && settings.confirmApplyResume && !resumeConfirmed) {
+        return { applicationId, answered: [], missing: [], review: { questions: [], resume: resumeSource } };
+      }
 
       await step("Applying on Naukri with your tailored resume");
       const first = await naukriApply(credentials, jobId, { skills, resume }, context);
@@ -99,7 +106,7 @@ export const easyApplyJob = defineJob({
             answers = Object.fromEntries(toAnswer.flatMap((question) => (reviewed[question.id] === undefined ? [] : [[question.id, reviewed[question.id]]])));
           } else {
             await step(`Answering ${toAnswer.length === 1 ? "1 question" : `${toAnswer.length} questions`}`);
-            const confirming = (await loadSettings()).confirmApplyAnswers;
+            const confirming = settings.confirmApplyAnswers;
             const [provider, options, profile, facts] = await Promise.all([getAiProvider(), loadTaskOptions(), loadProfile(), loadFactTexts(applicationId)]);
             const suggested = await answerQuestionnaire(provider, { questions: toAnswer, profile, facts, title: posting.title, company: posting.company }, { ...options, signal }).catch((error: unknown) => {
               // The user answers anyway when confirming; otherwise it fails as before.
@@ -109,7 +116,7 @@ export const easyApplyJob = defineJob({
             });
             // Nothing is sent: the user checks the agent's answers, and the resume, first.
             if (confirming) {
-              return { applicationId, answered: [], missing: [], review: { questions: reviewQuestions(toAnswer, suggested.data.answers), resume: resumeSource } };
+              return { applicationId, answered: [], missing: [], review: { questions: reviewQuestions(toAnswer, suggested.data.answers), resume: null } };
             }
             // Nothing is sent: the posting asks for these, for this job or the profile, and applies again.
             if (suggested.data.missing.length > 0) return { applicationId, answered: [], missing: suggested.data.missing };

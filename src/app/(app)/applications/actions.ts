@@ -37,14 +37,14 @@ export const rememberListView = action(
  * for the posting the application came from. A second click follows the job
  * already running.
  */
-export const startEasyApplyForApplication = action(z.object({ id: z.string().min(1), answers: reviewedAnswersSchema.optional() }), async ({ id, answers }) => {
+export const startEasyApplyForApplication = action(z.object({ id: z.string().min(1), answers: reviewedAnswersSchema.optional(), resumeConfirmed: z.boolean().optional() }), async ({ id, answers, resumeConfirmed }) => {
   const posting = await prisma.posting.findUnique({ where: { applicationId: id } });
   if (posting?.source !== "NAUKRI") throw new ActionError("Only applications from Naukri postings can be applied to from here.");
   if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first: it answers Naukri's questions.");
   const found = foundFromPosting(posting);
   const key = easyApplyJobKey(found);
   const [unfinished] = await findUnfinishedJobs(key);
-  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting: found, answers }, { key })) };
+  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting: found, answers, resumeConfirmed }, { key })) };
 });
 
 /**

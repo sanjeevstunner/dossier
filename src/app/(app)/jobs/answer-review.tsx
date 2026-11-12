@@ -10,7 +10,8 @@ import type { ReviewQuestion } from "@/lib/easy-apply-answers";
 
 export type ReviewedValues = Record<string, string | string[]>;
 
-type Review = { questions: ReviewQuestion[]; resume: "written" | "uploaded" };
+/** `resume` is set while the resume still needs confirming: before the first apply, with no questions yet. */
+type Review = { questions: ReviewQuestion[]; resume: "written" | "uploaded" | null };
 
 const filled = (value: string | string[] | undefined) => (Array.isArray(value) ? value.length > 0 : Boolean(value?.trim()));
 
@@ -68,12 +69,14 @@ export function AnswerReview({
       }}
     >
       <p role="note" className="text-meta">
-        Nothing was sent yet. Check what Naukri will be told, and the resume that goes with it.
+        {review.resume
+          ? "Nothing was sent yet. Check the resume that will be sent. If Naukri asks questions, you'll check your answers to them next."
+          : "Nothing was sent yet. Check what Naukri will be told."}
       </p>
       {review.questions.map((question) => (
         <Question key={question.id} question={question} value={values[question.id]} onChange={(value) => set(question.id, value)} />
       ))}
-      <ResumePreview applicationId={applicationId} source={review.resume} />
+      {review.resume && <ResumePreview applicationId={applicationId} source={review.resume} />}
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" variant="primary" size="sm" aria-disabled={!ready || busy !== null || undefined}>
           {busy === "send" ? "Sending…" : "Send with Naukri agent"}

@@ -16,7 +16,7 @@ vi.mock("@/components/toast", () => ({
   },
 }));
 
-const initial = { creativity: "BALANCED" as const, strict: true, showDiff: true, confirmApplyAnswers: false };
+const initial = { creativity: "BALANCED" as const, strict: true, showDiff: true, confirmApplyAnswers: false, confirmApplyResume: false };
 
 beforeEach(() => vi.mocked(updateSettings).mockClear());
 
@@ -58,6 +58,16 @@ describe("AI behaviour (E10-2)", () => {
     expect(toggle).toHaveAttribute("aria-checked", "false");
     await user.click(toggle);
     expect(updateSettings).toHaveBeenLastCalledWith({ confirmApplyAnswers: true });
+  });
+
+  it("shows the resume switch only while answers are confirmed, and saves it on its own", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<AiBehaviour initial={initial} />);
+    expect(screen.queryByRole("switch", { name: "Also confirm the resume" })).not.toBeInTheDocument();
+    unmount();
+    render(<AiBehaviour initial={{ ...initial, confirmApplyAnswers: true }} />);
+    await user.click(screen.getByRole("switch", { name: "Also confirm the resume" }));
+    expect(updateSettings).toHaveBeenLastCalledWith({ confirmApplyResume: true });
   });
 
   it("goes back when a save fails", async () => {

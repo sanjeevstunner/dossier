@@ -11,7 +11,7 @@ import type { Creativity } from "@/generated/prisma/enums";
 
 import { updateSettings } from "./actions";
 
-type Behaviour = { creativity: Creativity; strict: boolean; showDiff: boolean; confirmApplyAnswers: boolean };
+type Behaviour = { creativity: Creativity; strict: boolean; showDiff: boolean; confirmApplyAnswers: boolean; confirmApplyResume: boolean };
 
 const CREATIVITY_OPTIONS: { value: Creativity; label: string }[] = [
   { value: "FAITHFUL", label: "Faithful" },
@@ -82,6 +82,15 @@ export function AiBehaviour({ initial }: { initial: Behaviour }) {
         checked={behaviour.confirmApplyAnswers}
         onCheckedChange={(confirmApplyAnswers) => change({ confirmApplyAnswers })}
       />
+      {behaviour.confirmApplyAnswers && (
+        <Toggle
+          className="py-4 pl-8"
+          label="Also confirm the resume"
+          description="Before anything is sent, show the resume that goes with the apply too. Leave it off to confirm only the answers."
+          checked={behaviour.confirmApplyResume}
+          onCheckedChange={(confirmApplyResume) => change({ confirmApplyResume })}
+        />
+      )}
     </Card>
   );
 }

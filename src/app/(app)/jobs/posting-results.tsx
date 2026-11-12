@@ -327,8 +327,8 @@ export function EasyApply({
   const failure = job?.status === "FAILED" ? job.error : jobId === null ? draftReason : null;
 
   const [kept, setKept] = useState(false);
-  const start = async (answers?: ReviewedValues) => {
-    const result = await startEasyApply({ posting, answers });
+  const start = async (answers?: ReviewedValues, resumeConfirmed?: boolean) => {
+    const result = await startEasyApply({ posting, answers, resumeConfirmed });
     if (!result.ok) return void toast(result.error);
     setKept(false);
     setJobId(result.data.jobId);
@@ -370,7 +370,8 @@ export function EasyApply({
         review={review}
         onSend={async (answers) => {
           // The same answers go on the facts first, then the agent sends them.
-          if (await keep(applicationId, review, answers, false)) await start(answers);
+          // Sending from the form means the resume (when it was shown) is confirmed too.
+          if (await keep(applicationId, review, answers, false)) await start(answers, true);
         }}
         onKeep={async (answers) => {
           if (await keep(applicationId, review, answers, true)) {
@@ -383,7 +384,7 @@ export function EasyApply({
   }
 
   if (job?.status === "DONE" && job.result?.missing?.length) {
-    return <MissingFacts key={jobId} applicationId={job.result.applicationId} missing={job.result.missing} onSaved={start} />;
+    return <MissingFacts key={jobId} applicationId={job.result.applicationId} missing={job.result.missing} onSaved={() => start()} />;
   }
 
   if (job?.status === "DONE" && job.result) {
