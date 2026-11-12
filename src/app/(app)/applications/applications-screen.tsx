@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { buttonClassName } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { ApplicationStatus } from "@/generated/prisma/enums";
-import type { ApplicationRow } from "@/lib/applications-data";
+import type { ApplicationRow, SavedRow } from "@/lib/applications-data";
 import { FILTERS, listHref, statusesIn, type Filter, type ListParams, type View } from "@/lib/applications-list";
 import { cn } from "@/lib/cn";
 
@@ -22,6 +22,8 @@ export type ApplicationsScreenProps = {
   params: ListParams;
   /** The applications in view: filtered, searched and sorted. */
   rows: ApplicationRow[];
+  /** Saved postings, shown on the board before Scored. */
+  saved: SavedRow[];
   /** How many each filter holds, before searching. */
   counts: Record<Filter, number>;
   summary: string;
@@ -32,7 +34,7 @@ export type ApplicationsScreenProps = {
 };
 
 const HINTS: Record<View, string> = {
-  board: "Drag a card to change its status",
+  board: "Saved and Scored move on by themselves. Drag a card to change its status from Draft on",
   table: "Click a row to open it",
 };
 
@@ -44,7 +46,7 @@ const SEARCH_DELAY_MS = 250;
  * and filters. Every change goes into the URL and the server answers with
  * the matching applications.
  */
-export function ApplicationsScreen({ params, rows, counts, summary, empty, archivedCount }: ApplicationsScreenProps) {
+export function ApplicationsScreen({ params, rows, saved, counts, summary, empty, archivedCount }: ApplicationsScreenProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState(params.q);
@@ -90,7 +92,7 @@ export function ApplicationsScreen({ params, rows, counts, summary, empty, archi
 
   // On the board the screen keeps to the window and each column scrolls on
   // its own; the table scrolls with the page.
-  const board = !empty && rows.length > 0 && params.view === "board";
+  const board = !empty && (rows.length > 0 || saved.length > 0) && params.view === "board";
 
   return (
     <div className={cn("flex flex-col", board ? "h-panel min-h-[520px]" : "flex-1")}>
@@ -162,10 +164,10 @@ export function ApplicationsScreen({ params, rows, counts, summary, empty, archi
           </div>
 
           <div className={cn("flex min-h-0 flex-1 flex-col motion-safe:transition-opacity", pending && "opacity-60")} aria-busy={pending || undefined}>
-            {rows.length === 0 ? (
+            {rows.length === 0 && !(saved.length > 0 && params.view === "board") ? (
               <Nothing>{params.q ? `No applications match “${params.q}”.` : "Nothing in this view yet."}</Nothing>
             ) : board ? (
-              <Board rows={shown} statuses={statusesIn(params.filter)} onMove={move} />
+              <Board rows={shown} saved={saved} statuses={statusesIn(params.filter)} onMove={move} />
             ) : (
               <Table rows={shown} sort={params.sort} onSort={(sort) => go({ sort })} onMove={move} />
             )}

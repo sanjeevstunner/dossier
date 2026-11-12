@@ -9,7 +9,8 @@ import { rememberListView } from "./actions";
 import { ApplicationsScreen, type ApplicationsScreenProps } from "./applications-screen";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
-vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })) }));
+vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })), startEasyApplyForApplication: vi.fn() }));
+vi.mock("./[id]/actions", () => ({ startCatchingUp: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => null }));
 
 export const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow => ({
@@ -22,6 +23,9 @@ export const row = (id: string, extra: Partial<ApplicationRow> = {}): Applicatio
   archived: false,
   deadline: null,
   match: { hit: 5, total: 7 },
+  score: null,
+  hasUploadedResume: false,
+  agentApply: false,
   sent: "20 Sep",
   updated: "2 days ago",
   updatedAt: Date.UTC(2026, 8, 26),
@@ -31,6 +35,7 @@ export const row = (id: string, extra: Partial<ApplicationRow> = {}): Applicatio
 const params: ListParams = { view: "board", filter: "all", q: "", sort: DEFAULT_SORT, archived: false };
 const props: ApplicationsScreenProps = {
   params,
+  saved: [],
   rows: [row("a1"), row("a2", { company: "Oaken Studio", status: "OFFER" })],
   counts: { all: 2, active: 2, closed: 0 },
   summary: "2 applications: 1 waiting to hear back, 1 in conversation. Nice momentum.",
@@ -51,7 +56,7 @@ describe("the Applications screen (E9-1)", () => {
     expect(screen.getByText(props.summary)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Board" })).toBeChecked();
     expect(screen.getByRole("link", { name: "+ New application" })).toHaveAttribute("href", "/new?fresh=1");
-    expect(screen.getByText("Drag a card to change its status")).toBeInTheDocument();
+    expect(screen.getByText("Saved and Scored move on by themselves. Drag a card to change its status from Draft on")).toBeInTheDocument();
   });
 
   it("filters with counts, through the URL", async () => {

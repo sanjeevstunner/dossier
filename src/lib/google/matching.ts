@@ -1,6 +1,6 @@
 import { ApplicationStatus } from "@/generated/prisma/enums";
 import { emailAddresses } from "@/lib/application-email";
-import { isInProgress } from "@/lib/status";
+import { isInProgress, isUnsent } from "@/lib/status";
 
 import { domainOf, FREEMAIL } from "./mime";
 
@@ -57,7 +57,7 @@ export function companyKey(company: string): string {
 /** The most likely of several candidates: one still in progress, most recently changed. */
 function best(candidates: MatchableApplication[]): MatchableApplication | null {
   if (candidates.length === 0) return null;
-  const open = candidates.filter((application) => isInProgress(application.status) && application.status !== ApplicationStatus.DRAFT);
+  const open = candidates.filter((application) => isInProgress(application.status) && !isUnsent(application.status));
   const pool = open.length > 0 ? open : candidates;
   return [...pool].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
 }
@@ -78,7 +78,7 @@ export function matchMail(
   }
 
   // Only applications that were sent: a draft can't have had a reply.
-  const sent = applications.filter((application) => application.status !== ApplicationStatus.DRAFT);
+  const sent = applications.filter((application) => !isUnsent(application.status));
   const haystack = companyKey(`${mail.fromName} ${domain} ${mail.subject}`);
   const byCompany = sent.filter((application) => {
     const key = companyKey(application.company);
@@ -94,6 +94,7 @@ export function matchMail(
 }
 
 const RANK: Record<ApplicationStatus, number> = {
+  SCORED: 0,
   DRAFT: 0,
   SENT: 1,
   SCREENING: 2,

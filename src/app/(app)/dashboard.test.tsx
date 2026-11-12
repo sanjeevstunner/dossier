@@ -14,7 +14,7 @@ vi.mock("@/components/toast", () => ({ toast: vi.fn(), toastResult: (result: unk
 
 const figures: DashboardFigures = {
   total: 9,
-  byStatus: { DRAFT: 2, SENT: 2, SCREENING: 1, INTERVIEW: 1, OFFER: 1, ACCEPTED: 0, REJECTED: 1, DECLINED: 1 },
+  byStatus: { SCORED: 0, DRAFT: 2, SENT: 2, SCREENING: 1, INTERVIEW: 1, OFFER: 1, ACCEPTED: 0, REJECTED: 1, DECLINED: 1 },
   funnel: [
     { stage: "SENT", count: 7, conversion: null, stopped: { open: 2, rejected: 0, declined: 0, archived: 0 } },
     { stage: "SCREENING", count: 5, conversion: 71, stopped: { open: 1, rejected: 1, declined: 0, archived: 0 } },

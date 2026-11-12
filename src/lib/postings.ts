@@ -5,6 +5,7 @@ import { ApplicationStatus, JobStatus } from "@/generated/prisma/enums";
 import { linkKey, postingKey, type FoundPosting, type JobSource, type PostingState, type ShownPosting } from "@/lib/job-search/search";
 import { stringsOf } from "@/lib/agent/candidates";
 import { prisma } from "@/lib/prisma";
+import { isUnsent } from "@/lib/status";
 
 // Postings kept from Find jobs (E14-5): saved, dismissed, or started an
 // application from. Nothing else from a search is stored, and a posting
@@ -160,7 +161,8 @@ export async function postingStates(found: readonly (PostingRef & { url: string 
       const row = byKey.get(postingKey(posting));
       const link = linkKey(posting.url);
       const application = row?.applicationId ? { id: row.applicationId, status: row.application?.status } : (link && byLink.get(link)) || null;
-      const drafted = application?.status === ApplicationStatus.DRAFT;
+      // "Drafted" covers Scored too: an application that isn't sent yet.
+      const drafted = application?.status !== undefined && isUnsent(application.status);
       const apply = lastApply.get(easyApplyJobKey(posting));
       return [
         postingKey(posting),
@@ -181,7 +183,7 @@ export async function postingStates(found: readonly (PostingRef & { url: string 
 /** Why the last easy apply of a Draft's posting failed; null when it isn't a draft or its last apply didn't fail. */
 export async function draftReasonFor(applicationId: string): Promise<string | null> {
   const posting = await prisma.posting.findUnique({ where: { applicationId }, select: { source: true, externalId: true, application: { select: { status: true } } } });
-  if (posting?.application?.status !== ApplicationStatus.DRAFT) return null;
+  if (!posting?.application || !isUnsent(posting.application.status)) return null;
   const last = await prisma.job.findFirst({ where: { key: easyApplyJobKey(posting) }, orderBy: { createdAt: "desc" }, select: { status: true, error: true } });
   return last?.status === JobStatus.FAILED ? last.error : null;
 }

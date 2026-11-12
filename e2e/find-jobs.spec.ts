@@ -71,7 +71,7 @@ test("searches, keeps postings, and starts an application from one", async ({ pa
   expect(posting.applicationId).toBe(applicationId);
   await page.goto("/jobs?view=saved");
   await expect(page.getByRole("list", { name: "Postings" }).getByRole("button", { name: /^Senior Product Designer, Payments/ })).toContainText("Drafted");
-  await expect(page.getByRole("link", { name: "Open the draft" })).toHaveAttribute("href", `/applications/${applicationId}`);
+  await expect(page.getByRole("link", { name: "Open the application" })).toHaveAttribute("href", `/applications/${applicationId}`);
 });
 
 test("says when nothing was found", async ({ page }) => {

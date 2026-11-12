@@ -9,7 +9,8 @@ import { DEFAULT_SORT } from "@/lib/applications-list";
 
 import { ApplicationsScreen } from "./applications-screen";
 
-vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })) }));
+vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })), startEasyApplyForApplication: vi.fn() }));
+vi.mock("./[id]/actions", () => ({ startCatchingUp: vi.fn() }));
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => null }));
 vi.mock("@/components/change-status", () => ({ changeStatus: vi.fn(async () => true) }));
@@ -29,6 +30,9 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
   archived: false,
   deadline: null,
   match: null,
+  score: null,
+  hasUploadedResume: false,
+  agentApply: false,
   sent: "10 Aug",
   updated: "4 weeks ago",
   updatedAt: Date.UTC(2026, 7, 31),
@@ -37,7 +41,7 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
 const params = { view: "table" as const, filter: "all" as const, q: "", sort: DEFAULT_SORT, archived: false };
 const open = (extra = {}) =>
   render(
-    <ApplicationsScreen params={params} rows={[row("quill")]} counts={{ all: 1, active: 0, closed: 1 }} summary="1 application" empty={false} archivedCount={0} {...extra} />,
+    <ApplicationsScreen params={params} saved={[]} rows={[row("quill")]} counts={{ all: 1, active: 0, closed: 1 }} summary="1 application" empty={false} archivedCount={0} {...extra} />,
   );
 const menu = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole("button", { name: "Actions for UX Designer, Quill & Co" }));

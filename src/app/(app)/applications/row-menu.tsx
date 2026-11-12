@@ -43,10 +43,11 @@ export function RowMenu({ row, onMove }: { row: ApplicationRow; onMove: (to: App
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuLabel>Move to</DropdownMenuLabel>
+          <DropdownMenuLabel>{row.status === "SCORED" && !row.hasUploadedResume ? "Move to (upload your resume to send)" : "Move to"}</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={row.status} onValueChange={(value) => value !== row.status && onMove(value as ApplicationStatus)}>
-            {STATUSES.map((status) => (
-              <DropdownMenuRadioItem key={status.value} value={status.value}>
+            {STATUSES.filter((status) => (row.status === "SCORED" ? status.value === "SENT" || status.value === "SCORED" : status.value !== "SCORED")).map((status) => (
+              // Scored moves to Draft by itself; the user can only send it, with a resume they uploaded.
+              <DropdownMenuRadioItem key={status.value} value={status.value} disabled={row.status === "SCORED" && status.value === "SENT" && !row.hasUploadedResume}>
                 <StatusDot status={status.value} />
                 {status.label}
               </DropdownMenuRadioItem>

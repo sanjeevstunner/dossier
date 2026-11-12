@@ -24,6 +24,7 @@ import { loadSettings } from "@/lib/settings-data";
 import { applyStatusChange } from "@/lib/status-changes";
 
 import { readPostingJob } from "./read-posting";
+import { writeApplicationDocumentJob } from "./write-application-document";
 import { defineJob, JobFailure, type JobContext } from "./runner";
 import { writeDocumentsJob } from "./write-documents";
 
@@ -134,6 +135,11 @@ async function tailoredResume(posting: FoundPosting, context: JobContext): Promi
     where: { id: applicationId },
     select: { company: true, role: true, documents: { where: { kind: DocumentKind.RESUME }, select: { id: true } }, files: { where: { kind: DocumentKind.RESUME } } },
   });
+  // A scored application has neither yet: the AI writes the resume now (which makes it a draft).
+  if (application.documents.length === 0 && application.files.length === 0) {
+    await writeApplicationDocumentJob.run({ applicationId, kind: "resume" }, context);
+    application.documents.push({ id: "written" });
+  }
   if (application.documents.length === 0) {
     // The user's own resume, as they uploaded it, until the AI writes one.
     const own = application.files[0];

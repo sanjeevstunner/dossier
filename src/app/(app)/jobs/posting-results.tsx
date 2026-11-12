@@ -742,10 +742,10 @@ function PostingDetail({
 
       {state.drafted && (
         <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
-          Drafted on your board, not sent yet.{" "}
+          On your board, not sent yet.{" "}
           {!easyApply && state.draftReason && <>{state.draftReason} </>}
           <Link href={`/applications/${state.applicationId}`} className="underline underline-offset-2">
-            Open the draft
+            Open the application
           </Link>
         </p>
       )}

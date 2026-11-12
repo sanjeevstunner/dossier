@@ -8,6 +8,7 @@ import { renderPdf } from "@/lib/pdf/render";
 import { prisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
+import { isUnsent } from "@/lib/status";
 import { applyStatusChange } from "@/lib/status-changes";
 
 import { loadGoogleAccount } from "./account";
@@ -89,7 +90,7 @@ export async function sendApplicationEmail(applicationId: string): Promise<SentA
   ]);
 
   let eventId: string | null = null;
-  if (application.status === ApplicationStatus.DRAFT) {
+  if (isUnsent(application.status)) {
     const change = await applyStatusChange(prisma, applicationId, ApplicationStatus.SENT);
     if (change.outcome === "changed") eventId = change.event.id;
   }
