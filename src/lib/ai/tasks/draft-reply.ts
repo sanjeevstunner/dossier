@@ -8,9 +8,9 @@ import { TONES } from "@/lib/tones";
 import { factSources, guardSources, unverifiedFacts } from "../fact-guard";
 
 import { emailForPrompt, UNTRUSTED_EMAIL } from "./classify-reply";
-import { applicationFacts, candidateFacts, CREATIVITY, jobForPrompt, NO_EM_DASHES, profileForPrompt, system, truthfulness, type Task } from "./prompt-parts";
+import { applicationFacts, candidateFacts, CREATIVITY, jobForPrompt, NO_EM_DASHES, profileForPrompt, system, userPrompts, truthfulness, type Task } from "./prompt-parts";
 
-export const DRAFT_REPLY_VERSION = "draft-reply@3";
+export const DRAFT_REPLY_VERSION = "draft-reply@4";
 
 const answerSchema = z.object({
   greeting: z.string(),
@@ -59,6 +59,7 @@ export const draftReply: Task<DraftReplyInput, DraftedReply> = async (provider, 
       truthfulness(options.strict),
       candidateFacts(profile, facts),
       CREATIVITY[options.creativity],
+      userPrompts(options, "global", "agent"),
       UNTRUSTED_EMAIL,
       NO_EM_DASHES,
     ),

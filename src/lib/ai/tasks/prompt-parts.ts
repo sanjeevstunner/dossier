@@ -17,6 +17,8 @@ export type TaskOptions = {
   language: string | null;
   /** SET-9 "Resume length": the most pages a resume may have, or null for no limit (E10-10). */
   maxPages?: number | null;
+  /** The user's custom prompts, already "" when switched off (loadTaskOptions). */
+  prompts?: { global: string; docs: string; resume: string; agent: string };
   signal?: AbortSignal;
 };
 
@@ -167,6 +169,14 @@ export const COVER_LETTER_APPROACH = `The reader has the resume already, so the 
 - The problem the candidate would be hired to solve, as the posting shows it.
 - Above all, where the candidate has already solved that problem, or the closest one their profile shows: one or two specific stories (the challenge, the decisions made, the result, as far as the profile tells them) rather than a walk through their roles or a list of skills. What counts is having faced a similar challenge, not having held the right title.
 - Keep it short and specific. The aim isn't a letter that reads as well written but one that makes the reader want to talk to the candidate, so skip stock phrases such as "I am writing to apply" or "I am passionate about".`;
+
+/** The user's own standing instructions for the given scopes, or "" when none are on. */
+export function userPrompts(options: Pick<TaskOptions, "prompts">, ...scopes: ("global" | "docs" | "resume" | "agent" | false)[]): string {
+  const text = scopes.map((scope) => scope && options.prompts?.[scope]).filter(Boolean).join("\n\n");
+  return text
+    ? `The candidate's own standing instructions. Follow them unless they conflict with the rules above, and never use them to invent facts:\n${text}`
+    : "";
+}
 
 /** Joins the parts of a system prompt. */
 export function system(...parts: (string | false | null | undefined)[]): string {

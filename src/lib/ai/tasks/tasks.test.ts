@@ -217,7 +217,7 @@ describe("tailorResume", () => {
 
   it("returns units, keeping only real roles and the profile's own skills (APP-4)", async () => {
     const { data, promptVersion } = await tailorResume(model(answer), { profile, extracted, match: null, facts: [], posting }, options);
-    expect(promptVersion).toBe("tailor-resume@10");
+    expect(promptVersion).toBe("tailor-resume@11");
     expect(data.map((unit) => unit.id)).toEqual([
       "summary",
       "experience:e1",
@@ -302,7 +302,7 @@ describe("writeCoverLetter", () => {
   it("returns the recipient, greeting, paragraphs and the tone's sign-off for an English letter (APP-10, E8-11)", async () => {
     const provider = model(answer);
     const { data, promptVersion } = await writeCoverLetter(provider, { profile, extracted, match, tone: "FORMAL", facts: [], posting }, options);
-    expect(promptVersion).toBe("write-cover-letter@6");
+    expect(promptVersion).toBe("write-cover-letter@7");
     expect(data).toEqual([
       { id: "recipient", label: "Recipient", text: "Ledgerly · Hiring team\nAmsterdam" },
       { id: "greeting", label: "Greeting", text: "Dear Ledgerly team," },
@@ -358,7 +358,7 @@ describe("writeEmail", () => {
   it("writes the recipient, subject and message, ending with the sign-off and name", async () => {
     const provider = model(answer);
     const { data, promptVersion } = await writeEmail(provider, input, options);
-    expect(promptVersion).toBe("write-email@2");
+    expect(promptVersion).toBe("write-email@3");
     expect(data).toEqual([
       { id: "to", label: "Recipient", text: "John Doe <john.doe@example.com>" },
       { id: "subject", label: "Subject", text: "Application: Senior Product Designer, Jane Doe" },
@@ -405,7 +405,7 @@ describe("regenerateUnit", () => {
     const unit = resume.find((entry) => entry.id === "experience:e1")!;
     const provider = model({ text: "- Rebuilt the carrier portal\n• Grew the design system\n" });
     const { data, promptVersion } = await regenerateUnit(provider, { kind: "RESUME", unit, document: resume, profile, extracted, tone: "WARM", facts: [], posting }, options);
-    expect(promptVersion).toBe("regenerate-unit@6");
+    expect(promptVersion).toBe("regenerate-unit@7");
     expect(data).toMatchObject({ id: "experience:e1", text: "Rebuilt the carrier portal\nGrew the design system" });
     expect(prompt(provider)).toContain(`Write a new version of "${unit.label}" (experience:e1)`);
     expect(sent(provider).system).not.toContain(COVER_LETTER_APPROACH);
@@ -456,7 +456,7 @@ describe("refineChat", () => {
       declined: false,
     };
     const { data, promptVersion } = await refineChat(model(answer), input, options);
-    expect(promptVersion).toBe("refine-chat@7");
+    expect(promptVersion).toBe("refine-chat@8");
     expect(data).toEqual({
       reply: "I made the letter more formal.",
       tone: "FORMAL",

@@ -99,6 +99,17 @@ export const settingsSchema = z.object({
   creativity: z.enum(Creativity).catch(Creativity.BALANCED),
   /** "Never invent experience" (SET-4). */
   strict: flag(true),
+  /** Master switch for the custom prompts below; off sends none of them, though they stay saved. */
+  customPrompts: flag(false),
+  /** The user's own standing instructions: all writing, documents (resume, cover letter, email), resume only, and the application agent. Each applies only when its own switch and the master are on. */
+  promptGlobal: z.string().catch(""),
+  promptDocs: z.string().catch(""),
+  promptResume: z.string().catch(""),
+  promptAgent: z.string().catch(""),
+  promptGlobalOn: flag(false),
+  promptDocsOn: flag(false),
+  promptResumeOn: flag(false),
+  promptAgentOn: flag(false),
   /** "Show what changed" (SET-5). */
   showDiff: flag(true),
   /** Easy apply with agent stops to show its answers for review before it sends them. */

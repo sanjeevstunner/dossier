@@ -17,12 +17,13 @@ import {
   NO_EM_DASHES,
   profileForPrompt,
   system,
+  userPrompts,
   truthfulness,
   UNTRUSTED_POSTING,
   type Task,
 } from "./prompt-parts";
 
-export const TAILOR_RESUME_VERSION = "tailor-resume@10";
+export const TAILOR_RESUME_VERSION = "tailor-resume@11";
 
 const answerSchema = z.object({
   summary: z.string(),
@@ -76,6 +77,7 @@ export const tailorResume: Task<TailorInput, Unit[]> = async (provider, { profil
       candidateFacts(profile, facts),
       CREATIVITY[options.creativity],
       languageRule(options.language),
+      userPrompts(options, "global", "docs", "resume"),
       UNTRUSTED_POSTING,
       NO_EM_DASHES,
     ),

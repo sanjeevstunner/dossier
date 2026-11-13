@@ -21,6 +21,7 @@ import { availableUpdate } from "@/lib/update-check";
 import { USAGE_PING_HOST, usagePingChoice } from "@/lib/usage-ping";
 
 import { AiBehaviour } from "./ai-behaviour";
+import { CustomPrompts } from "./custom-prompts";
 import { AiProviderSection } from "./ai-provider-section";
 import { DataSection } from "./data-section";
 import { DocumentsSection } from "./documents-section";
@@ -47,6 +48,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         <>
           <AiProviderSection initial={await loadAiSettingsView()} />
           <AiBehaviour initial={{ creativity: settings.creativity, strict: settings.strict, showDiff: settings.showDiff, confirmApplyAnswers: settings.confirmApplyAnswers, confirmApplyResume: settings.confirmApplyResume }} />
+          <CustomPrompts initial={{ customPrompts: settings.customPrompts, promptGlobal: settings.promptGlobal, promptDocs: settings.promptDocs, promptResume: settings.promptResume, promptAgent: settings.promptAgent, promptGlobalOn: settings.promptGlobalOn, promptDocsOn: settings.promptDocsOn, promptResumeOn: settings.promptResumeOn, promptAgentOn: settings.promptAgentOn }} />
         </>
       ) : section === "jobs" ? (
         <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />

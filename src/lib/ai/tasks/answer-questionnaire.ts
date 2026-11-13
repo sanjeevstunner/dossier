@@ -3,9 +3,9 @@ import { z } from "zod";
 import { NAUKRI_TEXT_MAX, type NaukriAnswers, type NaukriQuestion } from "@/lib/job-search/naukri";
 import type { ProfileData } from "@/lib/profile";
 
-import { profileForPrompt, system, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
+import { profileForPrompt, system, userPrompts, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
 
-export const ANSWER_QUESTIONNAIRE_VERSION = "answer-questionnaire@1";
+export const ANSWER_QUESTIONNAIRE_VERSION = "answer-questionnaire@2";
 
 // The apply agent's questionnaire (Naukri easy apply): answers taken only
 // from the profile and its facts. Anything the profile doesn't say comes back
@@ -73,10 +73,10 @@ export function answersFrom(questions: NaukriQuestion[], given: z.infer<typeof a
   return { answers, missing };
 }
 
-export const answerQuestionnaire: Task<AnswerQuestionnaireInput, QuestionnaireAnswers> = async (provider, input, { signal }) => {
+export const answerQuestionnaire: Task<AnswerQuestionnaireInput, QuestionnaireAnswers> = async (provider, input, options) => {
   const { questions, profile, title, company, facts = [] } = input;
   const answer = await provider.complete({
-    system: system(INSTRUCTIONS, "Never invent an employer, skill, date, number or credential.", UNTRUSTED_POSTING),
+    system: system(INSTRUCTIONS, "Never invent an employer, skill, date, number or credential.", userPrompts(options, "global", "agent"), UNTRUSTED_POSTING),
     messages: [
       {
         role: "user",
@@ -96,7 +96,7 @@ export const answerQuestionnaire: Task<AnswerQuestionnaireInput, QuestionnaireAn
     schemaName: "questionnaire_answers",
     creativity: "FAITHFUL",
     effort: "low",
-    signal,
+    signal: options.signal,
   });
   return { data: answersFrom(questions, answer.answers), promptVersion: ANSWER_QUESTIONNAIRE_VERSION };
 };

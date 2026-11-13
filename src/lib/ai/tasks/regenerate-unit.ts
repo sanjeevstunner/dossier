@@ -20,12 +20,13 @@ import {
   NO_EM_DASHES,
   profileForPrompt,
   system,
+  userPrompts,
   truthfulness,
   UNTRUSTED_POSTING,
   type Task,
 } from "./prompt-parts";
 
-export const REGENERATE_UNIT_VERSION = "regenerate-unit@6";
+export const REGENERATE_UNIT_VERSION = "regenerate-unit@7";
 
 /** What the letter's frame parts are, for the model (E8-11). */
 const FRAME_PARTS: Record<string, string> = {
@@ -90,6 +91,7 @@ export const regenerateUnit: Task<RegenerateInput, Unit> = async (provider, inpu
       candidateFacts(profile, facts),
       CREATIVITY[options.creativity],
       languageRule(options.language),
+      userPrompts(options, "global", "docs", kind === DocumentKind.RESUME && "resume"),
       UNTRUSTED_POSTING,
       NO_EM_DASHES,
     ),

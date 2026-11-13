@@ -18,13 +18,14 @@ import {
   postingForPrompt,
   profileForPrompt,
   system,
+  userPrompts,
   truthfulness,
   UNTRUSTED_POSTING,
   type Task,
 } from "./prompt-parts";
 import { withoutFrame } from "./write-cover-letter";
 
-export const WRITE_EMAIL_VERSION = "write-email@2";
+export const WRITE_EMAIL_VERSION = "write-email@3";
 
 const answerSchema = z.object({
   contactName: z.string().nullable(),
@@ -72,6 +73,7 @@ export const writeEmail: Task<EmailInput, Unit[]> = async (provider, { profile, 
       candidateFacts(profile, facts),
       CREATIVITY[options.creativity],
       languageRule(options.language),
+      userPrompts(options, "global", "docs"),
       UNTRUSTED_POSTING,
       NO_EM_DASHES,
     ),
