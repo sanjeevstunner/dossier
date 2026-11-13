@@ -10,7 +10,7 @@ export type JobSearchSettingsView = {
   adzuna: { appId: string; keyState: JobKeyState };
   /** Whether this server offers the Bundesagentur für Arbeit, and when its note was accepted (#223). */
   arbeitsagentur: { offered: boolean; acceptedAt: string | null };
-  /** The NopeRi server that reaches Naukri for Dossier, and its API key's state. */
+  /** The NopeRi server that reaches Naukri and NaukriGulf for Dossier, and its API key's state. */
   naukri: { url: string; keyState: JobKeyState };
 };
 
@@ -87,7 +87,22 @@ export const SOURCE_INFO: Record<JobSource, SourceInfo> = {
     attributionLink: null,
     countries: ["in"],
   },
+  NAUKRIGULF: {
+    name: "NaukriGulf",
+    description: "The Gulf's job board, through the same NopeRi server as Naukri, which signs in to NaukriGulf for you. Adds recommended jobs.",
+    tag: "Gulf countries · your own NopeRi server · unofficial",
+    keyUrl: null,
+    quotaPeriod: null,
+    attribution: null,
+    attributionLink: null,
+    countries: ["ae", "sa", "qa", "kw", "om", "bh"],
+  },
 };
+
+/** Whether a source goes through the user's NopeRi server (Naukri, NaukriGulf), with its address, key and sign-in. */
+export function isNopeRi(source: JobSource | "OFF" | null | undefined): source is "NAUKRI" | "NAUKRIGULF" {
+  return source === "NAUKRI" || source === "NAUKRIGULF";
+}
 
 /** Whether a source lists jobs in a country ("de"). */
 export function sourceCovers(source: JobSource, country: string): boolean {

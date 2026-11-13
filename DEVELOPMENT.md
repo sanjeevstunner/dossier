@@ -160,10 +160,11 @@ docker compose exec -e AI_LIVE=ollama app yarn vitest run src/lib/ai/providers.l
 
 ## Job search
 
-Find jobs (`/jobs`) searches the job source chosen in Settings → Job search: JSearch, Adzuna or the Bundesagentur für Arbeit. Until a choice is saved, `DOSSIER_JOBS_SOURCE` and the key variables decide (see `.env.example`). In the code, "job" already means a background task (`Job`, `src/lib/jobs`), so a job ad is a "posting", and job search lives in `src/lib/job-search`:
+Find jobs (`/jobs`) searches the job source chosen in Settings → Job search: JSearch, Adzuna, the Bundesagentur für Arbeit, Naukri or NaukriGulf. Until a choice is saved, `DOSSIER_JOBS_SOURCE` and the key variables decide (see `.env.example`). In the code, "job" already means a background task (`Job`, `src/lib/jobs`), so a job ad is a "posting", and job search lives in `src/lib/job-search`:
 
 - `search.ts` and `sources.ts`: the query and posting shapes every source maps to, the URL format, and what each source covers. Shared with the browser.
 - One adapter per source (`jsearch.ts`, `adzuna.ts`, `arbeitsagentur.ts`), behind `index.ts`, which checks the country, caches answers in memory for 30 minutes and logs a source that changed or isn't answering, without the search. Failures are a `JobSearchError` with a message for the screen.
+- Naukri (`naukri.ts`) and NaukriGulf (`naukrigulf.ts`) aren't asked directly: both go through the user's own NopeRi server ([noperi-ts](https://github.com/sanjeevstunner/noperi-ts)), which signs in to each site like a browser. They share its address and key (`DOSSIER_NAUKRI_URL`, `DOSSIER_NAUKRI_KEY`); NaukriGulf's routes are under `/api/gulf`, and NopeRi needs `NAUKRIGULF_USERNAME` and `NAUKRIGULF_PASSWORD` in its own `.env`. Both offer filters, recommended jobs and easy apply (`src/lib/jobs/easy-apply.ts`, `src/lib/jobs/naukrigulf-apply.ts`). NaukriGulf's apply is simpler: it sends the resume already on the NaukriGulf profile and answers no questions, so a job that asks more stays a draft to finish on naukrigulf.com.
 - `config.ts`: which source and key are in effect. Job source keys are encrypted like the AI key, each kind of secret under its own derived key (`src/lib/secrets.ts`).
 - `src/lib/postings.ts`: the `Posting` table holds what the user saved, dismissed or started an application from. `src/lib/posting-searches.ts`: every search, kept with what it found (`PostingSearch`) until the user removes it, so opening one again asks the source nothing.
 

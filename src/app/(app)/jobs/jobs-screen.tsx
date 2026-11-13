@@ -22,7 +22,7 @@ import {
   type ShownPosting,
   type StoredSearch,
 } from "@/lib/job-search/search";
-import { SOURCE_INFO } from "@/lib/job-search/sources";
+import { isNopeRi, SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { acceptArbeitsagenturNote, runJobSearch } from "./actions";
 import { NaukriFilters } from "./naukri-filters";
@@ -90,7 +90,7 @@ export function JobsScreen({
         title="Find jobs"
         description={`Search ${source ? SOURCE_INFO[source].name : "job postings"} for postings near you, then start an application from the one you like.`}
       />
-      <ViewTabs view={view} counts={counts} recommended={source === "NAUKRI"} />
+      <ViewTabs view={view} counts={counts} recommended={isNopeRi(source)} />
     </>
   );
 
@@ -107,10 +107,10 @@ export function JobsScreen({
     return (
       <>
         {header}
-        {source !== "NAUKRI" ? (
+        {!isNopeRi(source) ? (
           <NoSource />
         ) : recommendedProblem?.problem === "login" ? (
-          <NaukriLogin onLoggedIn={() => router.refresh()} className="mx-10 mb-16 max-w-[640px]" />
+          <NaukriLogin source={source} onLoggedIn={() => router.refresh()} className="mx-10 mb-16 max-w-[640px]" />
         ) : recommendedProblem ? (
           <SearchProblem problem={recommendedProblem.problem} message={recommendedProblem.message} onRetry={() => router.refresh()} />
         ) : (
@@ -179,8 +179,8 @@ export function JobsScreen({
             onSearchAgain={() => run(search.query)}
             searching={pending}
             aside={
-              search.source === "NAUKRI" && search.filters?.groups.length ? (
-                <NaukriFilters filters={search.filters} chosen={search.query.filters} disabled={pending} onChange={(filters) => run({ ...search.query, filters })} />
+              isNopeRi(search.source) && search.filters?.groups.length ? (
+                <NaukriFilters source={search.source} filters={search.filters} chosen={search.query.filters} disabled={pending} onChange={(filters) => run({ ...search.query, filters })} />
               ) : undefined
             }
             asideShown={filtersShown}

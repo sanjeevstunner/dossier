@@ -6,6 +6,7 @@ import { loadJobSearchConfig } from "@/lib/job-search/config";
 import { COUNTRIES } from "@/lib/job-search/countries";
 import { recommendedPostings } from "@/lib/job-search/find";
 import { defaultSearch, latestRole, queryFromParams, viewFromParams } from "@/lib/job-search/search";
+import { isNopeRi } from "@/lib/job-search/sources";
 import { countSearches, listSearches, loadSearch } from "@/lib/posting-searches";
 import { countPostings, listPostings } from "@/lib/postings";
 import { prisma } from "@/lib/prisma";
@@ -41,7 +42,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   const [kept, history, recommended] = await Promise.all([
     view === "saved" || view === "dismissed" ? listPostings(view) : undefined,
     view === "history" ? listSearches({ timeZone, now }) : undefined,
-    view === "recommended" && config.source === "NAUKRI" ? recommendedPostings() : undefined,
+    view === "recommended" && isNopeRi(config.source) ? recommendedPostings(config.source) : undefined,
   ]);
 
   return (

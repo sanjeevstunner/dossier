@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { Country } from "@/lib/job-search/countries";
 import { POSTED_WITHIN, RADII_KM, type JobSource, type RadiusKm, type SearchQuery } from "@/lib/job-search/search";
-import { SOURCE_INFO, sourceCovers } from "@/lib/job-search/sources";
+import { isNopeRi, SOURCE_INFO, sourceCovers } from "@/lib/job-search/sources";
 
 // A search's fields, as Find jobs asks them (E14-6) and each job agent
 // saves its search (E16-7).
@@ -57,8 +57,8 @@ export function SearchFields({
           </option>
         ))}
       </Select>
-      {/* Naukri has no radius, but filters by experience. */}
-      {source === "NAUKRI" ? (
+      {/* Naukri and NaukriGulf have no radius, but filter by experience. */}
+      {isNopeRi(source) ? (
         <Input
           label="Experience"
           type="number"

@@ -12,7 +12,7 @@ import { countryCodeFor } from "./countries";
 // job ad is a "posting".
 
 /** The job sources Dossier can search (E14-1 to E14-3), in the order Settings lists them; one is chosen there. */
-export const JOB_SOURCES = [PostingSource.JSEARCH, PostingSource.ADZUNA, PostingSource.ARBEITSAGENTUR, PostingSource.NAUKRI] as const;
+export const JOB_SOURCES = [PostingSource.JSEARCH, PostingSource.ADZUNA, PostingSource.ARBEITSAGENTUR, PostingSource.NAUKRI, PostingSource.NAUKRIGULF] as const;
 export type JobSource = PostingSource;
 
 /** Where a JSearch key comes from: OpenWeb Ninja directly, or the RapidAPI marketplace. */
@@ -36,6 +36,9 @@ export type PostedWithin = (typeof POSTED_WITHIN)[number]["value"];
 const POSTED_VALUES = POSTED_WITHIN.map((option) => option.value) as [PostedWithin, ...PostedWithin[]];
 
 /** One search, as every source gets it. */
+/** A filter option's id: Naukri's are words and dashes, NaukriGulf's salary ranges may have dots. */
+const FILTER_ID = /^[\w.-]{1,40}$/;
+
 export const searchQuerySchema = z.object({
   keywords: z.string().trim().max(200),
   /** A city or region; empty searches the whole country. */
@@ -49,11 +52,11 @@ export const searchQuerySchema = z.object({
   radiusKm: z.literal(RADII_KM),
   remoteOnly: z.boolean(),
   postedWithin: z.enum(POSTED_VALUES),
-  /** Years of experience, for sources that filter by it (Naukri); unset for any. */
+  /** Years of experience, for sources that filter by it (Naukri, NaukriGulf); unset for any. */
   experience: z.number().int().min(0).max(50).optional().catch(undefined),
-  /** Naukri's filters, by group key (see NAUKRI_FILTER_GROUPS) to the chosen options' ids; unset for none. */
+  /** Naukri's or NaukriGulf's filters, by group key (see FILTER_GROUPS) to the chosen options' ids; unset for none. */
   filters: z
-    .record(z.string().regex(/^\w{1,40}$/), z.array(z.string().regex(/^[\w-]{1,40}$/)).max(50))
+    .record(z.string().regex(/^\w{1,40}$/), z.array(z.string().regex(FILTER_ID)).max(50))
     .optional()
     .catch(undefined),
 });
@@ -109,7 +112,21 @@ export const NAUKRI_FILTER_GROUPS: Record<string, string> = {
   topGroupId: "Top companies",
 };
 
-/** A source's filters for a search (Naukri's), with how many postings each option would leave. */
+/** NaukriGulf's filter groups Dossier can send back (the ones NopeRi checked against the site), with their headings. */
+export const NAUKRIGULF_FILTER_GROUPS: Record<string, string> = {
+  country: "Country",
+  citysrp: "City",
+  experience: "Experience",
+  gender: "Gender",
+  ctc: "Salary",
+  industryType: "Industry",
+  freshness: "Posted",
+};
+
+/** The filter groups of the sources that offer filters. */
+export const FILTER_GROUPS: Partial<Record<JobSource, Record<string, string>>> = { NAUKRI: NAUKRI_FILTER_GROUPS, NAUKRIGULF: NAUKRIGULF_FILTER_GROUPS };
+
+/** A source's filters for a search (Naukri's, NaukriGulf's), with how many postings each option would leave. */
 export type SearchFilters = {
   /** Postings across all pages. */
   total: number;
@@ -225,8 +242,8 @@ export function queryFromParams(params: Record<string, string | string[] | undef
   const filters: Record<string, string[]> = {};
   for (const [name, value] of Object.entries(params)) {
     const key = name.startsWith("f.") ? name.slice(2) : "";
-    const ids = [value ?? []].flat().filter((id) => /^[\w-]{1,40}$/.test(id));
-    if (key in NAUKRI_FILTER_GROUPS && ids.length) filters[key] = ids.slice(0, 50);
+    const ids = [value ?? []].flat().filter((id) => FILTER_ID.test(id));
+    if ((key in NAUKRI_FILTER_GROUPS || key in NAUKRIGULF_FILTER_GROUPS) && ids.length) filters[key] = ids.slice(0, 50);
   }
   return {
     keywords: keywords.slice(0, 200),

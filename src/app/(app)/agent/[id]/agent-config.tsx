@@ -19,7 +19,7 @@ import { RemoteOnlyField, SearchFields, type SearchFieldErrors } from "../../job
 import { saveAgent } from "../actions";
 
 // The BA is never searched on its own (#223).
-const AGENT_SOURCES = ["JSEARCH", "ADZUNA", "NAUKRI"] as const;
+const AGENT_SOURCES = ["JSEARCH", "ADZUNA", "NAUKRI", "NAUKRIGULF"] as const;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MIN_SCORES = [50, 55, 60, 65, 70, 75, 80, 85, 90];
 const SCORE_COUNTS = Array.from({ length: 30 }, (_, index) => index + 1);

@@ -15,6 +15,8 @@ export type SourceCredentials = {
   ARBEITSAGENTUR: Record<string, never>;
   /** The NopeRi server (noperi-ts) and the API key it asks for. */
   NAUKRI: { url: string; apiKey: string };
+  /** The same NopeRi server and key as Naukri. */
+  NAUKRIGULF: { url: string; apiKey: string };
 };
 
 /** A posting's whole text, and where to apply when that's off the source's site (Naukri's company-site jobs). */

@@ -172,11 +172,7 @@ async function tailoredResume(
   posting: FoundPosting,
   context: JobContext,
 ): Promise<{ applicationId: string; resume: NaukriResume; resumeSource: "written" | "uploaded" }> {
-  const text = posting.complete ? posting.description : ((await fullText(posting)) ?? posting.description);
-  const found = { ...posting, description: text, complete: posting.complete || text !== posting.description };
-  const stored = await storePosting(found);
-  const applicationId = stored.applicationId ?? (await draftFor(found, stored.id, context));
-
+  const applicationId = await postingApplication(posting, context);
   const application = await prisma.application.findUniqueOrThrow({
     where: { id: applicationId },
     select: { company: true, role: true, documents: { where: { kind: DocumentKind.RESUME }, select: { id: true } }, files: { where: { kind: DocumentKind.RESUME } } },
@@ -205,6 +201,18 @@ async function tailoredResume(
       name: resolveFileName(settings.fileNamePattern, { name, company: application.company, role: application.role, doc: DocumentKind.RESUME, date: new Date() }),
     },
   };
+}
+
+/**
+ * The posting's application: the one already started from it, or a Draft
+ * written now, as the job agent drafts one. The posting is stored with its
+ * whole text first. Shared with NaukriGulf's apply (naukrigulf-apply.ts).
+ */
+export async function postingApplication(posting: FoundPosting, context: JobContext): Promise<string> {
+  const text = posting.complete ? posting.description : ((await fullText(posting)) ?? posting.description);
+  const found = { ...posting, description: text, complete: posting.complete || text !== posting.description };
+  const stored = await storePosting(found);
+  return stored.applicationId ?? (await draftFor(found, stored.id, context));
 }
 
 /** A Draft application for the posting, written the way New application writes one. */

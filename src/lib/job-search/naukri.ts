@@ -18,10 +18,15 @@ import { plainText } from "./text";
 
 type Credentials = SourceCredentials["NAUKRI"];
 
+/** The sources NopeRi serves, with the same server and key: Naukri, and NaukriGulf under /api/gulf. */
+export type NopeRiSource = "NAUKRI" | "NAUKRIGULF";
+/** Where NopeRi serves each source's routes. */
+export const NOPERI_PREFIX: Record<NopeRiSource, string> = { NAUKRI: "/api", NAUKRIGULF: "/api/gulf" };
+
 const PAGE_SIZE = 20;
 
 const text = z.string().nullish().catch(null);
-const jobSchema = z.object({
+export const jobSchema = z.object({
   jobId: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1)),
   title: text,
   company: text,
@@ -31,21 +36,21 @@ const jobSchema = z.object({
   applyLink: text,
   description: text,
 });
-type Job = z.output<typeof jobSchema>;
+export type Job = z.output<typeof jobSchema>;
 
 const optionSchema = z.object({ id: z.string().min(1).max(40), count: z.number().int().min(0), label: z.string().max(200) });
 /** NopeRi's search answer: its jobs and Naukri's filter groups (older NopeRi answers a bare list of jobs). */
-const searchSchema = z.object({
+export const searchSchema = z.object({
   jobs: z.array(z.unknown()),
   total: z.number().int().min(0).catch(0),
   clusters: z.record(z.string(), z.array(optionSchema).catch([])).catch({}),
   clusterOrder: z.array(z.string()).catch([]),
 });
 
-/** The groups Dossier knows, in Naukri's order, with the ones it left out of that order last. */
-export function filtersOf(answer: z.output<typeof searchSchema>): SearchFilters {
-  const keys = [...new Set([...answer.clusterOrder, ...Object.keys(NAUKRI_FILTER_GROUPS)])];
-  const groups = keys.flatMap((key) => (key in NAUKRI_FILTER_GROUPS && answer.clusters[key]?.length ? [{ key, options: answer.clusters[key] }] : []));
+/** The groups Dossier knows (`known`, by default Naukri's), in the source's order, with the ones it left out of that order last. */
+export function filtersOf(answer: z.output<typeof searchSchema>, known: Record<string, string> = NAUKRI_FILTER_GROUPS): SearchFilters {
+  const keys = [...new Set([...answer.clusterOrder, ...Object.keys(known)])];
+  const groups = keys.flatMap((key) => (key in known && answer.clusters[key]?.length ? [{ key, options: answer.clusters[key] }] : []));
   return { total: answer.total, groups };
 }
 
@@ -53,7 +58,7 @@ const statusSchema = z.object({ loggedIn: z.boolean(), loginTime: z.string().nul
 export type NaukriStatus = z.output<typeof statusSchema>;
 
 /** NopeRi's placeholders for a field Naukri left out. */
-const given = (value: string | null | undefined) => (value && value !== "N/A" && value !== "Not disclosed" ? value : "");
+export const given = (value: string | null | undefined) => (value && value !== "N/A" && value !== "Not disclosed" ? value : "");
 
 /** When a posting went up, from Naukri's label ("Today", "3 Days Ago", "30+ Days Ago"); null when it can't be read. */
 export function postedAtFromLabel(label: string | null | undefined, now = new Date()): string | null {
@@ -80,10 +85,10 @@ export function postingFromJob(job: Job, now = new Date()): FoundPosting {
   };
 }
 
-/** A request to NopeRi, with its API key. */
-function call(credentials: Credentials, path: string, context: RequestContext = {}, json?: unknown): Promise<unknown> {
+/** A request to NopeRi for `source`, with its API key; `path` is the whole path ("/api/gulf/jobs/search"). */
+export function call(source: NopeRiSource, credentials: Credentials, path: string, context: RequestContext = {}, json?: unknown): Promise<unknown> {
   const url = new URL(`${(context.baseUrl ?? credentials.url).replace(/\/+$/, "")}${path}`);
-  return requestJson("NAUKRI", url, { headers: { "x-api-key": credentials.apiKey }, signal: context.signal, json });
+  return requestJson(source, url, { headers: { "x-api-key": credentials.apiKey }, signal: context.signal, json });
 }
 
 /**
@@ -91,25 +96,25 @@ function call(credentials: Credentials, path: string, context: RequestContext = 
  * wrong API key and for a sign-in that's missing or expired; its status,
  * which needs only the key, tells them apart.
  */
-async function signedIn(credentials: Credentials, path: string, context: RequestContext = {}, json?: unknown): Promise<unknown> {
+export async function signedIn(source: NopeRiSource, credentials: Credentials, path: string, context: RequestContext = {}, json?: unknown): Promise<unknown> {
   try {
-    return await call(credentials, path, context, json);
+    return await call(source, credentials, path, context, json);
   } catch (error) {
     if (!(error instanceof JobSearchError) || error.problem !== "key") throw error;
-    await call(credentials, "/api/auth/status", context);
-    throw jobSearchError("login", "NAUKRI", { detail: `${path}: not signed in` });
+    await call(source, credentials, `${NOPERI_PREFIX[source]}/auth/status`, context);
+    throw jobSearchError("login", source, { detail: `${path}: not signed in` });
   }
 }
 
-/** Naukri's jobs from an answer, as postings; unreadable ones are left out. */
-function postingsOf(answer: unknown, path: string): FoundPosting[] {
-  if (!Array.isArray(answer)) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
+/** A NopeRi source's jobs from an answer, as postings (by `toPosting`); unreadable ones are left out. */
+export function postingsOf(answer: unknown, path: string, source: NopeRiSource = "NAUKRI", toPosting: (job: Job) => FoundPosting = (job) => postingFromJob(job)): FoundPosting[] {
+  if (!Array.isArray(answer)) throw jobSearchError("changed", source, { detail: `${path}: unexpected answer` });
   const seen = new Set<string>();
   return answer.flatMap((item) => {
     const job = jobSchema.safeParse(item);
     if (!job.success || seen.has(job.data.jobId)) return [];
     seen.add(job.data.jobId);
-    return [postingFromJob(job.data)];
+    return [toPosting(job.data)];
   });
 }
 
@@ -131,33 +136,52 @@ export function searchPath(query: SearchQuery, page: number): string {
 async function searchPage(query: SearchQuery, credentials: Credentials, next: string | null, context: RequestContext = {}): Promise<SearchPage> {
   const page = next?.startsWith("page:") ? Math.max(1, Number(next.slice("page:".length)) || 1) : 1;
   const path = searchPath(query, page);
-  const answer = await call(credentials, path, context);
+  const answer = await call("NAUKRI", credentials, path, context);
   const search = searchSchema.safeParse(answer);
   const postings = postingsOf(search.success ? search.data.jobs : answer, "/api/jobs/search");
   const more = postings.length >= PAGE_SIZE ? `page:${page + 1}` : null;
   return search.success && page === 1 ? { postings, next: more, filters: filtersOf(search.data) } : { postings, next: more };
 }
 
-/** The jobs Naukri recommends for its signed-in user, from the cache when asked for in the last half hour. */
-export async function naukriRecommended(credentials: Credentials, context: RequestContext = {}): Promise<FoundPosting[]> {
-  const key = "recommended:NAUKRI";
+/**
+ * The jobs Naukri (or NaukriGulf) recommends for its signed-in user, from the
+ * cache when asked for in the last half hour.
+ */
+export async function naukriRecommended(
+  credentials: Credentials,
+  context: RequestContext = {},
+  source: NopeRiSource = "NAUKRI",
+  toPosting?: (job: Job) => FoundPosting,
+): Promise<FoundPosting[]> {
+  const key = `recommended:${source}`;
   const hit = cached<FoundPosting[]>(key);
   if (hit) return hit;
-  const postings = postingsOf(await signedIn(credentials, "/api/jobs/recommended", context), "/api/jobs/recommended");
+  const path = `${NOPERI_PREFIX[source]}/jobs/recommended`;
+  const postings = postingsOf(await signedIn(source, credentials, path, context), path, source, toPosting);
   remember(key, postings);
   return postings;
 }
 
-/** Whether NopeRi is signed in to Naukri; `login` signs in with its own credentials, `token` adopts a browser's nauk_at cookie. */
-export async function naukriAuth(credentials: Credentials, step: "status" | "login" | { token: string }, context: RequestContext = {}): Promise<NaukriStatus> {
+/**
+ * Whether NopeRi is signed in to Naukri (or NaukriGulf); `login` signs in
+ * with its own credentials, `token` adopts a browser's cookie (Naukri's
+ * nauk_at, NaukriGulf's AT).
+ */
+export async function naukriAuth(
+  credentials: Credentials,
+  step: "status" | "login" | { token: string },
+  context: RequestContext = {},
+  source: NopeRiSource = "NAUKRI",
+): Promise<NaukriStatus> {
+  const auth = `${NOPERI_PREFIX[source]}/auth`;
   const answer =
     step === "status"
-      ? await call(credentials, "/api/auth/status", context)
+      ? await call(source, credentials, `${auth}/status`, context)
       : step === "login"
-        ? await signedIn(credentials, "/api/auth/login", context, {})
-        : await signedIn(credentials, "/api/auth/token", context, { token: step.token });
+        ? await signedIn(source, credentials, `${auth}/login`, context, {})
+        : await signedIn(source, credentials, `${auth}/token`, context, { token: step.token });
   const status = statusSchema.safeParse(answer);
-  if (!status.success) throw jobSearchError("changed", "NAUKRI", { detail: "/api/auth: unexpected answer" });
+  if (!status.success) throw jobSearchError("changed", source, { detail: `${auth}: unexpected answer` });
   return status.data;
 }
 
@@ -173,7 +197,7 @@ export const naukri: JobSourceAdapter<"NAUKRI"> = {
   source: "NAUKRI",
   search: searchPage,
   details: async (posting, credentials, context) => {
-    const answer = detailsSchema.safeParse(await signedIn(credentials, `/api/jobs/${encodeURIComponent(posting.externalId)}`, context));
+    const answer = detailsSchema.safeParse(await signedIn("NAUKRI", credentials, `/api/jobs/${encodeURIComponent(posting.externalId)}`, context));
     if (!answer.success) return null;
     const job = answer.data.details?.jobDetails;
     const text = plainText(job?.description) || null;
@@ -200,7 +224,7 @@ export type NaukriSkills = z.output<typeof skillsSchema>;
 /** Whether a Naukri job applies on the company site, and the skills its apply sends. */
 export async function naukriApplyInfo(credentials: Credentials, jobId: string, context: RequestContext = {}): Promise<z.output<typeof applyInfoSchema>> {
   const path = `/api/jobs/${encodeURIComponent(jobId)}`;
-  const answer = applyInfoSchema.safeParse(await signedIn(credentials, path, context));
+  const answer = applyInfoSchema.safeParse(await signedIn("NAUKRI", credentials, path, context));
   if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
   return answer.data;
 }
@@ -249,7 +273,7 @@ export async function naukriApply(
 ): Promise<NaukriApplied> {
   const path = `/api/jobs/${encodeURIComponent(jobId)}/apply`;
   const body = { source: "search", mandatorySkills: skills.mandatory, optionalSkills: skills.optional, ...(sid && { sid }), ...(answers && { answers }) };
-  const answer = applySchema.safeParse(await signedIn(credentials, path, context, resume ? applyForm(body, resume) : body));
+  const answer = applySchema.safeParse(await signedIn("NAUKRI", credentials, path, context, resume ? applyForm(body, resume) : body));
   if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
   const { applied, status, message, questionnaireRequired, questionnaire } = answer.data;
   return { applied, status: status ?? null, message: message ?? null, sid: answer.data.sid, questionnaire: questionnaireRequired ? questionnaire : [] };
@@ -265,7 +289,7 @@ function applyForm(body: object, resume: NaukriResume): FormData {
 
 /** Whether Naukri's history lists the job as applied: the check when an apply isn't confirmed (it may have gone through earlier). */
 export async function naukriHasApplied(credentials: Credentials, jobId: string, context: RequestContext = {}): Promise<boolean> {
-  const answer = await signedIn(credentials, "/api/applications?pageSize=50&days=30", context);
+  const answer = await signedIn("NAUKRI", credentials, "/api/applications?pageSize=50&days=30", context);
   if (!Array.isArray(answer)) throw jobSearchError("changed", "NAUKRI", { detail: "/api/applications: unexpected answer" });
   return answer.some((item) => item && typeof item === "object" && "jobId" in item && String(item.jobId) === jobId);
 }

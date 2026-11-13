@@ -5,7 +5,8 @@ import { withStates } from "@/lib/postings";
 import { credentialsFor, loadJobSearchConfig, requestContext } from "./config";
 import { JobSearchError } from "./errors";
 import { postingDetails, searchPostings, type PostingDetails } from "./index";
-import { naukriAuth, naukriRecommended, type NaukriStatus } from "./naukri";
+import { naukriAuth, naukriRecommended, type NaukriStatus, type NopeRiSource } from "./naukri";
+import { naukriGulfAuth, naukriGulfRecommended } from "./naukrigulf";
 import type { FoundPosting, JobSource, SearchPage, SearchProblem, SearchQuery, ShownPosting } from "./search";
 
 // Asking a job source from Find jobs (E14-6): a page of postings, or what
@@ -40,19 +41,21 @@ async function asProblem<T>(work: () => Promise<T>): Promise<T | SearchProblem> 
   }
 }
 
-/** The jobs Naukri recommends, as Find jobs shows them, or what went wrong ("login" until NopeRi is signed in). */
-export async function recommendedPostings(): Promise<{ ok: true; postings: ShownPosting[] } | SearchProblem> {
+/** The jobs Naukri or NaukriGulf recommends, as Find jobs shows them, or what went wrong ("login" until NopeRi is signed in). */
+export async function recommendedPostings(source: NopeRiSource = "NAUKRI"): Promise<{ ok: true; postings: ShownPosting[] } | SearchProblem> {
   const config = await loadJobSearchConfig();
+  const recommended = source === "NAUKRI" ? naukriRecommended : naukriGulfRecommended;
   return asProblem(async () => ({
     ok: true as const,
-    postings: await withStates(await naukriRecommended(credentialsFor(config, "NAUKRI"), requestContext("NAUKRI"))),
+    postings: await withStates(await recommended(credentialsFor(config, source), requestContext(source))),
   }));
 }
 
-/** NopeRi's Naukri sign-in: its status, a sign-in with its own credentials, or a browser's token. */
-export async function naukriSignIn(step: "status" | "login" | { token: string }): Promise<({ ok: true } & NaukriStatus) | SearchProblem> {
+/** NopeRi's sign-in to Naukri or NaukriGulf: its status, a sign-in with its own credentials, or a browser's token. */
+export async function naukriSignIn(step: "status" | "login" | { token: string }, source: NopeRiSource = "NAUKRI"): Promise<({ ok: true } & NaukriStatus) | SearchProblem> {
   const config = await loadJobSearchConfig();
-  return asProblem(async () => ({ ok: true as const, ...(await naukriAuth(credentialsFor(config, "NAUKRI"), step, requestContext("NAUKRI"))) }));
+  const auth = source === "NAUKRI" ? naukriAuth : naukriGulfAuth;
+  return asProblem(async () => ({ ok: true as const, ...(await auth(credentialsFor(config, source), step, requestContext(source))) }));
 }
 
 /**

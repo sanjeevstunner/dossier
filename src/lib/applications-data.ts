@@ -5,6 +5,7 @@ import { matchSchema, matchScore } from "@/lib/application-data";
 import { sortRows, updatedAgo, type Sort } from "@/lib/applications-list";
 import { formatCalendarDate, formatShortDate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { isNopeRi } from "@/lib/job-search/sources";
 
 /** An application as the board and the table show it (E9-2, E9-3). */
 export type ApplicationRow = {
@@ -69,7 +70,7 @@ export async function loadApplicationRows({ archived, sort }: { archived: boolea
       match: match.success && match.data.items.length > 0 ? matchScore(match.data) : null,
       score: application.score,
       hasUploadedResume: application.files.length > 0,
-      agentApply: application.posting?.source === "NAUKRI",
+      agentApply: isNopeRi(application.posting?.source),
       sentAt: application.sentAt,
       updatedAt: application.updatedAt,
     };

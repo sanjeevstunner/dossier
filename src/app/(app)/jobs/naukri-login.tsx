@@ -18,12 +18,19 @@ type Step =
 
 type Answer = Awaited<ReturnType<typeof naukriLoginStatus>>;
 
+/** How the sign-in names each site NopeRi signs in to, and its token's cookie. */
+const SITES = {
+  NAUKRI: { name: "Naukri", host: "naukri.com", cookie: "nauk_at" },
+  NAUKRIGULF: { name: "NaukriGulf", host: "naukrigulf.com", cookie: "AT" },
+} as const;
+
 /**
- * Whether NopeRi is signed in to Naukri, in Settings → Job search and on
- * Recommended. Signed out, it offers to sign in; when that fails, to use the
- * nauk_at token from a browser that's signed in.
+ * Whether NopeRi is signed in to Naukri or NaukriGulf, in Settings → Job
+ * search and on Recommended. Signed out, it offers to sign in; when that
+ * fails, to use the token cookie from a browser that's signed in.
  */
-export function NaukriLogin({ onLoggedIn, className }: { onLoggedIn?: () => void; className?: string }) {
+export function NaukriLogin({ source = "NAUKRI", onLoggedIn, className }: { source?: keyof typeof SITES; onLoggedIn?: () => void; className?: string }) {
+  const site = SITES[source];
   const [step, setStep] = useState<Step>({ status: "checking" });
   const [token, setToken] = useState("");
 
@@ -39,27 +46,31 @@ export function NaukriLogin({ onLoggedIn, className }: { onLoggedIn?: () => void
   };
 
   useEffect(() => {
-    void naukriLoginStatus({}).then((answer) => settle(answer, { status: "out" }));
+    void naukriLoginStatus({ source }).then((answer) => settle(answer, { status: "out" }));
     // Checked once, when it opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const logIn = async () => {
     setStep({ status: "busy", from: "out" });
-    settle(await naukriLogin({}), { status: "token", message: "Naukri didn't let NopeRi sign in; it may want a CAPTCHA. Sign in on naukri.com in a browser and paste its token instead." });
+    settle(await naukriLogin({ source }), {
+      status: "token",
+      message: `${site.name} didn't let NopeRi sign in; it may want a CAPTCHA. Sign in on ${site.host} in a browser and paste its token instead.`,
+    });
   };
 
   const submitToken = async () => {
     setStep({ status: "busy", from: "token" });
-    settle(await naukriUseToken({ token }), { status: "token", message: "That token didn't work. Copy it again from a browser that's signed in to naukri.com." });
+    settle(await naukriUseToken({ token, source }), { status: "token", message: `That token didn't work. Copy it again from a browser that's signed in to ${site.host}.` });
   };
 
-  if (step.status === "checking") return <p className={cn("text-meta text-muted", className)}>Checking the Naukri sign-in…</p>;
+  if (step.status === "checking") return <p className={cn("text-meta text-muted", className)}>Checking the {site.name} sign-in…</p>;
   if (step.status === "in") {
     return (
       <p role="status" className={cn("flex items-center gap-2 text-control text-success", className)}>
         <span aria-hidden className="size-2 flex-none rounded-full bg-success" />
-        Signed in to Naukri{step.since ? ` since ${new Date(step.since).toLocaleString()}` : ""}
+        Signed in to {site.name}
+        {step.since ? ` since ${new Date(step.since).toLocaleString()}` : ""}
       </p>
     );
   }
@@ -69,15 +80,15 @@ export function NaukriLogin({ onLoggedIn, className }: { onLoggedIn?: () => void
   const message = step.status === "busy" ? undefined : step.message;
   return (
     <div role="note" className={cn("flex flex-col gap-3 rounded-card bg-warning-surface px-4 py-3 text-meta text-warning", className)}>
-      <p>{message ?? "NopeRi isn't signed in to Naukri. Recommended jobs and whole postings need it; searching doesn't."}</p>
+      <p>{message ?? `NopeRi isn't signed in to ${site.name}. Recommended jobs and whole postings need it; searching doesn't.`}</p>
       {asking ? (
         <div className="flex flex-col gap-2.5">
           <Input
-            label="Naukri token"
+            label={`${site.name} token`}
             type="password"
             autoComplete="off"
             value={token}
-            hint="On naukri.com, signed in: DevTools → Application → Cookies → copy the value of nauk_at."
+            hint={`On ${site.host}, signed in: DevTools → Application → Cookies → copy the value of ${site.cookie}.`}
             onChange={(event) => setToken(event.target.value)}
           />
           <div className="flex flex-wrap gap-2">
@@ -91,7 +102,7 @@ export function NaukriLogin({ onLoggedIn, className }: { onLoggedIn?: () => void
         </div>
       ) : (
         <Button size="sm" className="self-start" onClick={() => void logIn()} disabled={busy}>
-          {busy ? "Signing in…" : "Log in to Naukri"}
+          {busy ? "Signing in…" : `Log in to ${site.name}`}
         </Button>
       )}
     </div>

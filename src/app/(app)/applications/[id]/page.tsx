@@ -22,6 +22,7 @@ import { draftReasonFor, foundFromPosting } from "@/lib/postings";
 import { refineSuggestions } from "@/lib/refine-suggestions";
 import { loadThemes } from "@/lib/theme-data";
 import { userTimeZone } from "@/lib/time-zone";
+import { isNopeRi } from "@/lib/job-search/sources";
 
 import { ApplicationView } from "./application-view";
 import { metaLine, sourceLine } from "./meta";
@@ -116,7 +117,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
         draftReason,
       }}
       // A Naukri posting's draft can still be easy applied from here; a company-site job says so when tried.
-      easyApply={fromPosting?.source === "NAUKRI" && (application.status === "DRAFT" || application.status === "SCORED") && !application.awaitingReview ? foundFromPosting(fromPosting) : null}
+      easyApply={isNopeRi(fromPosting?.source) && (application.status === "DRAFT" || application.status === "SCORED") && !application.awaitingReview ? foundFromPosting(fromPosting) : null}
       timeZone={timeZone}
       posting={{
         text: application.postingText,

@@ -36,6 +36,8 @@ describe("search in the URL", () => {
     const back = Object.fromEntries([...new Set(params.keys())].map((key) => [key, params.getAll(key)]));
     expect(queryFromParams(back)?.filters).toEqual(filtered.filters);
     expect(queryFromParams({ q: "x", "f.bogus": "1", "f.wfhType": "<script>" })?.filters).toBeUndefined();
+    // NaukriGulf's groups too, with its dotted salary ranges.
+    expect(queryFromParams({ q: "x", "f.country": "17", "f.ctc": ["2.5", "5"] })?.filters).toEqual({ country: ["17"], ctc: ["2.5", "5"] });
   });
 
   it("reads the view from the URL (E14-7)", () => {
