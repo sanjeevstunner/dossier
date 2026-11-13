@@ -42,7 +42,7 @@ export function CustomPrompts({ initial }: { initial: Prompts }) {
       <Toggle
         className="py-4"
         label="Use custom prompts"
-        description="Master switch. Off, none of the prompts below are sent to the AI, though they stay saved."
+        description="Master switch. Off, none of the prompts below are sent to the AI, though they stay saved. On, your prompts can change length, emphasis and which projects appear, but they can't make the AI invent facts."
         checked={state.customPrompts}
         onCheckedChange={(customPrompts) => change({ customPrompts })}
       />

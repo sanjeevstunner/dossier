@@ -217,7 +217,7 @@ describe("tailorResume", () => {
 
   it("returns units, keeping only real roles and the profile's own skills (APP-4)", async () => {
     const { data, promptVersion } = await tailorResume(model(answer), { profile, extracted, match: null, facts: [], posting }, options);
-    expect(promptVersion).toBe("tailor-resume@11");
+    expect(promptVersion).toBe("tailor-resume@13");
     expect(data.map((unit) => unit.id)).toEqual([
       "summary",
       "experience:e1",
@@ -275,6 +275,42 @@ describe("tailorResume", () => {
     expect(await system(null)).not.toMatch(/has to fit/);
   });
 
+  describe("custom prompts that reshape the resume", () => {
+    const only = { summary: "Designer.", roles: [{ id: "e1", bullets: ["Led the portal redesign"] }], projects: [{ id: "p1", bullets: ["Built a Figma plugin"] }], skills: [], education: [] };
+    // The demo profile has one project; a second shows that an omitted one is dropped.
+    const two = { ...profile, projects: [...profile.projects, { ...profile.projects[0], id: "p2", name: "Side project" }] };
+    const ids = async (opts: TaskOptions) => {
+      const { data } = await tailorResume(model(only), { profile: two, extracted, match: null, facts: [], posting }, opts);
+      return data.map((unit) => unit.id).filter((id) => id.startsWith("project:"));
+    };
+
+    it("drops the projects the model left out only while a prompt is on, and always keeps the roles", async () => {
+      const prompts = { global: "", docs: "", resume: "Only projects that fit the job.", agent: "" };
+      expect(await ids({ ...options })).toHaveLength(2);
+      expect(await ids({ ...options, prompts })).toEqual(["project:p1"]);
+      const { data } = await tailorResume(model(only), { profile: two, extracted, match: null, facts: [], posting }, { ...options, prompts });
+      expect(data.filter((unit) => unit.id.startsWith("experience:"))).toHaveLength(profile.experience.length);
+    });
+
+    it("hides the skills under entries only when a prompt is on and the model says so", async () => {
+      const prompts = { global: "", docs: "", resume: "Skip skills along with the projects.", agent: "" };
+      const answerNoSkills = { ...only, showProjectSkills: false };
+      const run = async (opts: TaskOptions) => (await tailorResume(model(answerNoSkills), { profile: two, extracted, match: null, facts: [], posting }, opts)).data;
+      const hidden = (await run({ ...options, prompts })).filter((unit) => unit.hideSkills);
+      expect(hidden.map((unit) => unit.id)).toEqual(["project:p1"]);
+      expect((await run({ ...options })).some((unit) => unit.hideSkills)).toBe(false);
+    });
+
+    it("keeps every project when the answer is empty, and tells the model the prompt outranks the structure rules but not the facts", async () => {
+      const prompts = { global: "", docs: "", resume: "Lead with experience.", agent: "" };
+      const empty = model({ summary: "Designer.", roles: [], projects: [], skills: [], education: [] });
+      const { data } = await tailorResume(empty, { profile, extracted, match: null, facts: [], posting }, { ...options, prompts });
+      expect(data.filter((unit) => unit.id.startsWith("project:"))).toHaveLength(profile.projects.length);
+      expect(sent(empty).system).toMatch(/take priority over the length, count, ordering/);
+      expect(sent(empty).system).toMatch(/never override the rules about facts/);
+    });
+  });
+
   it("words creativity for every provider, and relaxes the rules when strict mode is off", async () => {
     const provider = model(answer);
     await tailorResume(provider, { profile, extracted, match: null, facts: [], posting }, { ...options, creativity: "EXPRESSIVE", strict: false, language: "Dutch" });
@@ -302,7 +338,7 @@ describe("writeCoverLetter", () => {
   it("returns the recipient, greeting, paragraphs and the tone's sign-off for an English letter (APP-10, E8-11)", async () => {
     const provider = model(answer);
     const { data, promptVersion } = await writeCoverLetter(provider, { profile, extracted, match, tone: "FORMAL", facts: [], posting }, options);
-    expect(promptVersion).toBe("write-cover-letter@7");
+    expect(promptVersion).toBe("write-cover-letter@8");
     expect(data).toEqual([
       { id: "recipient", label: "Recipient", text: "Ledgerly · Hiring team\nAmsterdam" },
       { id: "greeting", label: "Greeting", text: "Dear Ledgerly team," },
@@ -358,7 +394,7 @@ describe("writeEmail", () => {
   it("writes the recipient, subject and message, ending with the sign-off and name", async () => {
     const provider = model(answer);
     const { data, promptVersion } = await writeEmail(provider, input, options);
-    expect(promptVersion).toBe("write-email@3");
+    expect(promptVersion).toBe("write-email@4");
     expect(data).toEqual([
       { id: "to", label: "Recipient", text: "John Doe <john.doe@example.com>" },
       { id: "subject", label: "Subject", text: "Application: Senior Product Designer, Jane Doe" },
@@ -405,7 +441,7 @@ describe("regenerateUnit", () => {
     const unit = resume.find((entry) => entry.id === "experience:e1")!;
     const provider = model({ text: "- Rebuilt the carrier portal\n• Grew the design system\n" });
     const { data, promptVersion } = await regenerateUnit(provider, { kind: "RESUME", unit, document: resume, profile, extracted, tone: "WARM", facts: [], posting }, options);
-    expect(promptVersion).toBe("regenerate-unit@7");
+    expect(promptVersion).toBe("regenerate-unit@8");
     expect(data).toMatchObject({ id: "experience:e1", text: "Rebuilt the carrier portal\nGrew the design system" });
     expect(prompt(provider)).toContain(`Write a new version of "${unit.label}" (experience:e1)`);
     expect(sent(provider).system).not.toContain(COVER_LETTER_APPROACH);
@@ -456,7 +492,7 @@ describe("refineChat", () => {
       declined: false,
     };
     const { data, promptVersion } = await refineChat(model(answer), input, options);
-    expect(promptVersion).toBe("refine-chat@8");
+    expect(promptVersion).toBe("refine-chat@9");
     expect(data).toEqual({
       reply: "I made the letter more formal.",
       tone: "FORMAL",

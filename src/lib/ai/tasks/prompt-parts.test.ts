@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { userPrompts } from "./prompt-parts";
+import { hasUserPrompts, userPrompts } from "./prompt-parts";
 
 const prompts = { global: "G", docs: "D", resume: "", agent: "A" };
 
@@ -13,5 +13,13 @@ describe("userPrompts", () => {
   it("is empty when nothing is on or no prompts are given", () => {
     expect(userPrompts({ prompts }, "resume", false)).toBe("");
     expect(userPrompts({}, "global")).toBe("");
+  });
+});
+
+describe("hasUserPrompts", () => {
+  it("is true only when a given scope has text", () => {
+    expect(hasUserPrompts({ prompts }, "global")).toBe(true);
+    expect(hasUserPrompts({ prompts }, "resume", false)).toBe(false);
+    expect(hasUserPrompts({}, "global")).toBe(false);
   });
 });

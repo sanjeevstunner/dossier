@@ -25,7 +25,7 @@ import {
   type Task,
 } from "./prompt-parts";
 
-export const WRITE_COVER_LETTER_VERSION = "write-cover-letter@7";
+export const WRITE_COVER_LETTER_VERSION = "write-cover-letter@8";
 
 const answerSchema = z.object({
   recipient: z.string(),

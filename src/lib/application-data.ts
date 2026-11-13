@@ -22,6 +22,8 @@ export const unitSchema = z.object({
    * profile or the posting, shown as "check this" (E8-3). Absent when fine.
    */
   unverified: z.array(z.string()).optional(),
+  /** A role or project shown without its "Skills ·" line, when the candidate's own prompt asked for that. Absent otherwise. */
+  hideSkills: z.literal(true).optional(),
 });
 export type Unit = z.infer<typeof unitSchema>;
 
