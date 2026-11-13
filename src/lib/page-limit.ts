@@ -1,5 +1,7 @@
 import "server-only";
 
+import { loadTaskOptions } from "@/lib/ai/task-options";
+import { hasUserPrompts } from "@/lib/ai/tasks/prompt-parts";
 import { DocumentKind, VersionCause } from "@/generated/prisma/enums";
 import { trimmedSchema, unitsSchema, type Trimmed, type Unit } from "@/lib/application-data";
 import { updateDocuments } from "@/lib/document-units";
@@ -39,13 +41,14 @@ const leaveOut = (units: Unit[], { unit, index }: { unit: Unit; index: number })
 });
 
 /** The next thing to leave out, or null when there's nothing left to cut. */
-export function nextCut(units: Unit[], profile: ProfileData): Cut | null {
+export function nextCut(units: Unit[], profile: ProfileData, keepExperience = false): Cut | null {
   const roles = oldestFirst(units, profile.experience, "experience:");
 
+  // With the candidate's own resume prompt on, experience is theirs to decide: only projects and publications are cut.
   // The oldest role, while more than one is left.
-  if (roles.length > 1) return leaveOut(units, roles[0]);
+  if (!keepExperience && roles.length > 1) return leaveOut(units, roles[0]);
   // Then the last bullet of the oldest role that has more than one.
-  for (const { unit } of roles) {
+  for (const { unit } of keepExperience ? [] : roles) {
     const lines = bulletLines(unit.text).split("\n");
     if (lines.length > 1) {
       const kept = { ...unit, text: lines.slice(0, -1).join("\n") };
@@ -88,11 +91,12 @@ export async function fitResumeToPages(
   const fits = async () => (await pages(`/print/resume/${applicationId}`)) <= maxPages;
   let trimmed: Trimmed = [];
   if (await fits()) return { trimmed, fits: true };
+  const keepExperience = hasUserPrompts(await loadTaskOptions(), "global", "docs", "resume");
 
   for (let cuts = 0; cuts < MAX_CUTS; cuts++) {
     const cut = await updateDocuments(applicationId, async (documents) => {
       const units = documents[DocumentKind.RESUME];
-      const next = units && nextCut(units, profile);
+      const next = units && nextCut(units, profile, keepExperience);
       if (!units || !next) return null;
       documents[DocumentKind.RESUME] = next.units;
       return next.trimmed;

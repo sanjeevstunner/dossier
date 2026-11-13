@@ -19,12 +19,13 @@ import {
   NO_EM_DASHES,
   profileForPrompt,
   system,
+  userPrompts,
   truthfulness,
   UNTRUSTED_POSTING,
   type Task,
 } from "./prompt-parts";
 
-export const WRITE_COVER_LETTER_VERSION = "write-cover-letter@6";
+export const WRITE_COVER_LETTER_VERSION = "write-cover-letter@8";
 
 const answerSchema = z.object({
   recipient: z.string(),
@@ -72,6 +73,7 @@ export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider,
       candidateFacts(profile, facts),
       CREATIVITY[options.creativity],
       languageRule(options.language),
+      userPrompts(options, "global", "docs"),
       UNTRUSTED_POSTING,
       NO_EM_DASHES,
     ),

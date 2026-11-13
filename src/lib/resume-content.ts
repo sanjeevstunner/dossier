@@ -180,16 +180,20 @@ export function resumeContent(
       units.flatMap((unit) => {
         if (!unit.id.startsWith(prefix)) return [];
         const entry = entries.find(({ id }) => `${prefix}${id}` === unit.id);
-        return entry ? [{ entry, text: unit.text }] : [];
+        return entry ? [{ entry, text: unit.text, hideSkills: unit.hideSkills === true }] : [];
       });
 
     content.summary = text("summary").trim();
     content.skills = text("skills").trim();
     content.languages = text("languages").trim();
-    content.experience = withUnit("experience:", profile.experience).map(({ entry, text }) =>
-      experience(entry, text),
-    );
-    content.projects = withUnit("project:", profile.projects).map(({ entry, text }) => project(entry, text));
+    content.experience = withUnit("experience:", profile.experience).map(({ entry, text, hideSkills }) => ({
+      ...experience(entry, text),
+      ...(hideSkills && { skills: [] }),
+    }));
+    content.projects = withUnit("project:", profile.projects).map(({ entry, text, hideSkills }) => ({
+      ...project(entry, text),
+      ...(hideSkills && { skills: [] }),
+    }));
     content.education = withUnit("education:", profile.education).map(({ entry, text }) =>
       education(entry, text),
     );
