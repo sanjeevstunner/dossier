@@ -941,10 +941,12 @@ function PreviewSwitch({ label, checked, onCheckedChange }: { label: string; che
  * Easy apply for a Draft from a Naukri posting, once NopeRi says the job
  * takes Naukri's own apply: a company-site job gets a link to the posting
  * instead. When NopeRi can't tell, the button shows and the apply says what's wrong.
+ * NaukriGulf can't be asked beforehand, so its apply says so when it's tried.
  */
 function DraftEasyApply({ posting, draftReason, onEnded }: { posting: FoundPosting; draftReason: string | null; onEnded: () => void }) {
-  const [companySite, setCompanySite] = useState<boolean | null | "checking">("checking");
+  const [companySite, setCompanySite] = useState<boolean | null | "checking">(posting.source === "NAUKRI" ? "checking" : null);
   useEffect(() => {
+    if (posting.source !== "NAUKRI") return;
     let current = true;
     void naukriAppliesOnCompanySite({ jobId: posting.externalId }).then((result) => {
       if (current) setCompanySite(result.ok ? result.data : null);
@@ -952,7 +954,7 @@ function DraftEasyApply({ posting, draftReason, onEnded }: { posting: FoundPosti
     return () => {
       current = false;
     };
-  }, [posting.externalId]);
+  }, [posting.source, posting.externalId]);
 
   if (companySite === "checking") {
     return (

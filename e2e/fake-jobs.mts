@@ -120,6 +120,12 @@ createServer((request, response) => {
     return send(response, 200, { count: 1, results: [{ id: "e2e-adzuna", title: "Product Designer", description: "The start…", company: { display_name: "Ledgerly" }, location: { display_name: "Rotterdam" } }] });
   }
 
+  // NopeRi's NaukriGulf search, as DOSSIER_JOBS_TEST_BASE_URL/naukrigulf reaches it.
+  if (url.pathname === "/naukrigulf/api/gulf/jobs/search") {
+    const job = { jobId: "e2e-gulf", title: "Product Designer", company: "Dune Labs", location: "Dubai - United Arab Emirates", postedDate: "", applyLink: "", description: "The start…" };
+    return send(response, 200, { jobs: [job], total: 1, clusters: { country: [{ id: "17", count: 1, label: "UAE" }] } });
+  }
+
   if (url.pathname === "/arbeitsagentur/pc/v6/jobs") {
     return send(response, 200, { ergebnisliste: [{ referenznummer: "e2e-ba", stellenangebotsTitel: "Produktdesigner (m/w/d)", firma: "Hafenlogik GmbH" }], maxErgebnisse: 1 });
   }

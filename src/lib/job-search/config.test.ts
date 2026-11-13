@@ -96,6 +96,18 @@ describe("credentialsFor", () => {
     expect(() => credentialsFor(resolveJobSearchConfig(nothingSaved, noEnv), "JSEARCH")).toThrow("Add your JSearch key in Settings → Job search first.");
     const keyOnly = resolveJobSearchConfig({ ...nothingSaved, adzunaKeyEnc: encryptSecret(JOB_SOURCE_KEY, "adz") }, noEnv);
     expect(() => credentialsFor(keyOnly, "ADZUNA")).toThrow(/app ID and key/);
+    expect(() => credentialsFor(config, "NAUKRIGULF")).toThrow("Add your NaukriGulf NopeRi server address and API key in Settings → Job search first.");
+  });
+
+  it("gives NaukriGulf the same NopeRi server and key as Naukri", () => {
+    const nopeRi = resolveJobSearchConfig(
+      { ...nothingSaved, jobSource: "NAUKRIGULF", naukriUrl: "http://noperi.local:3000", naukriKeyEnc: encryptSecret(JOB_SOURCE_KEY, "np_key") },
+      noEnv,
+    );
+    expect(nopeRi.source).toBe("NAUKRIGULF");
+    expect(credentialsFor(nopeRi, "NAUKRIGULF")).toEqual({ url: "http://noperi.local:3000", apiKey: "np_key" });
+    expect(credentialsFor(nopeRi, "NAUKRIGULF")).toEqual(credentialsFor(nopeRi, "NAUKRI"));
+    expect(resolveJobSearchConfig(nothingSaved, { DOSSIER_JOBS_SOURCE: "naukrigulf" }).source).toBe("NAUKRIGULF");
   });
 });
 

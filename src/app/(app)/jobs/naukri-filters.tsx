@@ -4,19 +4,21 @@ import { useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFitToViewport } from "@/hooks/use-fit-to-viewport";
-import { NAUKRI_FILTER_GROUPS, type SearchFilters } from "@/lib/job-search/search";
+import { FILTER_GROUPS, type JobSource, type SearchFilters } from "@/lib/job-search/search";
 
 const SHOWN = 4;
 
 type Chosen = Record<string, string[]>;
 
-/** Naukri's filters for a search, with how many postings each leaves; ticking one runs the search again with it. */
+/** Naukri's or NaukriGulf's filters for a search, with how many postings each leaves; ticking one runs the search again with it. */
 export function NaukriFilters({
+  source,
   filters,
   chosen = {},
   disabled = false,
   onChange,
 }: {
+  source: JobSource;
   filters: SearchFilters;
   chosen?: Chosen;
   disabled?: boolean;
@@ -47,18 +49,20 @@ export function NaukriFilters({
         )}
       </div>
       {filters.groups.map((group) => (
-        <FilterGroup key={group.key} group={group} chosen={chosen[group.key] ?? []} disabled={disabled} onToggle={(id) => toggle(group.key, id)} />
+        <FilterGroup key={group.key} heading={FILTER_GROUPS[source]?.[group.key] ?? group.key} group={group} chosen={chosen[group.key] ?? []} disabled={disabled} onToggle={(id) => toggle(group.key, id)} />
       ))}
     </aside>
   );
 }
 
 function FilterGroup({
+  heading,
   group,
   chosen,
   disabled,
   onToggle,
 }: {
+  heading: string;
   group: SearchFilters["groups"][number];
   chosen: string[];
   disabled: boolean;
@@ -69,7 +73,7 @@ function FilterGroup({
   const options = all ? group.options : group.options.filter((option, index) => index < SHOWN || chosen.includes(option.id));
   return (
     <fieldset className="flex flex-col gap-2 border-t border-line-card pt-4">
-      <legend className="float-left mb-1 text-meta font-medium">{NAUKRI_FILTER_GROUPS[group.key] ?? group.key}</legend>
+      <legend className="float-left mb-1 text-meta font-medium">{heading}</legend>
       {options.map((option) => (
         <Checkbox
           key={option.id}

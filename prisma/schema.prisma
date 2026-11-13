@@ -638,6 +638,7 @@ enum PostingSource {
   ADZUNA
   ARBEITSAGENTUR
   NAUKRI
+  NAUKRIGULF
 }
 
 /// A posting from Find jobs that the user kept (E14-5): saved, dismissed, or

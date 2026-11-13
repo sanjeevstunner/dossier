@@ -12,11 +12,13 @@ import { fullPosting, fullText, naukriSignIn } from "@/lib/job-search/find";
 import { foundPostingSchema, JOB_SOURCES, postingKey, searchQuerySchema } from "@/lib/job-search/search";
 import { reviewedAnswersSchema } from "@/lib/easy-apply-answers";
 import { easyApplyJob, easyApplyJobKey } from "@/lib/jobs/easy-apply";
+import { naukriGulfApplyJob } from "@/lib/jobs/naukrigulf-apply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { scoreJobKey, scorePostingJob } from "@/lib/jobs/score-posting";
 import { removeSearch, runSearch, showMoreFor } from "@/lib/posting-searches";
 import { dismissPosting, postingStates, savePosting, storePosting, unmarkPosting } from "@/lib/postings";
 import { saveSettings } from "@/lib/settings-data";
+import { isNopeRi } from "@/lib/job-search/sources";
 
 // Find jobs (E14-6). Each search is kept with what it found (E14-10).
 // Postings come back from the screen as the search gave them, checked
@@ -97,16 +99,18 @@ export const startScoringPosting = action(z.object({ posting: foundPostingSchema
 });
 
 /**
- * "Easy apply with agent": applies on Naukri through NopeRi in the
- * background, answering its questions from the profile; an apply under way is
- * followed, not started again. Once Naukri confirms it, it's on the board in Sent.
+ * "Easy apply with agent": applies on Naukri (or NaukriGulf) through NopeRi in
+ * the background, answering Naukri's questions from the profile; an apply under
+ * way is followed, not started again. Once the site confirms it, it's on the
+ * board in Sent.
  */
 export const startEasyApply = action(z.object({ posting: foundPostingSchema, answers: reviewedAnswersSchema.optional(), resumeConfirmed: z.boolean().optional() }), async ({ posting, answers, resumeConfirmed }) => {
-  if (posting.source !== "NAUKRI") throw new ActionError("Only Naukri postings can be applied to from here.");
-  if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first: it answers Naukri's questions.");
+  if (!isNopeRi(posting.source)) throw new ActionError("Only Naukri and NaukriGulf postings can be applied to from here.");
+  if (!(await isAiConfigured())) throw new ActionError(`Choose an AI provider in Settings → AI provider first: it ${posting.source === "NAUKRI" ? "answers Naukri's questions" : "drafts the application"}.`);
   const key = easyApplyJobKey(posting);
   const [unfinished] = await findUnfinishedJobs(key);
-  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting, answers, resumeConfirmed }, { key })) };
+  if (unfinished) return { jobId: unfinished.id };
+  return { jobId: posting.source === "NAUKRI" ? await startJob(easyApplyJob, { posting, answers, resumeConfirmed }, { key }) : await startJob(naukriGulfApplyJob, { posting }, { key }) };
 });
 
 /** Where a posting stands now: after an easy apply ends, so it shows applied without a reload. */
@@ -122,9 +126,11 @@ export const naukriAppliesOnCompanySite = action(z.object({ jobId: z.string().mi
   }
 });
 
-/** Naukri's sign-in through NopeRi: whether it's signed in, a sign-in with NopeRi's credentials, or a token from a signed-in browser. */
-export const naukriLoginStatus = action(z.object({}), () => naukriSignIn("status"));
+const nopeRiSource = z.enum(["NAUKRI", "NAUKRIGULF"]).default("NAUKRI");
 
-export const naukriLogin = action(z.object({}), () => naukriSignIn("login"));
+/** Naukri's or NaukriGulf's sign-in through NopeRi: whether it's signed in, a sign-in with NopeRi's credentials, or a token from a signed-in browser. */
+export const naukriLoginStatus = action(z.object({ source: nopeRiSource }), ({ source }) => naukriSignIn("status", source));
 
-export const naukriUseToken = action(z.object({ token: z.string().trim().min(20).max(4000) }), ({ token }) => naukriSignIn({ token }));
+export const naukriLogin = action(z.object({ source: nopeRiSource }), ({ source }) => naukriSignIn("login", source));
+
+export const naukriUseToken = action(z.object({ token: z.string().trim().min(20).max(4000), source: nopeRiSource }), ({ token, source }) => naukriSignIn({ token }, source));

@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { JOB_SOURCES, type JobSource, type JSearchHost } from "@/lib/job-search/search";
-import { JOB_KEY_UNREADABLE, JSEARCH_KEY_URLS, SOURCE_INFO, type JobKeyState, type JobSearchSettingsView } from "@/lib/job-search/sources";
+import { isNopeRi, JOB_KEY_UNREADABLE, JSEARCH_KEY_URLS, SOURCE_INFO, type JobKeyState, type JobSearchSettingsView } from "@/lib/job-search/sources";
 import { cn } from "@/lib/cn";
 
 import { NaukriLogin } from "../jobs/naukri-login";
@@ -173,7 +173,7 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
                 />
               </div>
             )}
-            {source === "NAUKRI" && (
+            {isNopeRi(source) && (
               <>
                 <div className="grid grid-cols-1 gap-x-[18px] gap-y-5 sm:grid-cols-2">
                   <Input
@@ -184,7 +184,7 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
                     spellCheck={false}
                     autoComplete="off"
                     inputClassName="font-mono text-[13.5px]"
-                    hint="Your noperi-ts server, which signs in to Naukri with the account in its .env. The key is its API_KEY."
+                    hint="Your noperi-ts server, which signs in to Naukri and NaukriGulf with the accounts in its .env. The key is its API_KEY. Naukri and NaukriGulf share it."
                     onChange={(event) => setNaukriUrl(event.target.value)}
                     onBlur={() => void saveNaukriUrl()}
                   />
@@ -196,7 +196,7 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
                   />
                 </div>
                 {view.naukri.url && view.naukri.keyState !== "none" && view.naukri.keyState !== "unreadable" && (
-                  <NaukriLogin key={`${view.naukri.url}:${view.naukri.keyState}`} />
+                  <NaukriLogin key={`${source}:${view.naukri.url}:${view.naukri.keyState}`} source={source} />
                 )}
               </>
             )}

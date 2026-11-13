@@ -6,6 +6,7 @@ import { action, ActionError } from "@/lib/action";
 import { isAiConfigured } from "@/lib/ai/config";
 import { reviewedAnswersSchema } from "@/lib/easy-apply-answers";
 import { easyApplyJob, easyApplyJobKey } from "@/lib/jobs/easy-apply";
+import { naukriGulfApplyJob } from "@/lib/jobs/naukrigulf-apply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { foundFromPosting } from "@/lib/postings";
 import { prisma } from "@/lib/prisma";
@@ -14,6 +15,7 @@ import { applyStatusChange } from "@/lib/status-changes";
 import { ApplicationStatus } from "@/generated/prisma/enums";
 import { FILTERS, SORT_KEYS, VIEWS } from "@/lib/applications-list";
 import { saveSettings } from "@/lib/settings-data";
+import { isNopeRi } from "@/lib/job-search/sources";
 
 /** Remembers how the Applications screen was left (LST-7), for the next visit. */
 export const rememberListView = action(
@@ -39,12 +41,13 @@ export const rememberListView = action(
  */
 export const startEasyApplyForApplication = action(z.object({ id: z.string().min(1), answers: reviewedAnswersSchema.optional(), resumeConfirmed: z.boolean().optional() }), async ({ id, answers, resumeConfirmed }) => {
   const posting = await prisma.posting.findUnique({ where: { applicationId: id } });
-  if (posting?.source !== "NAUKRI") throw new ActionError("Only applications from Naukri postings can be applied to from here.");
-  if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first: it answers Naukri's questions.");
+  if (!posting || !isNopeRi(posting.source)) throw new ActionError("Only applications from Naukri and NaukriGulf postings can be applied to from here.");
+  if (!(await isAiConfigured())) throw new ActionError(`Choose an AI provider in Settings → AI provider first: it ${posting.source === "NAUKRI" ? "answers Naukri's questions" : "drafts the application"}.`);
   const found = foundFromPosting(posting);
   const key = easyApplyJobKey(found);
   const [unfinished] = await findUnfinishedJobs(key);
-  return { jobId: unfinished?.id ?? (await startJob(easyApplyJob, { posting: found, answers, resumeConfirmed }, { key })) };
+  if (unfinished) return { jobId: unfinished.id };
+  return { jobId: found.source === "NAUKRI" ? await startJob(easyApplyJob, { posting: found, answers, resumeConfirmed }, { key }) : await startJob(naukriGulfApplyJob, { posting: found }, { key }) };
 });
 
 /**

@@ -16,7 +16,7 @@ import { createFact, saveFact } from "@/lib/fact-actions";
 import { fitBand, type PostingFit } from "@/lib/fit";
 import type { JobView } from "@/lib/jobs/runner";
 import { postedAgo, postingKey, type FoundPosting, type PostingState, type ShownPosting, type StoredSearch } from "@/lib/job-search/search";
-import { arbeitsagenturPage, SOURCE_INFO } from "@/lib/job-search/sources";
+import { arbeitsagenturPage, isNopeRi, SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { retry } from "@/lib/jobs/actions";
 
@@ -183,7 +183,7 @@ export function PostingResults(props: PostingResultsProps) {
       : mode === "dismissed"
         ? "Nothing dismissed. Postings you dismiss stay out of your searches and wait here."
         : mode === "recommended" && postings.length === 0
-          ? "Naukri has no recommendations for you right now. Keeping your Naukri profile up to date helps."
+          ? "There are no recommendations for you right now. Keeping your profile on the site up to date helps."
           : postings.length > 0 || !searched
           ? "You've dismissed every posting here."
           : `No postings for “${searched.keywords}”${searched.place ? ` within ${searched.radiusKm} km of ${searched.place}` : ""}. Try a bigger radius or fewer words.`;
@@ -202,7 +202,7 @@ export function PostingResults(props: PostingResultsProps) {
               : mode === "saved"
                 ? plural(visible.length, "saved posting", "saved postings")
                 : mode === "recommended"
-                  ? `${plural(visible.length, "posting", "postings")} recommended for you by Naukri`
+                  ? `${plural(visible.length, "posting", "postings")} recommended for you by ${SOURCE_INFO[visible[0]?.source ?? "NAUKRI"].name}`
                   : `${plural(visible.length, "dismissed posting", "dismissed postings")}, kept out of your searches`}
           </span>
           {props.mode === "search" && (
@@ -391,7 +391,7 @@ export function EasyApply({
     return (
       <div role="status" className="flex flex-col gap-1 rounded-card bg-track px-4 py-3 text-meta">
         <p>
-          Applied on Naukri and added to your board in Sent.{" "}
+          Applied on {SOURCE_INFO[posting.source].name} and added to your board in Sent.{" "}
           {!onApplication && (
             <Link href={`/applications/${job.result.applicationId}`} className="underline underline-offset-2">
               Open the application
@@ -742,7 +742,7 @@ function PostingDetail({
   // As first shown, so an apply that just went through keeps its own result in place of the note below.
   const applied = Boolean(state.applicationId) && !state.drafted;
   const easyApply =
-    posting.source === "NAUKRI" && text.status !== "loading" && !applyUrl && (!initial.state.applicationId || initial.state.drafted) && !state.dismissed;
+    isNopeRi(posting.source) && text.status !== "loading" && !applyUrl && (!initial.state.applicationId || initial.state.drafted) && !state.dismissed;
 
   return (
     <section
@@ -756,8 +756,8 @@ function PostingDetail({
             <h2 id={headingId} className="font-serif text-section text-pretty">
               {posting.title || "Untitled posting"}
             </h2>
-            {posting.source === "NAUKRI" && text.status !== "loading" && (
-              <span className="rounded-card bg-track px-3 py-1 text-meta">{applyUrl ? "Applies on the company site" : "Easy apply on Naukri"}</span>
+            {isNopeRi(posting.source) && text.status !== "loading" && (
+              <span className="rounded-card bg-track px-3 py-1 text-meta">{applyUrl ? "Applies on the company site" : `Easy apply on ${SOURCE_INFO[posting.source].name}`}</span>
             )}
           </div>
           <p className="text-sm text-muted">
