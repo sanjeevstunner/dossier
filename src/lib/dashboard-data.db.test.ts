@@ -36,7 +36,7 @@ describe("loadDashboard against the demo seed (E9-6)", () => {
       { open: 1, rejected: 0, declined: 1, archived: 0 },
       { open: 0, rejected: 0, declined: 0, archived: 0 },
     ]);
-    expect(figures.byStatus).toEqual({ DRAFT: 2, SENT: 2, SCREENING: 1, INTERVIEW: 1, OFFER: 1, ACCEPTED: 0, REJECTED: 1, DECLINED: 1 });
+    expect(figures.byStatus).toEqual({ SCORED: 0, DRAFT: 2, SENT: 2, SCREENING: 1, INTERVIEW: 1, OFFER: 1, ACCEPTED: 0, REJECTED: 1, DECLINED: 1 });
   });
 
   it("lists tomorrow's interview, the offer, the drafts and the quiet one", async () => {

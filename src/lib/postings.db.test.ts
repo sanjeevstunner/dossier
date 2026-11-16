@@ -122,7 +122,7 @@ describe("postingStates", () => {
     await prisma().posting.update({ where: { source_externalId: ref }, data: { applicationId: application.id } });
 
     const states = await postingStates([found, other, third]);
-    expect(states.get("JSEARCH:job-1")).toEqual({ postingId: expect.any(String), saved: true, dismissed: false, applicationId: application.id, drafted: true, draftReason: null, score: null });
+    expect(states.get("JSEARCH:job-1")).toEqual({ postingId: expect.any(String), saved: false, dismissed: false, applicationId: application.id, drafted: true, draftReason: null, score: null });
     expect(states.get("JSEARCH:job-2")).toEqual({ postingId: expect.any(String), saved: false, dismissed: true, applicationId: null, drafted: false, draftReason: null, score: null });
     expect(states.get("JSEARCH:job-3")).toEqual({ postingId: null, saved: false, dismissed: false, applicationId: null, drafted: false, draftReason: null, score: null });
   });

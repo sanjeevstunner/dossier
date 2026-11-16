@@ -54,7 +54,7 @@ describe("draftReplyJob", () => {
     const prompt = (provider.current as MockProvider).calls[0].messages[0].content;
     expect(prompt).toContain("• Tue 20 Oct, 10:00–10:45 (Europe/Berlin)");
     expect(prompt).toContain("The candidate wrote:\nI'm applying.");
-    expect(await prisma().emailMessage.findUniqueOrThrow({ where: { id: "e1" } })).toMatchObject({ replyDraft: expect.stringContaining("Hi Anna,"), draftedWith: "draft-reply@3" });
+    expect(await prisma().emailMessage.findUniqueOrThrow({ where: { id: "e1" } })).toMatchObject({ replyDraft: expect.stringContaining("Hi Anna,"), draftedWith: "draft-reply@4" });
   });
 
   it("offers only the times picked", async () => {
