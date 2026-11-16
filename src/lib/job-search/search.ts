@@ -95,6 +95,8 @@ export const foundPostingSchema = z.object({
   description: z.string().max(100_000),
   /** False while the description is only the start of the posting. */
   complete: z.boolean(),
+  /** The source's diversity note, e.g. "Prefers women candidates" (Naukri). */
+  diversity: z.string().max(200).optional(),
 });
 export type FoundPosting = z.output<typeof foundPostingSchema>;
 
