@@ -20,6 +20,8 @@ export type ChatEntry = {
   /** A reply that changed units, which can be undone (E8-6). */
   canUndo: boolean;
   undone: boolean;
+  /** Undone, with what Undo took away kept, so Redo can bring it back. */
+  canRedo?: boolean;
 };
 
 /** The unit the next message is about, picked with "Ask AI". */

@@ -40,7 +40,7 @@ describe("dashboardFigures (E9-6)", () => {
       { stage: "ACCEPTED", count: 0, conversion: 0, stopped: none },
     ]);
     expect(figures).toMatchObject({ sent: 3, heardBack: 2, heardBackPercent: 67, reachedInterview: 1 });
-    expect(figures.byStatus).toEqual({ DRAFT: 1, SENT: 1, SCREENING: 0, INTERVIEW: 0, OFFER: 0, ACCEPTED: 0, REJECTED: 1, DECLINED: 1 });
+    expect(figures.byStatus).toEqual({ SCORED: 0, DRAFT: 1, SENT: 1, SCREENING: 0, INTERVIEW: 0, OFFER: 0, ACCEPTED: 0, REJECTED: 1, DECLINED: 1 });
   });
 
   it("says where the ones that went no further are now, archived open ones apart (decided 16 October 2026)", () => {

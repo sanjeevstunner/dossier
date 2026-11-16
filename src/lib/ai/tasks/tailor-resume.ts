@@ -31,8 +31,8 @@ const answerSchema = z.object({
   roles: z.array(z.object({ id: z.string(), bullets: z.array(z.string()) })),
   projects: z.array(z.object({ id: z.string(), bullets: z.array(z.string()) })),
   /** Only asked for when the candidate's own prompt can change it: false hides the "Skills ·" line under each role or project. */
-  showRoleSkills: z.boolean().optional(),
-  showProjectSkills: z.boolean().optional(),
+  showRoleSkills: z.boolean().nullish(),
+  showProjectSkills: z.boolean().nullish(),
   /** The profile's skills, most relevant first; leave out ones that don't help. */
   skills: z.array(z.string()),
   education: z.array(z.object({ id: z.string(), notes: z.string() })),
@@ -136,7 +136,7 @@ export function resumeUnits(profile: ProfileData, answer: z.infer<typeof answerS
   // A custom prompt may leave projects out; an answer with no roles and no projects is a failure, not a choice.
   const dropProjects = selective && (answer.roles.length > 0 || answer.projects.length > 0);
   // Only a custom prompt can hide the skills under an entry.
-  const hide = (show: boolean | undefined) => selective && show === false;
+  const hide = (show: boolean | null | undefined) => selective && show === false;
   const roles = new Map(answer.roles.map((role) => [role.id, role.bullets]));
   const projects = new Map(answer.projects.map((project) => [project.id, project.bullets]));
   const notes = new Map(answer.education.map((entry) => [entry.id, entry.notes]));

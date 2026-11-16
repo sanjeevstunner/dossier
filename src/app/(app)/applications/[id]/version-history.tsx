@@ -36,6 +36,8 @@ export function versionLabel({ cause, detail }: Pick<Version, "cause" | "detail"
       return detail ? `Changed from the chat: “${detail}”` : "Changed from the chat";
     case "UNDONE":
       return "Undid an AI change";
+    case "REDONE":
+      return "Redid an AI change";
     case "BEFORE_RESTORE":
       return "As it was before a restore";
     case "RESTORED":

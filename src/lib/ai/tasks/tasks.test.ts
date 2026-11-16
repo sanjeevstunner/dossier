@@ -492,17 +492,67 @@ describe("refineChat", () => {
       declined: false,
     };
     const { data, promptVersion } = await refineChat(model(answer), input, options);
-    expect(promptVersion).toBe("refine-chat@9");
+    expect(promptVersion).toBe("refine-chat@13");
     expect(data).toEqual({
       reply: "I made the letter more formal.",
       tone: "FORMAL",
       declined: false,
+      restore: [],
+      add: [],
+      look: null,
+      attempted: true,
+      remove: [],
+      fit: null,
       edits: [
         { document: "COVER_LETTER", unitId: "paragraph:1", text: "Please accept my application.", previousText: letter[0].text },
         // A new tone brings its sign-off along.
         { document: "COVER_LETTER", unitId: "sign-off", text: "Kind regards,", previousText: "Warm regards," },
       ],
     });
+  });
+
+  it("restores only left-out parts on the list, each once, and shows them to the model (E10-10)", async () => {
+    const role = resume[1];
+    const leftOut = [{ kind: "unit" as const, unit: role, index: 1 }];
+    const provider = model({ reply: "Put it back.", edits: [], tone: null, declined: false, restore: [0, 0, 3, -1] });
+    const { data } = await refineChat(provider, { ...input, leftOut }, options);
+    expect(data.restore).toEqual([0]);
+    expect(JSON.stringify(sent(provider))).toContain("Left out of the resume, by number");
+    const declined = await refineChat(model({ reply: "No.", edits: [], tone: null, declined: true, restore: [0] }), { ...input, leftOut }, options);
+    expect(declined.data.restore).toEqual([]);
+  });
+
+  it("tailors a part it puts back in the same answer", async () => {
+    const role = resume[1];
+    const leftOut = [{ kind: "unit" as const, unit: role, index: 1 }];
+    const answer = { reply: "Back.", edits: [{ document: "RESUME", unitId: role.id, text: "Tailored" }], tone: null, declined: false, restore: [0] };
+    const { data } = await refineChat(model(answer), { ...input, resume: resume.filter((unit) => unit !== role), leftOut }, options);
+    expect(data.edits).toEqual([{ document: "RESUME", unitId: role.id, text: "Tailored", previousText: role.text }]);
+  });
+
+  it("adds a profile entry and tailors it in the same answer, and owns up to a change that can't apply", async () => {
+    const project = resume.find((unit) => unit.id === "project:p1")!;
+    const answer = { reply: "Added.", edits: [{ document: "RESUME", unitId: "project:p1", text: "Tailored" }], tone: null, declined: false, add: ["project:p1", "project:nope", "summary"] };
+    const { data } = await refineChat(model(answer), { ...input, resume: resume.filter((unit) => unit !== project) }, options);
+    expect(data.add).toEqual(["project:p1"]);
+    expect(data.edits).toMatchObject([{ unitId: "project:p1", text: "Tailored" }]);
+
+    const missing = { reply: "Added it.", edits: [{ document: "RESUME", unitId: "project:nope", text: "x" }], tone: null, declined: false };
+    expect((await refineChat(model(missing), input, options)).data).toMatchObject({ edits: [], attempted: true });
+  });
+
+  it("keeps only real, different look changes", async () => {
+    const look = { themeId: "t1", themes: [{ id: "t1", name: "Base" }, { id: "t2", name: "Crisp" }], followThemeLayout: false, showPhoto: null };
+    const asked = { skills: [{ unitId: "project:p1", show: false }, { unitId: "summary", show: false }, { unitId: "experience:e1", show: true }], order: ["experience:e2", "nope"], sidebar: false, photo: false, themeId: "t9" };
+    const { data } = await refineChat(model({ reply: "Done.", edits: [], tone: null, declined: false, look: asked }), { ...input, look }, options);
+    // The summary has no skills line, e1's already shows, one id is no order, the layout's already single, t9 isn't a theme.
+    expect(data.look).toEqual({ skills: [{ unitId: "project:p1", show: false }], order: null, sidebar: null, photo: false, themeId: null });
+  });
+
+  it("removes and fits only units on the resume", async () => {
+    const answer = { reply: "Done.", edits: [], tone: null, declined: false, remove: ["project:p1", "certification:x"], fit: { pages: 2, cutInOrder: ["nope", "publication:u1"] } };
+    const { data } = await refineChat(model(answer), input, options);
+    expect(data).toMatchObject({ remove: ["project:p1"], fit: { pages: 2, cutInOrder: ["publication:u1"] } });
   });
 
   it("never edits a publication (#218)", async () => {

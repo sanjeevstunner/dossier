@@ -52,6 +52,7 @@ import {
   startRegenerating,
   startWritingEmail,
   undoEmailRewrite,
+  redoMessage,
   undoMessage,
 } from "./actions";
 import { naukriAppliesOnCompanySite } from "@/app/(app)/jobs/actions";
@@ -248,6 +249,8 @@ export function ApplicationView({
   const [sending, showSending] = useOptimistic(NO_MESSAGES, (current, message: ChatEntry) => [...current, message]);
   // Replies being undone, shown as undone until the page has it.
   const [undoing, showUndoing] = useOptimistic<readonly string[], string>([], (current, id) => [...current, id]);
+  // Replies being redone, shown as not undone until the page has it.
+  const [redoing, showRedoing] = useOptimistic<readonly string[], string>([], (current, id) => [...current, id]);
   const [chatFocus, focusChat] = useState(0);
   const [rewrites, setRewrites] = useState<Readonly<Record<string, Rewrite>>>(() =>
     Object.fromEntries(rewritingAtLoad.map(({ jobId, document, unitId }) => [keyOf(document, unitId), { jobId, revision: 0 }])),
@@ -539,6 +542,15 @@ export function ApplicationView({
     startTransition(async () => {
       showUndoing(message.id);
       const result = await undoMessage({ id: application.id, messageId: message.id });
+      if (!result.ok) return toast(result.error);
+      flashing.start(result.data.edited.map(({ document, unitId }) => keyOf(document, unitId)));
+    });
+
+  /** "Redo" next to "Undone": brings back what Undo took away. */
+  const redo = (message: ChatEntry) =>
+    startTransition(async () => {
+      showRedoing(message.id);
+      const result = await redoMessage({ id: application.id, messageId: message.id });
       if (!result.ok) return toast(result.error);
       flashing.start(result.data.edited.map(({ document, unitId }) => keyOf(document, unitId)));
     });
@@ -867,8 +879,19 @@ export function ApplicationView({
         >
           {(message) =>
             message.canUndo &&
-            (message.undone || undoing.includes(message.id) ? (
-              <span className="px-1 text-label text-muted">Undone</span>
+            ((message.undone || undoing.includes(message.id)) && !redoing.includes(message.id) ? (
+              <span className="flex items-center gap-1">
+                <span className="px-1 text-label text-muted">Undone</span>
+                {message.canRedo && (
+                  <button
+                    type="button"
+                    onClick={() => redo(message)}
+                    className="px-1 text-label text-muted underline underline-offset-3 hover:text-ink"
+                  >
+                    Redo
+                  </button>
+                )}
+              </span>
             ) : (
               <button
                 type="button"

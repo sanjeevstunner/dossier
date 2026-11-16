@@ -25,6 +25,7 @@ import {
   startCatchingUp,
   startWritingEmail,
   undoEmailRewrite,
+  redoMessage,
   undoMessage,
   updateNote,
 } from "./actions";
@@ -338,6 +339,123 @@ describe("sendMessage (E8-5)", () => {
 
   it("refuses an empty message", async () => {
     expect(await sendMessage({ id: "app-1", text: "  ", viewing: "RESUME", target: null })).toMatchObject({ ok: false });
+  });
+});
+
+describe("undoMessage with resume parts", () => {
+  const role = { id: "experience:e2", label: "Ledger role", text: "Ran the audit" };
+  const project = { id: "project:p1", label: "Atlas project", text: "Built Atlas" };
+  const putBackRole = { kind: "unit" as const, unit: role, index: 2 };
+  const cutProject = { kind: "unit" as const, unit: project, index: 3, byHand: true as const };
+
+  it("leaves out again what the reply put back, and puts back what it left out", async () => {
+    // Before the reply: the project on, the role left out. The reply put the role back, tailored it and took the project off.
+    await prisma().document.update({
+      where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } },
+      data: { units: [...resume, { ...role, text: "Tailored" }], trimmed: [cutProject] },
+    });
+    await prisma().chatMessage.create({
+      data: {
+        id: "m2",
+        applicationId: "app-1",
+        role: "AI",
+        text: "Done.",
+        edits: [{ document: "RESUME", unitId: role.id, text: "Tailored", previousText: role.text }],
+        parts: { restored: [putBackRole], cut: [cutProject] },
+      },
+    });
+
+    expect(await undoMessage({ id: "app-1", messageId: "m2" })).toEqual({ ok: true, data: { edited: [{ document: "RESUME", unitId: project.id }] } });
+    expect(await units()).toEqual([...resume, project]);
+    const row = await prisma().document.findUniqueOrThrow({ where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } } });
+    expect(row.trimmed).toEqual([putBackRole]);
+  });
+});
+
+describe("undoMessage with a look change", () => {
+  it("puts back the order, skills lines, layout, photo and theme", async () => {
+    const theme = await prisma().theme.create({ data: { name: "Crisp", headFont: "NEWSREADER", bodyFont: "NEWSREADER", accent: "#123456" } });
+    const swapped = [resume[1], { ...resume[0] }];
+    await prisma().document.update({
+      where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } },
+      data: { units: [swapped[0], swapped[1]].map((unit, index) => (index === 0 ? { ...unit, hideSkills: true as const } : unit)), themeId: theme.id },
+    });
+    await prisma().application.update({ where: { id: "app-1" }, data: { followThemeLayout: true, showPhoto: false } });
+    await prisma().chatMessage.create({
+      data: {
+        id: "m3",
+        applicationId: "app-1",
+        role: "AI",
+        text: "Done.",
+        parts: {
+          restored: [],
+          cut: [],
+          before: { order: resume.map((unit) => unit.id), skills: [{ unitId: resume[1].id, hidden: false }], app: { followThemeLayout: false, showPhoto: null, themeId: null } },
+        },
+      },
+    });
+
+    expect(await undoMessage({ id: "app-1", messageId: "m3" })).toMatchObject({ ok: true });
+    expect(await units()).toEqual(resume);
+    expect(await prisma().application.findUniqueOrThrow({ where: { id: "app-1" } })).toMatchObject({ followThemeLayout: false, showPhoto: null });
+    const row = await prisma().document.findUniqueOrThrow({ where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } } });
+    expect(row.themeId).toBeNull();
+  });
+});
+
+describe("redoMessage", () => {
+  const role = { id: "experience:e2", label: "Ledger role", text: "Ran the audit" };
+  const putBackRole = { kind: "unit" as const, unit: role, index: 2 };
+
+  beforeEach(async () => {
+    // After the reply: the summary shortened, a role put back, the tone made formal.
+    const after = [{ ...resume[0], text: "Short." }, resume[1], role];
+    await prisma().document.update({ where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } }, data: { units: after } });
+    await prisma().application.update({ where: { id: "app-1" }, data: { tone: "FORMAL" } });
+    await prisma().chatMessage.create({
+      data: {
+        id: "m5",
+        applicationId: "app-1",
+        role: "AI",
+        text: "Done.",
+        edits: [{ document: "RESUME", unitId: "summary", text: "Short.", previousText: resume[0].text }],
+        parts: { restored: [putBackRole], cut: [] },
+        previousTone: "WARM",
+      },
+    });
+  });
+
+  const resumeRow = () => prisma().document.findUniqueOrThrow({ where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } } });
+
+  it("brings back exactly what Undo took away, and can be undone again", async () => {
+    const before = await resumeRow();
+    expect(await undoMessage({ id: "app-1", messageId: "m5" })).toMatchObject({ ok: true });
+    expect((await prisma().chatMessage.findUniqueOrThrow({ where: { id: "m5" } })).redo).not.toBeNull();
+
+    expect(await redoMessage({ id: "app-1", messageId: "m5" })).toEqual({
+      ok: true,
+      data: { edited: [{ document: "RESUME", unitId: "summary" }, { document: "RESUME", unitId: role.id }] },
+    });
+    const after = await resumeRow();
+    expect(after.units).toEqual(before.units);
+    expect(after.trimmed).toBeNull();
+    expect(await prisma().application.findUniqueOrThrow({ where: { id: "app-1" } })).toMatchObject({ tone: "FORMAL" });
+    expect(await prisma().chatMessage.findUniqueOrThrow({ where: { id: "m5" } })).toMatchObject({ undone: false, redo: null });
+    expect(await redoMessage({ id: "app-1", messageId: "m5" })).toEqual({ ok: false, error: "There's nothing to redo in that message." });
+
+    // Undo works again after a redo.
+    expect(await undoMessage({ id: "app-1", messageId: "m5" })).toMatchObject({ ok: true });
+    expect((await units()).map(({ id, text }) => ({ id, text }))).toEqual(resume.map(({ id, text }) => ({ id, text })));
+  });
+
+  it("never overwrites a change made after the undo", async () => {
+    await undoMessage({ id: "app-1", messageId: "m5" });
+    await saveUnit({ id: "app-1", document: "RESUME", unitId: "summary", text: "My own summary", expected: resume[0].text });
+    expect(await redoMessage({ id: "app-1", messageId: "m5" })).toEqual({
+      ok: false,
+      error: "It's been changed since it was undone, so redoing this would overwrite that. Ask the AI again instead.",
+    });
+    expect((await units())[0].text).toBe("My own summary");
   });
 });
 
