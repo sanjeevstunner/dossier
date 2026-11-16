@@ -6,7 +6,7 @@ const fetchPosting = vi.hoisted(() => vi.fn(async () => ({ ok: false, error: "un
 vi.mock("@/lib/posting-fetch", () => ({ fetchPosting }));
 
 import { JobSearchError } from "./errors";
-import { naukri, naukriAuth, postedAtFromLabel } from "./naukri";
+import { naukri, naukriAuth, naukriEditableProfile, naukriLookup, naukriUpdateProfile, postedAtFromLabel } from "./naukri";
 import { EMPTY_QUERY } from "./search";
 
 const credentials = { url: "http://noperi.local:3000/", apiKey: "k".repeat(24) };
@@ -80,6 +80,26 @@ describe("Naukri details", () => {
     expect(await naukri.details(posting, credentials)).toBe("All");
     stubFetch(() => json({ externalApply: true, details: { jobDetails: { description: "x", applyRedirectUrl: "javascript:alert(1)" } } }));
     expect(await naukri.details(posting, credentials)).toBe("x");
+  });
+});
+
+describe("Naukri profile", () => {
+  it("reads the editable fields, PATCHes an update and looks up ids", async () => {
+    const editable = { headline: "H", summary: "S", keySkills: ["React"], desiredRoles: [], preferredLocations: [{ id: 139, name: "Pune" }], expectedSalary: null, noticePeriodId: 1 };
+    const requests = stubFetch(({ url }) =>
+      url.pathname === "/api/profile/lookup" ? json([{ id: 139, name: "Pune" }]) : url.pathname === "/api/profile/editable" ? json(editable) : json({ profileId: "p" }),
+    );
+    expect(await naukriEditableProfile(credentials)).toEqual(editable);
+    await naukriUpdateProfile(credentials, { headline: "AI Engineer", noticePeriodId: 2 });
+    expect(requests[1]).toMatchObject({ method: "PATCH", body: { headline: "AI Engineer", noticePeriodId: 2 } });
+    expect(requests[1].url.pathname).toBe("/api/profile");
+    expect(await naukriLookup(credentials, "location", "Pune")).toEqual([{ id: 139, name: "Pune" }]);
+    expect(Object.fromEntries(requests[2].url.searchParams)).toEqual({ type: "location", q: "Pune" });
+  });
+
+  it("calls an unreadable answer a changed API", async () => {
+    stubFetch(() => json({ nope: true }));
+    await expect(naukriLookup(credentials, "designation", "FDE")).rejects.toMatchObject({ problem: "changed" });
   });
 });
 

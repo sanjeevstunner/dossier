@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { editableSchema, tagSchema, type NaukriEditable, type NaukriTag, type NaukriUpdate } from "@/lib/naukri-profile";
 import { fetchPosting } from "@/lib/posting-fetch";
 
 import type { JobSourceAdapter, RequestContext, SourceCredentials } from "./adapter";
@@ -88,9 +89,9 @@ export function postingFromJob(job: Job, now = new Date()): FoundPosting {
 }
 
 /** A request to NopeRi for `source`, with its API key; `path` is the whole path ("/api/gulf/jobs/search"). */
-export function call(source: NopeRiSource, credentials: Credentials, path: string, context: RequestContext = {}, json?: unknown): Promise<unknown> {
+export function call(source: NopeRiSource, credentials: Credentials, path: string, context: RequestContext = {}, json?: unknown, method?: "PATCH"): Promise<unknown> {
   const url = new URL(`${(context.baseUrl ?? credentials.url).replace(/\/+$/, "")}${path}`);
-  return requestJson(source, url, { headers: { "x-api-key": credentials.apiKey }, signal: context.signal, json });
+  return requestJson(source, url, { headers: { "x-api-key": credentials.apiKey }, signal: context.signal, json, method });
 }
 
 /**
@@ -98,9 +99,9 @@ export function call(source: NopeRiSource, credentials: Credentials, path: strin
  * wrong API key and for a sign-in that's missing or expired; its status,
  * which needs only the key, tells them apart.
  */
-export async function signedIn(source: NopeRiSource, credentials: Credentials, path: string, context: RequestContext = {}, json?: unknown): Promise<unknown> {
+export async function signedIn(source: NopeRiSource, credentials: Credentials, path: string, context: RequestContext = {}, json?: unknown, method?: "PATCH"): Promise<unknown> {
   try {
-    return await call(source, credentials, path, context, json);
+    return await call(source, credentials, path, context, json, method);
   } catch (error) {
     if (!(error instanceof JobSearchError) || error.problem !== "key") throw error;
     await call(source, credentials, `${NOPERI_PREFIX[source]}/auth/status`, context);
@@ -294,4 +295,28 @@ export async function naukriHasApplied(credentials: Credentials, jobId: string, 
   const answer = await signedIn("NAUKRI", credentials, "/api/applications?pageSize=50&days=30", context);
   if (!Array.isArray(answer)) throw jobSearchError("changed", "NAUKRI", { detail: "/api/applications: unexpected answer" });
   return answer.some((item) => item && typeof item === "object" && "jobId" in item && String(item.jobId) === jobId);
+}
+
+// The Naukri profile itself (the "Naukri profile" screen): its editable
+// fields, an update to some of them, and Naukri's ids for a city or role.
+
+/** The profile fields NopeRi can change, as they are on Naukri now. */
+export async function naukriEditableProfile(credentials: Credentials, context: RequestContext = {}): Promise<NaukriEditable> {
+  const path = "/api/profile/editable";
+  const answer = editableSchema.safeParse(await signedIn("NAUKRI", credentials, path, context));
+  if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
+  return answer.data;
+}
+
+/** Changes the given fields on Naukri; the rest stay as they are. */
+export async function naukriUpdateProfile(credentials: Credentials, update: NaukriUpdate, context: RequestContext = {}): Promise<void> {
+  await signedIn("NAUKRI", credentials, "/api/profile", context, update, "PATCH");
+}
+
+/** Naukri's ids for a city ("location") or a job title ("designation"), best match first. Needs no sign-in. */
+export async function naukriLookup(credentials: Credentials, type: "location" | "designation", name: string, context: RequestContext = {}): Promise<NaukriTag[]> {
+  const path = `/api/profile/lookup?${new URLSearchParams({ type, q: name })}`;
+  const answer = z.array(tagSchema).safeParse(await call("NAUKRI", credentials, path, context));
+  if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: "/api/profile/lookup: unexpected answer" });
+  return answer.data;
 }
