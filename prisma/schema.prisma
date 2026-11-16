@@ -607,6 +607,8 @@ model ChatMessage {
   targetUnit    String?
   /// Unit changes it made, with the previous text for Undo (editsSchema).
   edits         Json?
+  /// Resume parts it put back and left out, for Undo (messagePartsSchema).
+  parts         Json?
   undone        Boolean     @default(false)
   /// The letter's tone before this message changed it, for Undo; null when it didn't.
   previousTone  Tone?

@@ -170,6 +170,55 @@ export const trimmedSchema = z.array(
 );
 export type Trimmed = z.infer<typeof trimmedSchema>;
 
+/** ChatMessage.parts: what a reply put back on the resume and what it left out, as they were on Document.trimmed, for Undo. */
+export const messagePartsSchema = z.object({
+  restored: trimmedSchema,
+  cut: trimmedSchema,
+  /** How the resume looked before the reply changed it, when it did. */
+  before: z
+    .object({
+      /** The resume's unitIds in their order before a reorder, or null. */
+      order: z.array(z.string()).nullable(),
+      /** Each role or project whose skills line it showed or hid, with whether it was hidden. */
+      skills: z.array(z.object({ unitId: z.string(), hidden: z.boolean() })),
+      /** The application's look, when the layout, photo or theme changed. */
+      app: z.object({ followThemeLayout: z.boolean(), showPhoto: z.boolean().nullable(), themeId: z.string().nullable() }).nullable(),
+    })
+    .optional(),
+});
+
+/** Puts the units in the order of these ids, in place, keeping the slots they take; ids not on the list keep theirs. */
+export function reorder(units: Unit[], ids: string[]): void {
+  const slots = units.flatMap((unit, index) => (ids.includes(unit.id) ? [index] : []));
+  const moved = ids.flatMap((id) => units.find((unit) => unit.id === id) ?? []);
+  slots.forEach((slot, position) => (units[slot] = moved[position]));
+}
+export type MessageParts = z.infer<typeof messagePartsSchema>;
+
+/** Takes a put-back part off again, in place: the reverse of putBack. */
+export function takeOff(units: Unit[], item: Trimmed[number]): void {
+  if (item.kind === "unit") {
+    const index = units.findIndex((unit) => unit.id === item.unit.id);
+    if (index >= 0) units.splice(index, 1);
+    return;
+  }
+  const unit = units.find((entry) => entry.id === item.unitId);
+  if (unit) unit.text = unit.text.split("\n").filter((line) => !item.lines.includes(line)).join("\n");
+}
+
+/** Puts one left-out part back into the resume's units, in place. False when its role is gone. Twice changes nothing more. */
+export function putBack(units: Unit[], item: Trimmed[number]): boolean {
+  if (item.kind === "unit") {
+    if (!units.some((unit) => unit.id === item.unit.id)) units.splice(Math.min(item.index, units.length), 0, item.unit);
+    return true;
+  }
+  const unit = units.find((entry) => entry.id === item.unitId);
+  if (!unit) return false;
+  const lines = unit.text.split("\n");
+  unit.text = [...lines, ...item.lines.filter((line) => !lines.includes(line))].filter(Boolean).join("\n");
+  return true;
+}
+
 /** ChatMessage.edits */
 export const editsSchema = z.array(unitEditSchema);
 export type UnitEdit = z.infer<typeof unitEditSchema>;

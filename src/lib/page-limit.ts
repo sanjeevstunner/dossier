@@ -24,7 +24,7 @@ import { citationExcerpt } from "@/lib/citation";
 /** Enough for any resume: roles and bullets run out long before. */
 const MAX_CUTS = 30;
 
-type Cut = { trimmed: Trimmed[number]; units: Unit[] };
+export type Cut = { trimmed: Trimmed[number]; units: Unit[] };
 
 /** The units of a role or project, oldest first, with where they are. */
 function oldestFirst(units: Unit[], entries: { id: string; startYear: number | null; startMonth: number | null }[], prefix: string) {
@@ -39,6 +39,12 @@ const leaveOut = (units: Unit[], { unit, index }: { unit: Unit; index: number })
   trimmed: { kind: "unit", unit, index },
   units: units.filter((_, position) => position !== index),
 });
+
+/** Leaves out the unit with this id, or null when it isn't there. */
+export function leaveOutUnitCut(units: Unit[], unitId: string): Cut | null {
+  const index = units.findIndex((unit) => unit.id === unitId);
+  return index < 0 ? null : leaveOut(units, { unit: units[index], index });
+}
 
 /** The next thing to leave out, or null when there's nothing left to cut. */
 export function nextCut(units: Unit[], profile: ProfileData, keepExperience = false): Cut | null {
@@ -80,32 +86,37 @@ function merge(list: Trimmed, cut: Trimmed[number]): Trimmed {
 
 /**
  * Trims the application's tailored resume to `maxPages`. Returns what was
- * cut, oldest first, and whether it fits now.
+ * cut, oldest first, and whether it fits now. `next` picks the cuts instead
+ * of the default order; `earlier` is what was left out already, kept on the list.
  */
 export async function fitResumeToPages(
   applicationId: string,
   profile: ProfileData,
   maxPages: number,
   pages: (path: string) => Promise<number> = async (path) => countPdfPages(await renderPdf(path)),
+  { earlier = [], next }: { earlier?: Trimmed; next?: (units: Unit[]) => Cut | null } = {},
 ): Promise<{ trimmed: Trimmed; fits: boolean }> {
   const fits = async () => (await pages(`/print/resume/${applicationId}`)) <= maxPages;
   let trimmed: Trimmed = [];
+  let all = earlier;
   if (await fits()) return { trimmed, fits: true };
-  const keepExperience = hasUserPrompts(await loadTaskOptions(), "global", "docs", "resume");
+  const keepExperience = !next && hasUserPrompts(await loadTaskOptions(), "global", "docs", "resume");
+  const pick = next ?? ((units: Unit[]) => nextCut(units, profile, keepExperience));
 
   for (let cuts = 0; cuts < MAX_CUTS; cuts++) {
     const cut = await updateDocuments(applicationId, async (documents) => {
       const units = documents[DocumentKind.RESUME];
-      const next = units && nextCut(units, profile, keepExperience);
-      if (!units || !next) return null;
-      documents[DocumentKind.RESUME] = next.units;
-      return next.trimmed;
+      const cut = units && pick(units);
+      if (!units || !cut) return null;
+      documents[DocumentKind.RESUME] = cut.units;
+      return cut.trimmed;
     });
     if (!cut) break;
     trimmed = merge(trimmed, cut);
+    all = merge(all, cut);
     await prisma.document.updateMany({
       where: { applicationId, kind: DocumentKind.RESUME },
-      data: { trimmed: trimmedSchema.parse(trimmed) },
+      data: { trimmed: trimmedSchema.parse(all) },
     });
     if (await fits()) return saveTrimmed(applicationId, trimmed, true);
   }

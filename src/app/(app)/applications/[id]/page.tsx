@@ -5,7 +5,7 @@ import { cache } from "react";
 
 import { activityTimeline } from "@/lib/activity";
 import { isAiConfigured } from "@/lib/ai/config";
-import { editsSchema, matchSchema, matchScore } from "@/lib/application-data";
+import { editsSchema, matchSchema, matchScore, messagePartsSchema, type MessageParts } from "@/lib/application-data";
 import { loadApplication, loadDocuments, readJson } from "@/lib/application-documents";
 import { fileHref } from "@/lib/application-files";
 import { formatShortDate } from "@/lib/dates";
@@ -34,6 +34,9 @@ import { tabFrom } from "./tabs";
  * loadApplication is cached for the request, and the title reads it first.
  */
 const pullCalendar = cache((id: string) => pullInterviewEvents({ applicationId: id, signal: AbortSignal.timeout(3_000) }).catch(() => 0));
+
+/** How many resume parts a reply put back or left out, plus one when it changed the look. */
+const partCount = (parts: MessageParts | null) => (parts ? parts.restored.length + parts.cut.length + (parts.before ? 1 : 0) : 0);
 
 export async function generateMetadata({ params }: PageProps<"/applications/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -80,7 +83,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       targetUnit: message.targetUnit,
       // Written in code when the application was created (E7-6).
       opening: index === 0 && message.role === "AI" && !message.writtenWith,
-      canUndo: message.role === "AI" && (readJson(editsSchema, message.edits)?.length ?? 0) > 0,
+      canUndo: message.role === "AI" && (readJson(editsSchema, message.edits)?.length ?? 0) + partCount(readJson(messagePartsSchema, message.parts)) > 0,
       undone: message.undone,
     }))
     // Settings → "Show what changed" off hides the list of what was tailored (SET-5).

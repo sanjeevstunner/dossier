@@ -7,7 +7,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { ChatRole, DocumentKind, VersionCause } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
 import { isAiConfigured } from "@/lib/ai/config";
-import { editsSchema, extractedSchema, matchSchema, trimmedSchema, unitsSchema, withSkillAdded } from "@/lib/application-data";
+import { editsSchema, extractedSchema, matchSchema, messagePartsSchema, putBack, reorder, takeOff, trimmedSchema, unitsSchema, withSkillAdded } from "@/lib/application-data";
 import { WRITTEN_EMAIL_UNITS } from "@/lib/application-email";
 import { updateDocuments } from "@/lib/document-units";
 import { DOCUMENT_LABELS } from "@/lib/file-name";
@@ -261,16 +261,39 @@ const listOf = (names: string[]) => (names.length <= 1 ? names.join("") : `${nam
 /**
  * "Undo" under a reply in the chat (E8-6, APP-8): puts back what the reply
  * changed, units and tone, all or nothing. A unit edited again since is
- * never overwritten; the answer says which.
+ * never overwritten; the answer says which. Resume parts the reply left out
+ * come back (unless put back since), and parts it put back go off again.
  */
 export const undoMessage = action(z.object({ id: z.string().min(1), messageId: z.string().min(1) }), async ({ id, messageId }) => {
   const message = await prisma.chatMessage.findFirst({ where: { id: messageId, applicationId: id, role: ChatRole.AI } });
   const edits = message && editsSchema.safeParse(message.edits);
-  if (!message || !edits?.success || edits.data.length === 0) throw new ActionError("There's nothing to undo in that message.");
+  const parts = message && messagePartsSchema.safeParse(message.parts);
+  const editList = edits?.success ? edits.data : [];
+  const { restored, cut, before } = parts?.success ? parts.data : { restored: [], cut: [], before: undefined };
+  if (!message || editList.length + restored.length + cut.length === 0 && !before) throw new ActionError("There's nothing to undo in that message.");
   if (message.undone) throw new ActionError("That's already undone.");
 
+  const resumeRow = await prisma.document.findUnique({ where: { applicationId_kind: { applicationId: id, kind: DocumentKind.RESUME } } });
+  const leftOut = trimmedSchema.safeParse(resumeRow?.trimmed);
+  const current = leftOut.success ? leftOut.data : [];
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  // What it left out and is still left out comes back, the last cut first so each goes back where it was.
+  const back = cut.filter((item) => current.some((entry) => same(entry, item))).reverse();
+
   await updateDocuments(id, async (documents, tx) => {
-    const changed = edits.data.flatMap((edit) => {
+    const resume = documents[DocumentKind.RESUME] ?? [];
+    for (const item of back) putBack(resume, item);
+    if (before?.order) reorder(resume, before.order.filter((unitId) => resume.some((unit) => unit.id === unitId)));
+    for (const { unitId, hidden } of before?.skills ?? []) {
+      const unit = resume.find((entry) => entry.id === unitId);
+      if (unit && hidden) unit.hideSkills = true;
+      else if (unit) delete unit.hideSkills;
+    }
+    if (before?.app) {
+      const { followThemeLayout, showPhoto } = before.app;
+      await tx.application.update({ where: { id }, data: { followThemeLayout, showPhoto } });
+    }
+    const changed = editList.flatMap((edit) => {
       const unit = documents[edit.document]?.find((entry) => entry.id === edit.unitId);
       return unit?.text === edit.text ? [] : [`the ${unitName(unit ?? { id: edit.unitId, label: "" })}`];
     });
@@ -279,19 +302,38 @@ export const undoMessage = action(z.object({ id: z.string().min(1), messageId: z
         `You've changed ${listOf(changed)} since, so undoing this would overwrite that. Edit ${changed.length === 1 ? "it" : "them"} by hand instead.`,
       );
     }
-    for (const edit of edits.data) {
+    for (const edit of editList) {
       const unit = documents[edit.document]!.find((entry) => entry.id === edit.unitId)!;
       unit.text = edit.previousText;
       if (edit.previousUnverified?.length) unit.unverified = edit.previousUnverified;
       else delete unit.unverified;
     }
+    // After the edits are undone, what it put back reads as it did when left out.
+    for (const item of restored) takeOff(resume, item);
     if (message.previousTone) await tx.application.update({ where: { id }, data: { tone: message.previousTone } });
     // Only once, even when two clicks race.
     const { count } = await tx.chatMessage.updateMany({ where: { id: messageId, undone: false }, data: { undone: true } });
     if (count === 0) throw new ActionError("That's already undone.");
   }, { version: { cause: VersionCause.UNDONE } });
+
+  // Written after the units, as "Put back" does: updateDocuments checks the document wasn't changed meanwhile.
+  if (before?.app) {
+    await prisma.document.updateMany({
+      where: { applicationId: id, kind: { in: [DocumentKind.RESUME, DocumentKind.COVER_LETTER] } },
+      data: { themeId: before.app.themeId },
+    });
+  }
+  if (resumeRow && (back.length > 0 || restored.length > 0)) {
+    const trimmed = [...current.filter((entry) => !back.some((item) => same(entry, item))), ...restored.filter((item) => !current.some((entry) => same(entry, item)))];
+    await prisma.document.update({ where: { id: resumeRow.id }, data: { trimmed: trimmed.length > 0 ? trimmed : Prisma.DbNull } });
+  }
   refresh(id);
-  return { edited: edits.data.map(({ document, unitId }) => ({ document, unitId })) };
+  const gone = new Set(restored.map((item) => (item.kind === "unit" ? item.unit.id : "")));
+  const edited = [
+    ...editList.map(({ document, unitId }) => ({ document, unitId })),
+    ...back.map((item) => ({ document: DocumentKind.RESUME, unitId: item.kind === "unit" ? item.unit.id : item.unitId })),
+  ];
+  return { edited: edited.filter((entry, index) => !gone.has(entry.unitId) && edited.findIndex((other) => other.unitId === entry.unitId) === index) };
 });
 
 /**
@@ -396,15 +438,7 @@ export const putBackTrimmed = action(z.object({ id: z.string().min(1), index: z.
 
   await updateDocuments(id, async (documents) => {
     const units = documents[DocumentKind.RESUME];
-    if (!units) throw new ActionError(PART_GONE);
-    if (item.kind === "unit") {
-      if (!units.some((unit) => unit.id === item.unit.id)) units.splice(Math.min(item.index, units.length), 0, item.unit);
-      return;
-    }
-    const unit = units.find((entry) => entry.id === item.unitId);
-    if (!unit) throw new ActionError(PART_GONE);
-    const lines = unit.text.split("\n");
-    unit.text = [...lines, ...item.lines.filter((line) => !lines.includes(line))].filter(Boolean).join("\n");
+    if (!units || !putBack(units, item)) throw new ActionError(PART_GONE);
   });
   const rest = trimmed.data.filter((_, position) => position !== index);
   await prisma.document.update({ where: { id: row.id }, data: { trimmed: rest.length > 0 ? rest : Prisma.DbNull } });
