@@ -192,7 +192,10 @@ const chatMessage = z.object({
   text,
   targetUnit: text.nullable(),
   edits: z.unknown().nullable(),
+  /** Older files don't have these. */
+  parts: z.unknown().nullable().optional(),
   undone: z.boolean(),
+  redo: z.unknown().nullable().optional(),
   previousTone: z.enum(Tone).nullable(),
   writtenWith: text.nullable(),
   createdAt: date,

@@ -7,7 +7,22 @@ import { Prisma } from "@/generated/prisma/client";
 import { ChatRole, DocumentKind, VersionCause } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
 import { isAiConfigured } from "@/lib/ai/config";
-import { editsSchema, extractedSchema, matchSchema, messagePartsSchema, putBack, reorder, takeOff, trimmedSchema, unitsSchema, withSkillAdded } from "@/lib/application-data";
+import {
+  editsSchema,
+  extractedSchema,
+  matchSchema,
+  messagePartsSchema,
+  putBack,
+  redoSchema,
+  reorder,
+  takeOff,
+  trimmedSchema,
+  unitsSchema,
+  withSkillAdded,
+  type Redo,
+  type Trimmed,
+  type UnitEdit,
+} from "@/lib/application-data";
 import { WRITTEN_EMAIL_UNITS } from "@/lib/application-email";
 import { updateDocuments } from "@/lib/document-units";
 import { DOCUMENT_LABELS } from "@/lib/file-name";
@@ -258,6 +273,60 @@ export const sendMessage = action(
 /** "A, B and C" */
 const listOf = (names: string[]) => (names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
 
+type DocumentRow = { id: string; units: unknown; trimmed: unknown; themeId: string | null };
+const lookOf = (row: DocumentRow) => JSON.stringify([row.units, row.trimmed ?? null, row.themeId]);
+
+/** Keeps the documents Undo changed as they were before it, and when Undo left them, for Redo. */
+async function saveRedo(messageId: string, before: DocumentRow[], application: Redo["application"]) {
+  const after = await prisma.document.findMany({ where: { id: { in: before.map((row) => row.id) } } });
+  const documents = before.flatMap((row) => {
+    const now = after.find((entry) => entry.id === row.id);
+    if (!now || lookOf(now) === lookOf(row)) return [];
+    const trimmed = trimmedSchema.safeParse(row.trimmed);
+    return [{ id: row.id, units: unitsSchema.parse(row.units), trimmed: trimmed.success ? trimmed.data : null, themeId: row.themeId, undoneAt: now.updatedAt.toISOString() }];
+  });
+  const redo: Redo = { documents, application };
+  await prisma.chatMessage.update({ where: { id: messageId }, data: { redo } });
+}
+
+/** What a reply changed, to make it glow: its edits and what it put back, not what it left out. */
+function changedBy(edits: UnitEdit[], { restored, cut }: { restored: Trimmed; cut: Trimmed }) {
+  const idOf = (item: Trimmed[number]) => (item.kind === "unit" ? item.unit.id : item.unitId);
+  const gone = new Set(cut.filter((item) => item.kind === "unit").map(idOf));
+  const all = [...edits.map(({ document, unitId }) => ({ document, unitId })), ...restored.map((item) => ({ document: DocumentKind.RESUME, unitId: idOf(item) }))];
+  return all.filter((entry, index) => !gone.has(entry.unitId) && all.findIndex((other) => other.unitId === entry.unitId) === index);
+}
+
+/**
+ * "Redo" next to "Undone" (E8-6): brings back what Undo took away, exactly
+ * as it was, while nothing it touched has changed since.
+ */
+export const redoMessage = action(z.object({ id: z.string().min(1), messageId: z.string().min(1) }), async ({ id, messageId }) => {
+  const message = await prisma.chatMessage.findFirst({ where: { id: messageId, applicationId: id, role: ChatRole.AI } });
+  const redo = message?.undone ? redoSchema.safeParse(message.redo) : null;
+  if (!message || !redo?.success) throw new ActionError("There's nothing to redo in that message.");
+  const since = "It's been changed since it was undone, so redoing this would overwrite that. Ask the AI again instead.";
+
+  await prisma.$transaction(async (tx) => {
+    for (const document of redo.data.documents) {
+      // Only while it's as Undo left it.
+      const { count } = await tx.document.updateMany({
+        where: { id: document.id, applicationId: id, updatedAt: new Date(document.undoneAt) },
+        data: { units: document.units, trimmed: document.trimmed ?? Prisma.DbNull, themeId: document.themeId },
+      });
+      if (count === 0) throw new ActionError(since);
+      await saveVersion(tx, document.id, document.units, { cause: VersionCause.REDONE });
+    }
+    await tx.application.update({ where: { id }, data: redo.data.application });
+    const { count } = await tx.chatMessage.updateMany({ where: { id: messageId, undone: true }, data: { undone: false, redo: Prisma.DbNull } });
+    if (count === 0) throw new ActionError("That's already redone.");
+  });
+  refresh(id);
+  const edits = editsSchema.safeParse(message.edits);
+  const parts = messagePartsSchema.safeParse(message.parts);
+  return { edited: changedBy(edits.success ? edits.data : [], parts.success ? parts.data : { restored: [], cut: [] }) };
+});
+
 /**
  * "Undo" under a reply in the chat (E8-6, APP-8): puts back what the reply
  * changed, units and tone, all or nothing. A unit edited again since is
@@ -273,7 +342,12 @@ export const undoMessage = action(z.object({ id: z.string().min(1), messageId: z
   if (!message || editList.length + restored.length + cut.length === 0 && !before) throw new ActionError("There's nothing to undo in that message.");
   if (message.undone) throw new ActionError("That's already undone.");
 
-  const resumeRow = await prisma.document.findUnique({ where: { applicationId_kind: { applicationId: id, kind: DocumentKind.RESUME } } });
+  // Everything as it is now, for Redo.
+  const [rowsBefore, lookBefore] = await Promise.all([
+    prisma.document.findMany({ where: { applicationId: id } }),
+    prisma.application.findUniqueOrThrow({ where: { id }, select: { tone: true, followThemeLayout: true, showPhoto: true } }),
+  ]);
+  const resumeRow = rowsBefore.find((row) => row.kind === DocumentKind.RESUME);
   const leftOut = trimmedSchema.safeParse(resumeRow?.trimmed);
   const current = leftOut.success ? leftOut.data : [];
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -327,6 +401,7 @@ export const undoMessage = action(z.object({ id: z.string().min(1), messageId: z
     const trimmed = [...current.filter((entry) => !back.some((item) => same(entry, item))), ...restored.filter((item) => !current.some((entry) => same(entry, item)))];
     await prisma.document.update({ where: { id: resumeRow.id }, data: { trimmed: trimmed.length > 0 ? trimmed : Prisma.DbNull } });
   }
+  await saveRedo(messageId, rowsBefore, lookBefore);
   refresh(id);
   const gone = new Set(restored.map((item) => (item.kind === "unit" ? item.unit.id : "")));
   const edited = [

@@ -571,6 +571,8 @@ enum VersionCause {
   REFINED
   /// An AI change undone.
   UNDONE
+  /// An undone AI change brought back.
+  REDONE
   /// Saved just before restoring another version, so nothing is lost.
   BEFORE_RESTORE
   /// An earlier version brought back.
@@ -610,6 +612,8 @@ model ChatMessage {
   /// Resume parts it put back and left out, for Undo (messagePartsSchema).
   parts         Json?
   undone        Boolean     @default(false)
+  /// While undone: everything as it was before Undo, to bring it back with Redo (redoSchema).
+  redo          Json?
   /// The letter's tone before this message changed it, for Undo; null when it didn't.
   previousTone  Tone?
   /// For AI messages, the prompt version that wrote it (E6-5).

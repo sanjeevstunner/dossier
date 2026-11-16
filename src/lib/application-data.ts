@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { DocumentKind } from "@/generated/prisma/enums";
+import { DocumentKind, Tone } from "@/generated/prisma/enums";
 
 // Schemas for the JSON columns of Application, Document and ChatMessage
 // (prisma/schema.prisma). The AI tasks (src/lib/ai/tasks) produce these
@@ -186,6 +186,26 @@ export const messagePartsSchema = z.object({
     })
     .optional(),
 });
+
+/**
+ * ChatMessage.redo: while a reply is undone, the documents Undo changed as
+ * they were before it, each with when Undo last wrote it (Redo only goes
+ * ahead while nothing changed since), and the application's look and tone.
+ */
+export const redoSchema = z.object({
+  documents: z.array(
+    z.object({
+      id: z.string(),
+      units: unitsSchema,
+      trimmed: trimmedSchema.nullable(),
+      themeId: z.string().nullable(),
+      /** Document.updatedAt right after Undo, as an ISO string. */
+      undoneAt: z.string(),
+    }),
+  ),
+  application: z.object({ tone: z.enum(Tone), followThemeLayout: z.boolean(), showPhoto: z.boolean().nullable() }),
+});
+export type Redo = z.infer<typeof redoSchema>;
 
 /** Puts the units in the order of these ids, in place, keeping the slots they take; ids not on the list keep theirs. */
 export function reorder(units: Unit[], ids: string[]): void {

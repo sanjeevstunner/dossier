@@ -85,6 +85,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       opening: index === 0 && message.role === "AI" && !message.writtenWith,
       canUndo: message.role === "AI" && (readJson(editsSchema, message.edits)?.length ?? 0) + partCount(readJson(messagePartsSchema, message.parts)) > 0,
       undone: message.undone,
+      canRedo: message.undone && message.redo !== null,
     }))
     // Settings → "Show what changed" off hides the list of what was tailored (SET-5).
     .filter((message) => settings.showDiff || !message.opening);
