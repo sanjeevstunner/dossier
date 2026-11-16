@@ -576,7 +576,10 @@ function PostingList({
               )}
             >
               <span className="flex items-start justify-between gap-3">
-                <span className="text-field font-medium text-pretty">{title}</span>
+                <span className="text-field font-medium text-pretty">
+                  {title}
+                  {posting.diversity && <span className="ml-2 inline-block rounded-full bg-track px-2 py-0.5 align-middle text-xs font-normal text-ink">{posting.diversity}</span>}
+                </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   <StateBadges state={posting.state} />
                   {posting.state.score ? (
@@ -756,6 +759,7 @@ function PostingDetail({
             <h2 id={headingId} className="font-serif text-section text-pretty">
               {posting.title || "Untitled posting"}
             </h2>
+            {posting.diversity && <span className="rounded-card bg-track px-3 py-1 text-meta">{posting.diversity}</span>}
             {isNopeRi(posting.source) && text.status !== "loading" && (
               <span className="rounded-card bg-track px-3 py-1 text-meta">{applyUrl ? "Applies on the company site" : `Easy apply on ${SOURCE_INFO[posting.source].name}`}</span>
             )}

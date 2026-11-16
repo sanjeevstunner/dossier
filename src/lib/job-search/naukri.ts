@@ -35,6 +35,7 @@ export const jobSchema = z.object({
   postedDate: text,
   applyLink: text,
   description: text,
+  diversityTag: text,
 });
 export type Job = z.output<typeof jobSchema>;
 
@@ -82,6 +83,7 @@ export function postingFromJob(job: Job, now = new Date()): FoundPosting {
     via: "",
     description: plainText(job.description).slice(0, 100_000),
     complete: false,
+    diversity: plainText(given(job.diversityTag)).slice(0, 200) || undefined,
   };
 }
 
