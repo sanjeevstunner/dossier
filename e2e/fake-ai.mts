@@ -10,12 +10,12 @@ type Request = { messages: Message[]; response_format?: { json_schema?: { name?:
 
 const port = Number(process.env.FAKE_AI_PORT ?? 3999);
 
-/** The JSON after `label` in a message, up to the next blank line and label. */
+/** The JSON after `label` in a message, up to the next part (a blank line, then a capital: JSON has no blank lines). */
 function section(text: string, label: string): unknown {
   const start = text.indexOf(label);
   if (start < 0) return null;
   const rest = text.slice(start + label.length);
-  const end = rest.search(/\n\n[A-Z][^\n]*:\n/);
+  const end = rest.search(/\n\n[A-Z]/);
   return JSON.parse(end < 0 ? rest : rest.slice(0, end));
 }
 

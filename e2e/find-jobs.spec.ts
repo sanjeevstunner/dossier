@@ -71,7 +71,7 @@ test("searches, keeps postings, and starts an application from one", async ({ pa
   expect(posting.applicationId).toBe(applicationId);
   // A draft has left Saved: it's on the board now.
   await page.goto("/jobs?view=saved");
-  await expect(page.getByText("0 saved postings")).toBeVisible();
+  await expect(page.getByText(/^Nothing saved yet\./)).toBeVisible();
 });
 
 test("says when nothing was found", async ({ page }) => {
