@@ -96,6 +96,21 @@ let naukriProfile = {
   preferredLocations: [{ id: 97, name: "Bangalore/Bengaluru" }],
   expectedSalary: { amount: 1500000, currency: "INR" },
   noticePeriodId: 1,
+  basics: { name: "Sanne de Vries", city: { id: 97, name: "Bangalore/Bengaluru" }, experience: { years: 6, months: 0 }, currentSalary: null },
+  personal: { birthDate: null, gender: null, address: "", hometown: "", pincode: "", maritalStatus: null },
+  employments: [
+    { id: "e2e-emp", current: true, designation: { id: "2001", name: "UI Designer" }, company: { id: "9", name: "Ledgerly" }, start: "2021-03", end: null, description: "Designed screens.", skills: ["Figma"], experienceType: "F" },
+  ],
+  itSkills: [],
+  educations: [],
+  projects: [],
+  onlineProfiles: [{ id: "e2e-dribbble", name: "Dribbble", url: "https://dribbble.com/sanne", description: "" }],
+  workSamples: [],
+  publications: [],
+  presentations: [],
+  patents: [],
+  certifications: [],
+  languages: [],
 };
 const naukriUpdates: unknown[] = [];
 const TAXONOMY: Record<string, { id: number; name: string }[]> = {
@@ -105,6 +120,7 @@ const TAXONOMY: Record<string, { id: number; name: string }[]> = {
 
 function naukriProfileRoute(url: URL, request: IncomingMessage, response: ServerResponse) {
   if (url.pathname === "/naukri/api/profile/editable") return send(response, 200, naukriProfile);
+  if (url.pathname.startsWith("/naukri/api/profile/options/")) return send(response, 200, []);
   if (url.pathname === "/naukri/api/profile/lookup") {
     const q = (url.searchParams.get("q") ?? "").toLowerCase();
     return send(response, 200, (TAXONOMY[url.searchParams.get("type") ?? ""] ?? []).filter((tag) => tag.name.toLowerCase().includes(q)));

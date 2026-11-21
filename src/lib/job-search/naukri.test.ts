@@ -89,7 +89,7 @@ describe("Naukri profile", () => {
     const requests = stubFetch(({ url }) =>
       url.pathname === "/api/profile/lookup" ? json([{ id: 139, name: "Pune" }]) : url.pathname === "/api/profile/editable" ? json(editable) : json({ profileId: "p" }),
     );
-    expect(await naukriEditableProfile(credentials)).toEqual(editable);
+    expect(await naukriEditableProfile(credentials)).toMatchObject(editable);
     await naukriUpdateProfile(credentials, { headline: "AI Engineer", noticePeriodId: 2 });
     expect(requests[1]).toMatchObject({ method: "PATCH", body: { headline: "AI Engineer", noticePeriodId: 2 } });
     expect(requests[1].url.pathname).toBe("/api/profile");

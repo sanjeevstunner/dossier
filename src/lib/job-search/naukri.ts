@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
-import { editableSchema, tagSchema, type NaukriEditable, type NaukriTag, type NaukriUpdate } from "@/lib/naukri-profile";
+import { editableSchema, tagSchema, type LookupType, type NaukriEditable, type NaukriOption, type NaukriTag, type NaukriUpdate, type OptionList } from "@/lib/naukri-profile";
 import { fetchPosting } from "@/lib/posting-fetch";
 
 import type { JobSourceAdapter, RequestContext, SourceCredentials } from "./adapter";
@@ -313,10 +313,20 @@ export async function naukriUpdateProfile(credentials: Credentials, update: Nauk
   await signedIn("NAUKRI", credentials, "/api/profile", context, update, "PATCH");
 }
 
-/** Naukri's ids for a city ("location") or a job title ("designation"), best match first. Needs no sign-in. */
-export async function naukriLookup(credentials: Credentials, type: "location" | "designation", name: string, context: RequestContext = {}): Promise<NaukriTag[]> {
+/** Naukri's ids for a city, job title, company, institute, skill or certification, best match first. Needs no sign-in. */
+export async function naukriLookup(credentials: Credentials, type: LookupType, name: string, context: RequestContext = {}): Promise<NaukriTag[]> {
   const path = `/api/profile/lookup?${new URLSearchParams({ type, q: name })}`;
   const answer = z.array(tagSchema).safeParse(await call("NAUKRI", credentials, path, context));
   if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: "/api/profile/lookup: unexpected answer" });
+  return answer.data;
+}
+
+const dropdownSchema = z.object({ id: z.number().int(), name: z.string(), parentId: z.number().int().catch(0) });
+
+/** One of Naukri's dropdowns: courses, specialisations (`parentId` is the course), grading systems, marital status. Needs no sign-in. */
+export async function naukriOptions(credentials: Credentials, list: OptionList, context: RequestContext = {}): Promise<NaukriOption[]> {
+  const path = `/api/profile/options/${list}`;
+  const answer = z.array(dropdownSchema).safeParse(await call("NAUKRI", credentials, path, context));
+  if (!answer.success) throw jobSearchError("changed", "NAUKRI", { detail: `${path}: unexpected answer` });
   return answer.data;
 }
