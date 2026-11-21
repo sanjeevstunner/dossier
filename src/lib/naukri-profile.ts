@@ -474,3 +474,31 @@ export const noticeText = (value: number | null) => NOTICE_PERIODS.find((period)
 
 /** A suggested profile: every field and section, why the AI changed what it changed, and names Naukri didn't know. */
 export type Suggestion = NaukriEditable & { reasons: Partial<Record<FieldKey | SectionName, string>>; unresolved: string[] };
+
+/** What the AI can write: the words of the profile, never its facts. */
+export const AI_KEYS = ["headline", "summary", "keySkills", "desiredRoles", "employments", "itSkills", "projects", "educations", "certifications", "publications", "workSamples"] as const;
+export type AiKey = (typeof AI_KEYS)[number];
+
+/** Whether a change key ("headline", "employments:42") belongs to one of these fields or sections. */
+export const keyIn = (key: string, names: readonly string[]) => names.includes(key.split(":")[0]!);
+
+/**
+ * The values to keep editing after an update: what was sent comes back as
+ * Naukri saved it; everything not sent (suggestions still under review in
+ * other sections) stays as it was on the screen.
+ */
+export function afterUpdate(values: NaukriEditable, saved: NaukriEditable, sent: ReadonlySet<string>, removed: ReadonlySet<string>): NaukriEditable {
+  const next = { ...saved } as Record<string, unknown>;
+  for (const { key } of FIELDS) if (!sent.has(key)) next[key] = values[key];
+  for (const name of SECTION_NAMES) {
+    const mine = values[name] as SectionItem[];
+    const kept = (saved[name] as SectionItem[]).map((item) => {
+      const twin = mine.find((other) => other.id === item.id);
+      const key = itemKey(name, item);
+      return twin && !sent.has(key) && !removed.has(key) ? twin : item;
+    });
+    const pending = mine.filter((item) => isNew(item) && !sent.has(itemKey(name, item)) && !removed.has(itemKey(name, item)));
+    next[name] = [...kept, ...pending];
+  }
+  return next as NaukriEditable;
+}

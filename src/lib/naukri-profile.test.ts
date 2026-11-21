@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { differs, editableSchema, fitKeySkills, itemProblem, salaryText, SECTIONS, updateOf, updateSchema, type NaukriEditable } from "./naukri-profile";
+import { afterUpdate, differs, editableSchema, fitKeySkills, itemProblem, salaryText, SECTIONS, updateOf, updateSchema, type NaukriEditable } from "./naukri-profile";
 
 const employment = { id: "e1", current: true, designation: { id: "5555", name: "SE 2" }, company: { id: "47", name: "7EDGE" }, start: "2025-11", end: null, description: "Full stack", skills: ["React"], experienceType: "F" as const };
 const now: NaukriEditable = editableSchema.parse({
@@ -55,6 +55,28 @@ describe("updateOf", () => {
     expect(noCity).toEqual({ basics: { name: "S", experience: { years: 3, months: 6 } } });
     expect(updateSchema.safeParse(noCity).success).toBe(true);
     expect(updateSchema.safeParse({ personal: { maritalStatus: { id: 1, name: "Single/unmarried" } } }).success).toBe(false);
+  });
+});
+
+describe("afterUpdate", () => {
+  it("takes what was sent as Naukri saved it and keeps every suggestion not sent yet", () => {
+    const values: NaukriEditable = {
+      ...now,
+      headline: "AI Engineer",
+      summary: "Pending summary",
+      employments: [{ ...employment, description: "Pending words" }],
+      itSkills: [{ id: "new-1", skill: { id: null, name: "Go" }, version: "", lastUsed: null, experience: { years: 1, months: 0 } }],
+    };
+    const saved: NaukriEditable = { ...now, headline: "AI Engineer", onlineProfiles: [] };
+    const next = afterUpdate(values, saved, new Set(["headline"]), new Set(["onlineProfiles:o1"]));
+    expect(next.headline).toBe("AI Engineer");
+    expect(next.summary).toBe("Pending summary");
+    expect(next.employments[0]!.description).toBe("Pending words");
+    expect(next.itSkills.map((item) => item.id)).toEqual(["new-1"]);
+    expect(next.onlineProfiles).toEqual([]);
+    // A sent new item comes back with Naukri's id and isn't kept twice.
+    const added = afterUpdate(values, { ...saved, itSkills: [{ ...values.itSkills[0]!, id: "i9" }] }, new Set(["itSkills:new-1"]), new Set());
+    expect(added.itSkills.map((item) => item.id)).toEqual(["i9"]);
   });
 });
 
