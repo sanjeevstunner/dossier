@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "skills": {
+    "building-components": {
+      "source": "vercel/components.build",
+      "commit": "0861fbcfe4f78c50eaafc202f5fb7661d641ddff",
+      "sourceType": "github",
+      "skillPath": "skills/building-components/SKILL.md",
+      "computedHash": "16fd7cdf98f3d4d85ccb987407d9963a054ea4f65c4ae45bd38fa6e567820f5e"
+    },
+    "next-cache-components-adoption": {
+      "source": "vercel/next.js",
+      "commit": "794836c3cbb750d1e34f99e210b39b7bdfbc4c58",
+      "sourceType": "github",
+      "skillPath": "skills/next-cache-components-adoption/SKILL.md",
+      "computedHash": "004440bc8cfbf30291fc9564e14ade7874c886189e2df3a4bcbb7c937ef58b07"
+    },
+    "next-cache-components-optimizer": {
+      "source": "vercel/next.js",
+      "commit": "794836c3cbb750d1e34f99e210b39b7bdfbc4c58",
+      "sourceType": "github",
+      "skillPath": "skills/next-cache-components-optimizer/SKILL.md",
+      "computedHash": "97a5b125e85aff3ebe90626b887cf016f4de33c01b479a42758bd57fe233db4c"
+    },
+    "vercel-composition-patterns": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/composition-patterns/SKILL.md",
+      "computedHash": "f711ed8b16162eaa712abbcdbbae6c926f86c57e60127735fecc3ad0dd85b3fa"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "7991ed4fbecdac23f47c1a40c243e00a212a9e7f3604db93959b3ae11dffe299"
+    }
+  }
+}
