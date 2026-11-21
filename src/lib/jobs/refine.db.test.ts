@@ -20,6 +20,14 @@ vi.mock("@/lib/profile-data", async () => {
   return { loadProfile: async () => demoProfile(), loadFactTexts: async () => [] };
 });
 vi.mock("./runner", () => ({ defineJob: <T,>(definition: T) => definition }));
+// The resume runs to three pages while it has a publication, two without.
+vi.mock("@/lib/pdf/render", () => ({ renderPdf: async () => new Uint8Array() }));
+vi.mock("@/lib/pdf/pages", () => ({
+  countPdfPages: async () => {
+    const row = await db.client!.document.findUniqueOrThrow({ where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } } });
+    return (row.units as { id: string }[]).some((unit) => unit.id.startsWith("publication:")) ? 3 : 2;
+  },
+}));
 
 const prisma = () => db.client!;
 const resume = demoResumeUnits();
@@ -63,11 +71,122 @@ describe("refineJob (E8-5)", () => {
     expect(saved).toMatchObject({
       role: "AI",
       text: "Trimmed your summary.",
-      writtenWith: "refine-chat@7",
+      writtenWith: "refine-chat@13",
       previousTone: null,
       edits: [{ document: "RESUME", unitId: "summary", text: "Designer of calm tools.", previousText: resume[0].text }],
     });
     expect((await units("RESUME"))[0].text).toBe("Designer of calm tools.");
+  });
+
+  it("puts back a role the page limit left out, when asked (E10-10)", async () => {
+    const role = resume.find((unit) => unit.id.startsWith("experience:"))!;
+    const index = resume.indexOf(role);
+    await prisma().document.update({
+      where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } },
+      data: { units: resume.filter((unit) => unit !== role), trimmed: [{ kind: "unit", unit: role, index }] },
+    });
+    provider.current = reply({ reply: "Put that role back.", restore: [0, 0, 5] });
+    const result = await ask("Keep all the work experience from profile");
+
+    expect(result.edited).toEqual([{ document: "RESUME", unitId: role.id }]);
+    expect((await units("RESUME"))[index]).toEqual(role);
+    const row = await prisma().document.findUniqueOrThrow({ where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } } });
+    expect(row.trimmed).toBeNull();
+  });
+
+  it("puts a role back and tailors it in the same answer", async () => {
+    const role = resume.find((unit) => unit.id.startsWith("experience:"))!;
+    await prisma().document.update({
+      where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } },
+      data: { units: resume.filter((unit) => unit !== role), trimmed: [{ kind: "unit", unit: role, index: resume.indexOf(role) }] },
+    });
+    provider.current = reply({ reply: "Back and tailored.", restore: [0], edits: [{ document: "RESUME", unitId: role.id, text: "Led the design system" }] });
+    const result = await ask("Keep all the work experience and tailor it");
+
+    expect(result.edited).toEqual([{ document: "RESUME", unitId: role.id }]);
+    expect((await units("RESUME")).find((unit) => unit.id === role.id)?.text).toBe("Led the design system");
+  });
+
+  it("adds a profile entry that was never on the resume, in its section, and says so", async () => {
+    const project = resume.find((unit) => unit.id === "project:p1")!;
+    await prisma().document.update({
+      where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } },
+      data: { units: resume.filter((unit) => unit !== project) },
+    });
+    provider.current = reply({ reply: "Added it.", add: ["project:p1"], edits: [{ document: "RESUME", unitId: "project:p1", text: "Tailored" }] });
+    await ask("Add the project");
+
+    const ids = (await units("RESUME")).map((unit) => unit.id);
+    expect(ids).toEqual(resume.map((unit) => unit.id));
+    expect((await units("RESUME")).find((unit) => unit.id === "project:p1")?.text).toBe("Tailored");
+    expect((await lastMessage()).text).toMatch(/^Added it\. Added the .+ project\.$/);
+  });
+
+  it("says nothing changed when the change asked for couldn't apply", async () => {
+    provider.current = reply({ reply: "Added it.", edits: [{ document: "RESUME", unitId: "project:nope", text: "x" }] });
+    await ask("Add the video KYC project");
+    expect((await lastMessage()).text).toContain("nothing on your documents changed");
+  });
+
+  it("changes how the resume looks: skills lines, order, layout, photo and theme, saved for Undo", async () => {
+    const theme = await prisma().theme.create({ data: { name: "Crisp", headFont: "NEWSREADER", bodyFont: "NEWSREADER", accent: "#123456" } });
+    const look = { skills: [{ unitId: "project:p1", show: false }], order: ["experience:e3", "experience:e1", "experience:e2"], sidebar: true, photo: false, themeId: theme.id };
+    provider.current = reply({ reply: "Done.", look });
+    await ask("Hide the project's skills, lead with my latest role, sidebar on, no photo, Crisp theme");
+
+    const after = await units("RESUME");
+    expect(after.find((unit) => unit.id === "project:p1")?.hideSkills).toBe(true);
+    expect(after.filter((unit) => unit.id.startsWith("experience:")).map((unit) => unit.id)).toEqual(look.order);
+    expect(await prisma().application.findUniqueOrThrow({ where: { id: "app-1" } })).toMatchObject({ followThemeLayout: true, showPhoto: false });
+    const resumeRow = () => prisma().document.findUniqueOrThrow({ where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } } });
+    expect((await resumeRow()).themeId).toBe(theme.id);
+    const saved = await lastMessage();
+    expect(saved.text).toMatch(/Hid the skills under the .+\. Changed the order\. Switched to the theme's layout with its sidebar\. Turned the photo off\. Switched to the Crisp theme\.$/);
+    expect(saved.parts).toMatchObject({
+      before: { order: resume.map((unit) => unit.id), skills: [{ unitId: "project:p1", hidden: false }], app: { followThemeLayout: false, showPhoto: null, themeId: null } },
+    });
+  });
+
+  it("removes parts when asked, kept so they can be put back (#217)", async () => {
+    provider.current = reply({ reply: "Took the publication off.", remove: ["publication:u1", "publication:nope"] });
+    await ask("Remove publications");
+
+    expect((await units("RESUME")).some((unit) => unit.id === "publication:u1")).toBe(false);
+    const row = await prisma().document.findUniqueOrThrow({ where: { applicationId_kind: { applicationId: "app-1", kind: "RESUME" } } });
+    expect(row.trimmed).toEqual([{ kind: "unit", unit: resume.find((unit) => unit.id === "publication:u1"), index: resume.findIndex((unit) => unit.id === "publication:u1"), byHand: true }]);
+    // Saved on the reply too, for its Undo link.
+    expect((await lastMessage()).parts).toEqual({ restored: [], cut: row.trimmed });
+  });
+
+  it("fits a page count in the model's order, cutting only until it fits", async () => {
+    provider.current = reply({ reply: "Fitting two pages.", fit: { pages: 2, cutInOrder: ["publication:u1", "project:p1"] } });
+    await ask("Fit two pages by cutting the publication, then projects");
+
+    const ids = (await units("RESUME")).map((unit) => unit.id);
+    expect(ids).not.toContain("publication:u1");
+    expect(ids).toContain("project:p1");
+    expect(((await lastMessage()).parts as { cut: { unit: { id: string } }[] }).cut.map((cut) => cut.unit.id)).toEqual(["publication:u1"]);
+    expect((await lastMessage()).text).toMatch(/^Fitting two pages\. Left out the publication .* to fit two pages\.$/);
+  });
+
+  it("undoes a removal and an edit from the chat itself", async () => {
+    provider.current = reply({ reply: "Done.", remove: ["publication:u1"], edits: [{ document: "RESUME", unitId: "summary", text: "Short." }] });
+    await ask("Remove the publication and shorten the summary");
+    expect((await lastMessage()).text).toMatch(/^Done\. Left out the .+\.$/);
+
+    // The model sees what the summary was and what's left out, and undoes both.
+    let seen = "";
+    provider.current = new MockProvider({
+      reply: (call) => {
+        seen = JSON.stringify(call);
+        return { reply: "Undone.", edits: [{ document: "RESUME", unitId: "summary", text: resume[0].text }], tone: null, declined: false, restore: [0] };
+      },
+    });
+    await ask("Undo that");
+    expect(seen).toContain("Before this reply's edits");
+    expect(seen).toContain(JSON.stringify(resume[0].text).slice(1, 30));
+    expect(await units("RESUME")).toEqual(resume);
+    expect((await lastMessage()).text).toMatch(/^Undone\. Put back the .+\.$/);
   });
 
   it("edits the email, which the model sees once there is one", async () => {

@@ -9,7 +9,7 @@ import type { TaskOptions } from "./tasks";
 export async function loadTaskOptions(): Promise<Omit<TaskOptions, "signal">> {
   const s = await loadSettings();
   // A custom prompt reaches the AI only with the master switch and its own on; off gives "".
-  const use = (on: boolean, text: string) => (s.customPrompts && on ? text.trim() : "");
+  const pick = (on: boolean, text: string) => (s.customPrompts && on ? text.trim() : "");
   // Null follows the posting's language.
   return {
     creativity: s.creativity,
@@ -17,10 +17,10 @@ export async function loadTaskOptions(): Promise<Omit<TaskOptions, "signal">> {
     language: s.docLanguage,
     maxPages: maxPages(s.pageLimit),
     prompts: {
-      global: use(s.promptGlobalOn, s.promptGlobal),
-      docs: use(s.promptDocsOn, s.promptDocs),
-      resume: use(s.promptResumeOn, s.promptResume),
-      agent: use(s.promptAgentOn, s.promptAgent),
+      global: pick(s.promptGlobalOn, s.promptGlobal),
+      docs: pick(s.promptDocsOn, s.promptDocs),
+      resume: pick(s.promptResumeOn, s.promptResume),
+      agent: pick(s.promptAgentOn, s.promptAgent),
     },
   };
 }

@@ -172,7 +172,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       });
       await tx.chatMessage.createMany({
         data: applications.flatMap((application) =>
-          application.messages.map((message) => ({ ...message, applicationId: application.id, edits: json(message.edits) })),
+          application.messages.map((message) => ({ ...message, applicationId: application.id, edits: json(message.edits), parts: json(message.parts), redo: json(message.redo) })),
         ),
       });
       await tx.note.createMany({
