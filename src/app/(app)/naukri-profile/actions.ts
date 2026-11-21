@@ -12,12 +12,11 @@ import { credentialsFor, loadJobSearchConfig, requestContext } from "@/lib/job-s
 import { JobSearchError } from "@/lib/job-search/errors";
 import { naukriEditableProfile, naukriLookup, naukriOptions, naukriUpdateProfile } from "@/lib/job-search/naukri";
 import {
+  AI_KEYS,
   BASICS_FIELDS,
   courseList,
   isNew,
   itemProblem,
-  LOCATIONS_MAX,
-  NOTICE_PERIODS,
   PERSONAL_FIELDS,
   SECTIONS,
   specList,
@@ -110,37 +109,34 @@ async function resolveIds(values: NaukriEditable, find: ReturnType<typeof lookup
 
 const target = z.object({
   role: z.string().trim().min(2, "Name the role you're after.").max(150),
-  locations: z.array(z.string().trim().min(2).max(100)).max(LOCATIONS_MAX),
-  salary: z.number().int().positive().max(1_000_000_000).nullable(),
-  noticePeriodId: z.number().int().refine((value) => NOTICE_PERIODS.some((period) => period.id === value)).nullable(),
   notes: z.string().trim().max(2000),
+  /** One section's parts; the whole profile when not given. An empty list asks only for the profile's facts. */
+  only: z.array(z.enum(AI_KEYS)).max(AI_KEYS.length).optional(),
+  instruction: z.string().trim().max(500).optional(),
 });
 
 /**
- * Suggests the whole Naukri profile for a target role: the AI writes the
- * words and adds what the Dossier profile has that Naukri lacks; the Dossier
- * profile gives the facts (experience, personal details, links, languages);
- * the form gives locations, salary and notice period.
+ * Suggests the Naukri profile, or one section of it, for a target role: the
+ * AI writes the words and adds what the Dossier profile has that Naukri
+ * lacks; the Dossier profile gives the facts (experience, personal details,
+ * links, languages). The screen takes only the asked section from the answer.
  */
-export const suggestNaukriProfile = action(target, async ({ role, locations, salary, noticePeriodId, notes }): Promise<Suggestion> => {
-  if (!(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first.");
-  const [current, profile, provider, options] = await Promise.all([naukri(naukriEditableProfile), loadProfile(), getAiProvider(), loadTaskOptions()]);
-  const { data } = await tailorNaukriProfile(provider, { role, notes, current, profile }, options);
+export const suggestNaukriProfile = action(target, async ({ role, notes, only, instruction }): Promise<Suggestion> => {
+  const ai = only === undefined || only.length > 0;
+  if (ai && !(await isAiConfigured())) throw new ActionError("Choose an AI provider in Settings → AI provider first.");
+  const [current, profile] = await Promise.all([naukri(naukriEditableProfile), loadProfile()]);
+  const data = ai ? (await tailorNaukriProfile(await getAiProvider(), { role, notes, current, profile, only, instruction }, await loadTaskOptions())).data : { reasons: {} };
   const facts = withProfileFacts(mergeDraft(current, data), profile, new Date());
 
   return naukri(async (credentials, context) => {
     const find = lookups(credentials, context);
     const unresolved: string[] = [];
-    const roles = (await Promise.all(data.desiredRoles.map(async (name) => (await find.tag("designation", name)) ?? (unresolved.push(name), null)))).filter((tag) => tag !== null);
-    const places = (await Promise.all(locations.map(async (name) => (await find.tag("location", name)) ?? (unresolved.push(name), null)))).filter((tag) => tag !== null);
+    const roles = (await Promise.all((data.desiredRoles ?? []).map(async (name) => (await find.tag("designation", name)) ?? (unresolved.push(name), null)))).filter((tag) => tag !== null);
     const city = facts.city ? await find.tag("location", facts.city) : null;
     const values = await resolveIds(facts.values, find, unresolved);
     return {
       ...values,
       desiredRoles: roles.length ? [...new Map(roles.map((tag) => [tag.id, tag])).values()] : current.desiredRoles,
-      preferredLocations: locations.length ? [...new Map(places.map((tag) => [tag.id, tag])).values()] : current.preferredLocations,
-      expectedSalary: salary ? { amount: salary, currency: current.expectedSalary?.currency ?? "INR" } : current.expectedSalary,
-      noticePeriodId: noticePeriodId ?? current.noticePeriodId,
       basics: { ...values.basics, city: city ?? values.basics.city },
       reasons: data.reasons,
       unresolved,

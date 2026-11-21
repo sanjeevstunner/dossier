@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Sparkles, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 import { PageHeader } from "@/components/page-header";
@@ -16,6 +17,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { SearchProblem } from "@/lib/job-search/search";
 import {
+  afterUpdate,
   BASICS_FIELDS,
   DESIRED_ROLES_MAX,
   FIELDS,
@@ -25,6 +27,7 @@ import {
   itemProblem,
   KEY_SKILLS_CHARS,
   KEY_SKILLS_MAX,
+  keyIn,
   LOCATIONS_MAX,
   MARITAL_STATUSES,
   NOTICE_PERIODS,
@@ -36,6 +39,7 @@ import {
   SECTIONS,
   SUMMARY_MAX,
   updateOf,
+  type AiKey,
   type FieldKey,
   type FieldSpec,
   type LookupType,
@@ -53,7 +57,7 @@ import { NaukriLogin } from "../jobs/naukri-login";
 import { lookUpNaukriTag, naukriDropdown, suggestNaukriProfile, updateNaukriProfile } from "./actions";
 
 const DESCRIPTION =
-  "Your whole Naukri profile, to tailor for the role you're after. Dossier suggests changes to every section from your profile, next to what Naukri shows now; you can also edit, add or delete anything yourself. Nothing changes on Naukri until you update.";
+  "Your Naukri profile, section by section. Ask the AI to tailor the whole profile or one section for the role you're after, compare it with what Naukri shows now, and send only what you accept. Nothing changes on Naukri until you update.";
 
 const splitList = (text: string) => text.split(",").map((part) => part.trim()).filter(Boolean);
 type Loose = Record<string, unknown>;
@@ -63,7 +67,7 @@ export function NaukriProfileScreen({ current, problem, aiReady }: { current: Na
   return (
     <>
       <PageHeader title="Naukri profile" description={DESCRIPTION} />
-      <div className="flex flex-col gap-6 px-10 pb-20">
+      <div className="flex flex-col gap-6 px-10 pb-28">
         {current ? (
           <Tailor current={current} aiReady={aiReady} />
         ) : problem?.problem === "login" ? (
@@ -83,6 +87,30 @@ export function NaukriProfileScreen({ current, problem, aiReady }: { current: Na
     </>
   );
 }
+
+/** A card on the screen, grouped as Naukri groups its profile; `ai` is what the AI may rewrite in it (none: only facts from your profile). */
+type Group = { id: string; label: string; fields: FieldKey[]; sections: SectionName[]; ai: AiKey[] };
+const GROUPS: Group[] = [
+  { id: "headline", label: "Resume headline", fields: ["headline"], sections: [], ai: ["headline"] },
+  { id: "key-skills", label: "Key skills", fields: ["keySkills"], sections: [], ai: ["keySkills"] },
+  { id: "employment", label: "Employment", fields: [], sections: ["employments"], ai: ["employments"] },
+  { id: "education", label: "Education", fields: [], sections: ["educations"], ai: ["educations"] },
+  { id: "it-skills", label: "IT skills", fields: [], sections: ["itSkills"], ai: ["itSkills"] },
+  { id: "projects", label: "Projects", fields: [], sections: ["projects"], ai: ["projects"] },
+  { id: "summary", label: "Profile summary", fields: ["summary"], sections: [], ai: ["summary"] },
+  {
+    id: "accomplishments",
+    label: "Accomplishments",
+    fields: [],
+    sections: ["onlineProfiles", "workSamples", "publications", "presentations", "patents", "certifications"],
+    ai: ["certifications", "publications", "workSamples"],
+  },
+  { id: "career", label: "Career profile", fields: ["desiredRoles", "preferredLocations", "expectedSalary", "noticePeriodId"], sections: [], ai: ["desiredRoles"] },
+  { id: "personal", label: "Personal details", fields: ["personal"], sections: ["languages"], ai: [] },
+];
+const WHOLE: string[] = [...FIELDS.map(({ key }) => key), ...SECTION_NAMES];
+const namesOf = (group: Group): string[] => [...group.fields, ...group.sections];
+const labelOf = (key: FieldKey) => FIELDS.find((field) => field.key === key)!.label;
 
 /** The keys of everything that differs from Naukri now: single fields, then changed or new items. */
 function changedKeys(current: NaukriEditable, values: NaukriEditable): string[] {
@@ -115,18 +143,18 @@ const toggled = (set: ReadonlySet<string>, key: string, on: boolean) => {
   return next;
 };
 
+const without = (set: ReadonlySet<string>, names: readonly string[]) => new Set([...set].filter((key) => !keyIn(key, names)));
+
 function Tailor({ current: initial, aiReady }: { current: NaukriEditable; aiReady: boolean }) {
   const [current, setCurrent] = useState(initial);
   const [values, setValues] = useState(initial);
   const [reasons, setReasons] = useState<Suggestion["reasons"]>({});
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
-  const [busy, setBusy] = useState<"suggest" | "update" | null>(null);
+  /** What's running: "all", a group id, or "update". Several sections can be suggesting at once. */
+  const [running, setRunning] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [role, setRole] = useState(initial.desiredRoles[0]?.name ?? "");
-  const [locations, setLocations] = useState(initial.preferredLocations.map((tag) => tag.name).join(", "));
-  const [salary, setSalary] = useState(initial.expectedSalary ? String(initial.expectedSalary.amount) : "");
-  const [notice, setNotice] = useState(initial.noticePeriodId ? String(initial.noticePeriodId) : "");
   const [notes, setNotes] = useState("");
 
   const changed = changedKeys(current, values);
@@ -137,96 +165,166 @@ function Tailor({ current: initial, aiReady }: { current: NaukriEditable; aiRead
     setValues((now) => ({ ...now, [key]: value }));
     accept(accepting);
   };
+  const run = (id: string, on: boolean) => setRunning((now) => toggled(now, id, on));
 
-  const suggest = async (event: FormEvent) => {
-    event.preventDefault();
-    if (busy || !aiReady) return;
-    setBusy("suggest");
-    const result = toastResult(
-      await suggestNaukriProfile({
-        role,
-        locations: splitList(locations).slice(0, LOCATIONS_MAX),
-        salary: Number(salary) > 0 ? Math.round(Number(salary)) : null,
-        noticePeriodId: notice ? Number(notice) : null,
-        notes,
-      }),
-    );
-    setBusy(null);
+  /** Suggests one group (or the whole profile) and lays only that over the screen: other sections keep their suggestions and choices. */
+  const suggest = async (group: Group | null, instruction = "") => {
+    const id = group?.id ?? "all";
+    if (running.has(id) || running.has("update") || (group?.ai.length !== 0 && !aiReady)) return;
+    if (role.trim().length < 2) return toast("Name the role you're after first, at the top.");
+    run(id, true);
+    const result = toastResult(await suggestNaukriProfile({ role, notes, only: group?.ai, instruction: instruction || undefined }));
+    run(id, false);
     if (!result.ok) return;
+    const names = group ? namesOf(group) : WHOLE;
     const { reasons: why, unresolved, ...suggested } = result.data;
-    setValues(suggested);
-    setReasons(why);
-    setAccepted(new Set());
+    setValues((now) => ({ ...now, ...Object.fromEntries(names.map((name) => [name, suggested[name as keyof NaukriEditable]])) }));
+    setReasons((now) => ({ ...now, ...Object.fromEntries(Object.entries(why).filter(([name]) => names.includes(name))) }));
+    setAccepted((now) => without(now, names));
     if (unresolved.length) toast(`Naukri didn't recognise: ${unresolved.join(", ")}.`);
   };
 
+  const discard = (group: Group) => {
+    const names = namesOf(group);
+    setValues((now) => ({ ...now, ...Object.fromEntries(names.map((name) => [name, current[name as keyof NaukriEditable]])) }));
+    setReasons((now) => Object.fromEntries(Object.entries(now).filter(([name]) => !names.includes(name))));
+    setAccepted((now) => without(now, names));
+    setRemoved((now) => without(now, names));
+  };
+
   const update = async () => {
-    if (busy) return;
-    setBusy("update");
-    const result = toastResult(await updateNaukriProfile(updateOf(values, new Set(sending), removed)));
-    setBusy(null);
+    if (running.has("update")) return;
+    run("update", true);
+    const sent = new Set(sending);
+    const result = toastResult(await updateNaukriProfile(updateOf(values, sent, removed)));
+    run("update", false);
     if (!result.ok) return;
+    const gone = removed;
     setCurrent(result.data);
-    setValues(result.data);
-    setReasons({});
-    setAccepted(new Set());
+    setValues((now) => afterUpdate(now, result.data, sent, gone));
+    setAccepted((now) => new Set([...now].filter((key) => !sent.has(key))));
     setRemoved(new Set());
   };
 
+  const inGroup = (group: Group) => {
+    const names = namesOf(group);
+    return { changed: changed.filter((key) => keyIn(key, names)), removed: [...removed].filter((key) => keyIn(key, names)) };
+  };
+  const fieldProps = (key: FieldKey) => ({
+    fieldKey: key,
+    current,
+    values,
+    changed: changed.includes(key),
+    accepted: accepted.has(key),
+    reason: reasons[key],
+    onAccept: (on: boolean) => accept(key, on),
+    onChange: (value: unknown) => set(key, value, key),
+  });
+  const sectionProps = (name: SectionName) => ({
+    name,
+    current: current[name] as SectionItem[],
+    items: values[name] as SectionItem[],
+    reason: reasons[name],
+    accepted,
+    removed,
+    changed,
+    onAccept: accept,
+    onChange: (items: SectionItem[], key: string) => set(name, items, key),
+    onRemove: (key: string, on: boolean) => setRemoved((now) => toggled(now, key, on)),
+  });
+
+  const job = current.employments.find((item) => item.current);
   return (
     <>
-      <Card padding="none" className="p-6">
-        <form aria-label="Target role" onSubmit={suggest} className="grid gap-4 md:grid-cols-2">
-          <Input label="Role you're after" value={role} required maxLength={150} onChange={(event) => setRole(event.target.value)} placeholder="e.g. Forward Deployed Engineer" />
-          <Input label="Preferred locations" hint={`Comma-separated, up to ${LOCATIONS_MAX}`} value={locations} onChange={(event) => setLocations(event.target.value)} placeholder="Bengaluru, Pune" />
-          <Input
-            label="Expected salary (per year)"
-            hint={current.expectedSalary ? `Now ${salaryText(current.expectedSalary)}` : undefined}
-            type="number"
-            min={1}
-            inputMode="numeric"
-            value={salary}
-            onChange={(event) => setSalary(event.target.value)}
-            placeholder="1800000"
-          />
-          <Select label="Notice period" value={notice} onChange={(event) => setNotice(event.target.value)}>
-            <option value="">Keep as it is</option>
-            {NOTICE_PERIODS.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.label}
-              </option>
-            ))}
-          </Select>
-          <Textarea
-            label="Anything to bring out (optional)"
-            className="md:col-span-2"
-            rows={3}
-            maxLength={2000}
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="e.g. Lead with AWS and agentic AI work; open to client-facing roles."
-          />
-          <div className="flex items-center gap-3 md:col-span-2">
-            <Button type="submit" aria-disabled={!aiReady || busy !== null || undefined}>
-              {busy === "suggest" ? "Suggesting… (this takes a minute)" : "Suggest changes"}
-            </Button>
-            {!aiReady && (
-              <p className="text-meta text-muted">
-                Choose an AI provider in{" "}
-                <Link href="/settings?section=ai" className="underline underline-offset-2">
-                  Settings
-                </Link>{" "}
-                first. You can still edit everything below yourself.
-              </p>
-            )}
-          </div>
-        </form>
+      <Card padding="none" className="flex flex-col gap-4 p-6">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-serif text-section">{current.basics.name || "Your name"}</h2>
+          {job && (
+            <p className="text-sm">
+              {job.designation.name} at {job.company.name}
+            </p>
+          )}
+          <p className="text-meta text-muted">
+            {[current.basics.city?.name, `${current.basics.experience.years} years ${current.basics.experience.months} months`, current.basics.currentSalary && salaryText(current.basics.currentSalary), noticeText(current.noticePeriodId)]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+        <FieldBlock {...fieldProps("basics")} title={labelOf("basics")} />
       </Card>
 
-      <section aria-label="Changes" className="sticky top-16 z-10 flex flex-wrap items-center justify-between gap-3 rounded-card border border-line-card bg-card px-4 py-3">
+      <Card padding="none" className="p-5">
+        <form
+          aria-label="Target role"
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault();
+            void suggest(null);
+          }}
+          className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]"
+        >
+          <Input label="Role you're after" value={role} required maxLength={150} onChange={(event) => setRole(event.target.value)} placeholder="e.g. Forward Deployed Engineer" />
+          <Input label="Anything to bring out (optional)" maxLength={2000} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="e.g. Lead with AWS and agentic AI work" />
+          <Button type="submit" aria-disabled={!aiReady || running.has("all") || undefined}>
+            <Sparkles aria-hidden className="size-4" />
+            {running.has("all") ? "Suggesting… (about a minute)" : "Suggest whole profile"}
+          </Button>
+        </form>
+        {!aiReady && (
+          <p className="mt-2 text-meta text-muted">
+            Choose an AI provider in{" "}
+            <Link href="/settings?section=ai" className="underline underline-offset-2">
+              Settings
+            </Link>{" "}
+            to get suggestions. You can still edit everything yourself.
+          </p>
+        )}
+      </Card>
+
+      <div className="grid gap-6 md:grid-cols-[200px_minmax(0,1fr)]">
+        <nav aria-label="Sections" className="flex flex-col gap-0.5 self-start rounded-card border border-line-card bg-card p-3 text-sm md:sticky md:top-16">
+          <p className="px-2 pb-1 text-label text-muted">Quick links</p>
+          {GROUPS.map((group) => {
+            const mine = inGroup(group);
+            const pending = mine.changed.length + mine.removed.length;
+            return (
+              <a key={group.id} href={`#${group.id}`} className="flex items-center justify-between rounded-control px-2 py-1.5 hover:bg-hover">
+                {group.label}
+                {pending > 0 && <span className="rounded-full bg-primary px-1.5 text-xs font-semibold text-on-primary" aria-label={`${pending} changes`}>{pending}</span>}
+              </a>
+            );
+          })}
+        </nav>
+
+        <div className="flex min-w-0 flex-col gap-4">
+          {GROUPS.map((group) => {
+            const mine = inGroup(group);
+            return (
+              <GroupCard
+                key={group.id}
+                group={group}
+                pending={mine.changed.length + mine.removed.length}
+                busy={running.has(group.id) || running.has("all")}
+                aiReady={aiReady}
+                onSuggest={(instruction) => void suggest(group, instruction)}
+                onAcceptAll={() => setAccepted((now) => new Set([...now, ...mine.changed.filter((key) => !problemOf(key, values))]))}
+                onDiscard={() => discard(group)}
+              >
+                {group.fields.map((key) => (
+                  <FieldBlock key={key} {...fieldProps(key)} title={namesOf(group).length > 1 ? labelOf(key) : null} />
+                ))}
+                {group.sections.map((name) => (
+                  <SectionBlock key={name} {...sectionProps(name)} titled={namesOf(group).length > 1} />
+                ))}
+              </GroupCard>
+            );
+          })}
+        </div>
+      </div>
+
+      <section aria-label="Changes" className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-card border border-line-card bg-card px-4 py-3 shadow-cta">
         <p className="text-sm">
           {changed.length + removed.size === 0
-            ? "No changes yet. Suggest changes, or edit any section below."
+            ? "No changes yet. Ask for suggestions, or edit any section."
             : `${changed.length + removed.size} ${changed.length + removed.size === 1 ? "change" : "changes"}, ${count} to send`}
         </p>
         <div className="flex items-center gap-2">
@@ -235,55 +333,17 @@ function Tailor({ current: initial, aiReady }: { current: NaukriEditable; aiRead
               Accept all
             </Button>
           )}
-          <Button size="sm" aria-disabled={count === 0 || busy !== null || undefined} onClick={() => count > 0 && !busy && setConfirming(true)}>
-            {busy === "update" ? "Updating…" : `Update Naukri profile${count ? ` (${count})` : ""}`}
+          <Button size="sm" aria-disabled={count === 0 || running.has("update") || undefined} onClick={() => count > 0 && !running.has("update") && setConfirming(true)}>
+            {running.has("update") ? "Updating…" : `Update Naukri profile${count ? ` (${count})` : ""}`}
           </Button>
         </div>
       </section>
-
-      <section aria-label="Profile" className="flex flex-col gap-4">
-        {FIELDS.map(({ key, label }) => {
-          const isChanged = changed.includes(key);
-          return (
-            <Card key={key} role="group" aria-label={label} padding="none" className="flex flex-col gap-3 p-5">
-              <RowHeader title={label} changed={isChanged} accepted={accepted.has(key)} problem={isChanged ? problemOf(key, values) : null} onAccept={(on) => accept(key, on)} />
-              {reasons[key] && isChanged && <p className="text-meta text-muted">{reasons[key]}</p>}
-              <Expandable open={isChanged} now={show(key, current)}>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Side title="Now on Naukri">
-                    <div className="text-sm whitespace-pre-line">{show(key, current)}</div>
-                  </Side>
-                  <Side title={isChanged ? "Suggested (edit as you like)" : "Edit"}>
-                    <FieldEditor field={key} values={values} onChange={(value) => set(key, value, key)} />
-                  </Side>
-                </div>
-              </Expandable>
-            </Card>
-          );
-        })}
-      </section>
-
-      {SECTION_NAMES.map((name) => (
-        <SectionCard
-          key={name}
-          name={name}
-          current={current[name] as SectionItem[]}
-          items={values[name] as SectionItem[]}
-          reason={reasons[name]}
-          accepted={accepted}
-          removed={removed}
-          changed={changed}
-          onAccept={accept}
-          onChange={(items, key) => set(name, items, key)}
-          onRemove={(key, on) => setRemoved((now) => toggled(now, key, on))}
-        />
-      ))}
 
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
         title="Update your Naukri profile?"
-        description={`${sending.length} ${sending.length === 1 ? "change is" : "changes are"} saved${removed.size ? ` and ${removed.size} ${removed.size === 1 ? "item is" : "items are"} deleted` : ""} on Naukri now. Recruiters see them right away.`}
+        description={`${sending.length} ${sending.length === 1 ? "change is" : "changes are"} saved${removed.size ? ` and ${removed.size} ${removed.size === 1 ? "item is" : "items are"} deleted` : ""} on Naukri now. Recruiters see them right away. Suggestions you haven't accepted stay here.`}
         confirmLabel="Update Naukri profile"
         onConfirm={() => void update()}
       />
@@ -291,10 +351,123 @@ function Tailor({ current: initial, aiReady }: { current: NaukriEditable; aiRead
   );
 }
 
+/** A group's card: its own AI suggestion (with an optional instruction to fine-tune it), and accepting or discarding just its changes. */
+function GroupCard({
+  group,
+  pending,
+  busy,
+  aiReady,
+  onSuggest,
+  onAcceptAll,
+  onDiscard,
+  children,
+}: {
+  group: Group;
+  pending: number;
+  busy: boolean;
+  aiReady: boolean;
+  onSuggest: (instruction: string) => void;
+  onAcceptAll: () => void;
+  onDiscard: () => void;
+  children: ReactNode;
+}) {
+  const [tuning, setTuning] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const facts = group.ai.length === 0;
+  const blocked = busy || (!facts && !aiReady);
+  return (
+    <section id={group.id} aria-labelledby={`${group.id}-title`} className="flex scroll-mt-20 flex-col gap-4 rounded-card border border-line-card bg-card p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id={`${group.id}-title`} className="font-serif text-section">
+          {group.label}
+          {pending > 0 && <span className="ml-2 align-middle text-meta font-normal text-muted">{pending} pending</span>}
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          {pending > 0 && (
+            <>
+              <Button variant="text" size="sm" onClick={onDiscard}>
+                Discard here
+              </Button>
+              <Button variant="secondary" size="sm" onClick={onAcceptAll}>
+                Accept all here
+              </Button>
+            </>
+          )}
+          {!facts && (
+            <Button variant="secondary" size="sm" aria-label={`Fine-tune ${group.label}`} aria-expanded={tuning} onClick={() => setTuning(!tuning)}>
+              <SlidersHorizontal aria-hidden className="size-4" />
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" aria-label={facts ? `Fill ${group.label} from my profile` : `Suggest ${group.label}`} aria-disabled={blocked || undefined} onClick={() => !blocked && onSuggest("")}>
+            <Sparkles aria-hidden className="size-4" />
+            {busy ? "Suggesting…" : facts ? "Fill from my profile" : "Suggest"}
+          </Button>
+        </div>
+      </div>
+      {tuning && (
+        <form
+          aria-label={`Fine-tune ${group.label}`}
+          className="flex items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!blocked) onSuggest(instruction);
+          }}
+        >
+          <Input className="flex-1" label="How should the AI change this?" maxLength={500} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="e.g. shorter, lead with AWS, more numbers" />
+          <Button type="submit" size="md" aria-disabled={blocked || undefined}>
+            Suggest
+          </Button>
+        </form>
+      )}
+      {children}
+    </section>
+  );
+}
+
+/** One single field: what Naukri has now next to the editable suggestion. */
+function FieldBlock({
+  fieldKey,
+  title,
+  current,
+  values,
+  changed,
+  accepted,
+  reason,
+  onAccept,
+  onChange,
+}: {
+  fieldKey: FieldKey;
+  title: string | null;
+  current: NaukriEditable;
+  values: NaukriEditable;
+  changed: boolean;
+  accepted: boolean;
+  reason?: string;
+  onAccept: (on: boolean) => void;
+  onChange: (value: unknown) => void;
+}) {
+  return (
+    <div role="group" aria-label={labelOf(fieldKey)} className="flex flex-col gap-3">
+      {(title || changed) && <RowHeader title={title} changed={changed} accepted={accepted} problem={changed ? problemOf(fieldKey, values) : null} onAccept={onAccept} />}
+      {reason && changed && <p className="text-meta text-muted">{reason}</p>}
+      <Expandable open={changed} now={show(fieldKey, current)}>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Side title="Now on Naukri">
+            <div className="text-sm whitespace-pre-line">{show(fieldKey, current)}</div>
+          </Side>
+          <Side title={changed ? "Suggested (edit as you like)" : "Edit"}>
+            <FieldEditor field={fieldKey} values={values} onChange={onChange} />
+          </Side>
+        </div>
+      </Expandable>
+    </div>
+  );
+}
+
 function RowHeader({ title, changed, accepted, problem, onAccept, children }: { title: ReactNode; changed: boolean; accepted: boolean; problem: string | null; onAccept: (on: boolean) => void; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h3 className="font-semibold">{title}</h3>
+      {title ? <h3 className="font-semibold">{title}</h3> : <span />}
       <div className="flex flex-wrap items-center gap-3">
         {children}
         {changed && (problem ? <p className="text-meta text-error">{problem}</p> : <Checkbox label="Accept" checked={accepted} onChange={(event) => onAccept(event.target.checked)} />)}
@@ -431,8 +604,9 @@ function SalaryInput({ label, salary, onChange }: { label: string; salary: { amo
   );
 }
 
-function SectionCard({
+function SectionBlock({
   name,
+  titled,
   current,
   items,
   reason,
@@ -444,6 +618,7 @@ function SectionCard({
   onRemove,
 }: {
   name: SectionName;
+  titled: boolean;
   current: SectionItem[];
   items: SectionItem[];
   reason?: string;
@@ -457,12 +632,13 @@ function SectionCard({
   const section = SECTIONS[name];
   const [added, setAdded] = useState(0);
   const line = section.line as (item: SectionItem) => string;
+  const anyChanged = changed.some((key) => keyIn(key, [name]));
   return (
-    <Card role="group" aria-label={section.label} padding="none" className="flex flex-col gap-3 p-5">
+    <div role="group" aria-label={section.label} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-serif text-section">{section.label}</h2>
+        {titled ? <h3 className="font-semibold">{section.label}</h3> : <span />}
         <Button
-          variant="secondary"
+          variant="text"
           size="sm"
           onClick={() => {
             const item = { ...section.blank(), id: `new-manual-${added + 1}` } as SectionItem;
@@ -470,10 +646,10 @@ function SectionCard({
             onChange([...items, item], itemKey(name, item));
           }}
         >
-          Add {section.noun}
+          + Add {section.noun}
         </Button>
       </div>
-      {reason && <p className="text-meta text-muted">{reason}</p>}
+      {reason && anyChanged && <p className="text-meta text-muted">{reason}</p>}
       {items.length === 0 && <p className="text-meta text-muted">None on Naukri.</p>}
       {items.map((item) => {
         const key = itemKey(name, item);
@@ -483,7 +659,7 @@ function SectionCard({
         const status = isRemoved ? "will be deleted" : isNew(item) ? "new" : isChanged ? "changed" : null;
         const title = line(item).replace(/^[\s·:,]+|[\s·:,]+$/g, "") || `New ${section.noun}`;
         return (
-          <div key={key} role="group" aria-label={title} className="flex flex-col gap-3 rounded-card border border-line-card px-4 py-3">
+          <div key={key} role="group" aria-label={title} className={`flex flex-col gap-3 rounded-card border px-4 py-3 ${status ? "border-line-strong" : "border-line-card"}`}>
             <RowHeader
               title={
                 <span className={isRemoved ? "line-through" : undefined}>
@@ -513,7 +689,7 @@ function SectionCard({
           </div>
         );
       })}
-    </Card>
+    </div>
   );
 }
 
