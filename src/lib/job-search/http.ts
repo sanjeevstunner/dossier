@@ -11,16 +11,16 @@ export const REQUEST_TIMEOUT_MS = 10_000;
 export const UPLOAD_TIMEOUT_MS = 60_000;
 const MAX_BYTES = 5 * 1024 * 1024;
 
-/** GETs JSON from a source (or POSTs `json` to it, as multipart when it's FormData), turning every failure into a JobSearchError. */
+/** GETs JSON from a source (or POSTs `json` to it, as multipart when it's FormData; `method` PATCHes instead), turning every failure into a JobSearchError. */
 export async function requestJson(
   source: JobSource,
   url: URL,
-  { headers = {}, signal, json }: { headers?: Record<string, string>; signal?: AbortSignal; json?: unknown } = {},
+  { headers = {}, signal, json, method = "POST" }: { headers?: Record<string, string>; signal?: AbortSignal; json?: unknown; method?: "POST" | "PATCH" } = {},
 ): Promise<unknown> {
   // An upload waits longer: NopeRi swaps the resume in and out around it.
   const timeout = AbortSignal.timeout(json instanceof FormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
   // FormData sets its own multipart content type, boundary included.
-  const body = json === undefined ? {} : json instanceof FormData ? { method: "POST", body: json } : { method: "POST", body: JSON.stringify(json) };
+  const body = json === undefined ? {} : { method, body: json instanceof FormData ? json : JSON.stringify(json) };
   let response: Response;
   try {
     response = await fetch(url, {

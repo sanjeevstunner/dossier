@@ -48,6 +48,9 @@ export function appEnv(): Record<string, string> {
     DOSSIER_JOBS_SOURCE: "jsearch",
     DOSSIER_JSEARCH_KEY: "e2e-jsearch-key",
     DOSSIER_JOBS_TEST_BASE_URL: `http://localhost:${FAKE_JOBS_PORT}`,
+    // NopeRi for Naukri; DOSSIER_JOBS_TEST_BASE_URL/naukri is where it's reached.
+    DOSSIER_NAUKRI_URL: "http://noperi.invalid",
+    DOSSIER_NAUKRI_KEY: "e2e-noperi-key-0123456789",
     // Google's sign-in, Gmail and Calendar are the fake Google's (E15). It's
     // only used once a spec enters an OAuth client in Settings → Google.
     DOSSIER_GOOGLE_TEST_BASE_URL: `http://localhost:${FAKE_GOOGLE_PORT}`,
@@ -107,6 +110,12 @@ export async function fakeStartupRequests(): Promise<{ url: string; userAgent: s
 }
 
 /** How many searches the fake JSearch has answered so far (E14-10). */
+/** The updates the fake NopeRi's Naukri profile got, oldest first. */
+export async function fakeNaukriUpdates(): Promise<Record<string, unknown>[]> {
+  const response = await fetch(`http://localhost:${FAKE_JOBS_PORT}/naukri-updates`);
+  return ((await response.json()) as { updates: Record<string, unknown>[] }).updates;
+}
+
 export async function fakeJobSearches(): Promise<number> {
   const response = await fetch(`http://localhost:${FAKE_JOBS_PORT}/searches`);
   return ((await response.json()) as { searches: number }).searches;

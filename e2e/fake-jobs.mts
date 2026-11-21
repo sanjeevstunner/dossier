@@ -87,11 +87,61 @@ let searches = 0;
 /** The usage pings the app sent here (DOSSIER_USAGE_PING_TEST_URL), so a spec can tell whether one went (#172). */
 const pings: unknown[] = [];
 
+// NopeRi's Naukri profile (the "Naukri profile" screen): what it holds, and every update it got.
+let naukriProfile = {
+  headline: "Product designer",
+  summary: "I design products.",
+  keySkills: ["Figma", "Sketch"],
+  desiredRoles: [{ id: 2001, name: "UI Designer" }],
+  preferredLocations: [{ id: 97, name: "Bangalore/Bengaluru" }],
+  expectedSalary: { amount: 1500000, currency: "INR" },
+  noticePeriodId: 1,
+  basics: { name: "Sanne de Vries", city: { id: 97, name: "Bangalore/Bengaluru" }, experience: { years: 6, months: 0 }, currentSalary: null },
+  personal: { birthDate: null, gender: null, address: "", hometown: "", pincode: "", maritalStatus: null },
+  employments: [
+    { id: "e2e-emp", current: true, designation: { id: "2001", name: "UI Designer" }, company: { id: "9", name: "Ledgerly" }, start: "2021-03", end: null, description: "Designed screens.", skills: ["Figma"], experienceType: "F" },
+  ],
+  itSkills: [],
+  educations: [],
+  projects: [],
+  onlineProfiles: [{ id: "e2e-dribbble", name: "Dribbble", url: "https://dribbble.com/sanne", description: "" }],
+  workSamples: [],
+  publications: [],
+  presentations: [],
+  patents: [],
+  certifications: [],
+  languages: [],
+};
+const naukriUpdates: unknown[] = [];
+const TAXONOMY: Record<string, { id: number; name: string }[]> = {
+  location: [{ id: 97, name: "Bangalore/Bengaluru" }, { id: 139, name: "Pune" }],
+  designation: [{ id: 3001, name: "Product Designer" }, { id: 2001, name: "UI Designer" }],
+};
+
+function naukriProfileRoute(url: URL, request: IncomingMessage, response: ServerResponse) {
+  if (url.pathname === "/naukri/api/profile/editable") return send(response, 200, naukriProfile);
+  if (url.pathname.startsWith("/naukri/api/profile/options/")) return send(response, 200, []);
+  if (url.pathname === "/naukri/api/profile/lookup") {
+    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    return send(response, 200, (TAXONOMY[url.searchParams.get("type") ?? ""] ?? []).filter((tag) => tag.name.toLowerCase().includes(q)));
+  }
+  let body = "";
+  request.on("data", (chunk: Buffer) => (body += chunk.toString()));
+  request.on("end", () => {
+    const update = JSON.parse(body);
+    naukriUpdates.push(update);
+    naukriProfile = { ...naukriProfile, ...update };
+    send(response, 200, { profileId: "e2e", response: {} });
+  });
+}
+
 createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://localhost:${port}`);
   if (url.pathname === "/health") return send(response, 200, { ok: true });
   if (url.pathname === "/searches") return send(response, 200, { searches });
   if (url.pathname === "/pings") return send(response, 200, { pings });
+  if (url.pathname === "/naukri-updates") return send(response, 200, { updates: naukriUpdates });
+  if (url.pathname.startsWith("/naukri/api/profile")) return naukriProfileRoute(url, request, response);
   if (url.pathname === "/startup-requests") return send(response, 200, { requests: siteRequests });
   if (url.pathname.startsWith("/startups/")) return startups(url.pathname, request, response);
   if (url.pathname === "/ping" && request.method === "POST") {

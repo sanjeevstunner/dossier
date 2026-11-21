@@ -135,6 +135,33 @@ const answers: Record<string, (messages: Message[]) => unknown> = {
     return { reply: "Done. I made the summary shorter.", edits: [{ document: "RESUME", unitId: "summary", text: shorter }], tone: null, declined: false };
   },
 
+  naukri_profile: () => ({
+    headline: "Product Designer with design systems and accessibility experience",
+    summary: "I design accessible products and the systems behind them.",
+    keySkills: ["Figma", "Design systems", "Accessibility"],
+    desiredRoles: ["Product Designer"],
+    employments: [{ id: "e2e-emp", designation: "", company: "", current: true, start: "", end: "", description: "Led Ledgerly's design system across 4 products.", skills: ["Figma", "Design systems"] }],
+    itSkills: [],
+    projects: [],
+    educations: [],
+    certifications: [],
+    publications: [],
+    workSamples: [],
+    reasons: {
+      headline: "Leads with the target role.",
+      summary: "Puts design systems first.",
+      keySkills: "Adds what recruiters search for.",
+      desiredRoles: "Matches the target.",
+      employments: "Shows the design system work.",
+      itSkills: "No change needed",
+      projects: "No change needed",
+      educations: "No change needed",
+      certifications: "No change needed",
+      publications: "No change needed",
+      workSamples: "No change needed",
+    },
+  }),
+
   skill_groups: () => ({ groups: [{ name: "Design", skills: ["Figma", "Accessibility", "Design systems"] }] }),
 
   extracted_profile: () => ({

@@ -32,7 +32,7 @@ export async function askSource(
 }
 
 /** `work`'s answer, or a JobSearchError as what went wrong for the screen. */
-async function asProblem<T>(work: () => Promise<T>): Promise<T | SearchProblem> {
+export async function asProblem<T>(work: () => Promise<T>): Promise<T | SearchProblem> {
   try {
     return await work();
   } catch (error) {

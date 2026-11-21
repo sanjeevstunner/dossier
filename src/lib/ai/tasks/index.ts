@@ -14,3 +14,4 @@ export { CLASSIFY_REPLY_VERSION, classifyReply, type Classified } from "./classi
 export { DRAFT_REPLY_VERSION, draftReply, type DraftedReply } from "./draft-reply";
 export { SCORE_POSTING_VERSION, scorePosting, type PostingScore } from "./score-posting";
 export { ANSWER_QUESTIONNAIRE_VERSION, answerQuestionnaire, type QuestionnaireAnswers } from "./answer-questionnaire";
+export { TAILOR_NAUKRI_PROFILE_VERSION, tailorNaukriProfile, type NaukriProfileDraft } from "./tailor-naukri-profile";
