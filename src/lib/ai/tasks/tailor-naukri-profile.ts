@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-import { DESIRED_ROLES_MAX, fitKeySkills, HEADLINE_MAX, KEY_SKILLS_CHARS, KEY_SKILLS_MAX, SUMMARY_MAX, type NaukriEditable, type SectionItem } from "@/lib/naukri-profile";
+import { AI_KEYS, DESIRED_ROLES_MAX, fitKeySkills, HEADLINE_MAX, KEY_SKILLS_CHARS, KEY_SKILLS_MAX, SUMMARY_MAX, type AiKey, type NaukriEditable, type SectionItem } from "@/lib/naukri-profile";
 import type { ProfileData } from "@/lib/profile";
 
 import { candidateFacts, CREATIVITY, NO_EM_DASHES, profileForPrompt, system, truthfulness, userPrompts, type Task } from "./prompt-parts";
 
-export const TAILOR_NAUKRI_PROFILE_VERSION = "tailor-naukri-profile@2";
+export const TAILOR_NAUKRI_PROFILE_VERSION = "tailor-naukri-profile@3";
 
 // Every field is required and empty values are "" or 0: OpenAI's structured outputs reject optional ones.
 const answerSchema = z.object({
@@ -42,7 +42,16 @@ const answerSchema = z.object({
   }),
 });
 
-export type NaukriProfileDraft = z.output<typeof answerSchema>;
+type FullDraft = z.output<typeof answerSchema>;
+/** The AI's answer: every part for the whole profile, or only the asked ones for a section. */
+export type NaukriProfileDraft = Partial<Omit<FullDraft, "reasons">> & { reasons: Partial<FullDraft["reasons"]> };
+
+
+/** The answer's schema for only these parts (and their reasons). */
+function schemaFor(only: readonly AiKey[]) {
+  const mask = Object.fromEntries(only.map((key) => [key, true as const])) as Partial<Record<AiKey, true>>;
+  return answerSchema.pick(mask).extend({ reasons: answerSchema.shape.reasons.pick(mask) });
+}
 
 const INSTRUCTIONS = `You tailor a candidate's whole Naukri.com profile so recruiters searching Naukri for one target role find and shortlist them, as JSON. Recruiters search by keywords, so the wording recruiters type for that role matters.
 
@@ -62,20 +71,20 @@ The list sections (employments, itSkills, projects, educations, certifications, 
 /** Naukri's limits held, skills and roles once each. */
 export function cleanDraft(answer: NaukriProfileDraft): NaukriProfileDraft {
   const seen = new Set<string>();
-  const keySkills = fitKeySkills(answer.keySkills
+  const keySkills = answer.keySkills && fitKeySkills(answer.keySkills
     .map((skill) => skill.replaceAll(",", " ").replace(/\s+/g, " ").trim().slice(0, 100))
     .filter((skill) => skill && !seen.has(skill.toLowerCase()) && seen.add(skill.toLowerCase()))
     .slice(0, KEY_SKILLS_MAX));
-  const roles = [...new Set(answer.desiredRoles.map((role) => role.trim()).filter(Boolean))].slice(0, DESIRED_ROLES_MAX);
+  const roles = answer.desiredRoles && [...new Set(answer.desiredRoles.map((role) => role.trim()).filter(Boolean))].slice(0, DESIRED_ROLES_MAX);
   const dashes = (text: string) => text.replaceAll("—", "-").trim();
   return {
     ...answer,
-    headline: dashes(answer.headline).slice(0, HEADLINE_MAX),
-    summary: dashes(answer.summary).slice(0, SUMMARY_MAX),
+    headline: answer.headline === undefined ? undefined : dashes(answer.headline).slice(0, HEADLINE_MAX),
+    summary: answer.summary === undefined ? undefined : dashes(answer.summary).slice(0, SUMMARY_MAX),
     keySkills,
     desiredRoles: roles,
-    employments: answer.employments.map((item) => ({ ...item, description: dashes(item.description).slice(0, 4000) })),
-    projects: answer.projects.map((item) => ({ ...item, details: dashes(item.details).slice(0, 4000) })),
+    employments: answer.employments?.map((item) => ({ ...item, description: dashes(item.description).slice(0, 4000) })),
+    projects: answer.projects?.map((item) => ({ ...item, details: dashes(item.details).slice(0, 4000) })),
   };
 }
 
@@ -95,7 +104,7 @@ export function mergeDraft(current: NaukriEditable, draft: NaukriProfileDraft): 
   const fresh = () => `new-${++next}`;
   const byId = <T extends { id?: string }>(items: T[]) => new Map(items.map((item) => [item.id, item]));
   /** Each current item, changed by `edit` when the answer has it, then the answer's new ones made by `add`. */
-  const merge = <T extends { id?: string }, D extends { id: string }>(items: T[], answered: D[], edit: (item: T, draft: D) => T, add: (draft: D) => T | null): T[] => {
+  const merge = <T extends { id?: string }, D extends { id: string }>(items: T[], answered: D[] = [], edit: (item: T, draft: D) => T, add: (draft: D) => T | null): T[] => {
     const drafts = byId(answered.filter((item) => item.id));
     return [
       ...items.map((item) => (drafts.has(item.id!) ? edit(item, drafts.get(item.id!)!) : item)),
@@ -110,8 +119,8 @@ export function mergeDraft(current: NaukriEditable, draft: NaukriProfileDraft): 
     ...current,
     headline: draft.headline || current.headline,
     summary: draft.summary || current.summary,
-    keySkills: draft.keySkills.length ? draft.keySkills : current.keySkills,
-    employments: merge<SectionItem<"employments">, NaukriProfileDraft["employments"][number]>(
+    keySkills: draft.keySkills?.length ? draft.keySkills : current.keySkills,
+    employments: merge<SectionItem<"employments">, FullDraft["employments"][number]>(
       current.employments,
       draft.employments,
       (item, d) => ({ ...item, description: d.description.trim() || item.description, skills: d.skills.length ? d.skills.map((skill) => skill.trim()).filter(Boolean) : item.skills }),
@@ -120,7 +129,7 @@ export function mergeDraft(current: NaukriEditable, draft: NaukriProfileDraft): 
           ? { current: d.current, designation: named(d.designation), company: named(d.company), start: month(d.start)!, end: d.current ? null : month(d.end), description: d.description.trim(), skills: d.skills, experienceType: "F" }
           : null,
     ),
-    itSkills: merge<SectionItem<"itSkills">, NaukriProfileDraft["itSkills"][number]>(
+    itSkills: merge<SectionItem<"itSkills">, FullDraft["itSkills"][number]>(
       current.itSkills,
       draft.itSkills,
       (item) => item,
@@ -129,13 +138,13 @@ export function mergeDraft(current: NaukriEditable, draft: NaukriProfileDraft): 
           ? { skill: named(d.skill), version: d.version.trim().slice(0, 20), lastUsed: yearOf(d.lastUsed), experience: { years: Math.max(0, Math.min(50, Math.round(d.years))), months: Math.max(0, Math.min(11, Math.round(d.months))) } }
           : null,
     ),
-    projects: merge<SectionItem<"projects">, NaukriProfileDraft["projects"][number]>(
+    projects: merge<SectionItem<"projects">, FullDraft["projects"][number]>(
       current.projects,
       draft.projects,
       (item, d) => ({ ...item, details: d.details.trim() || item.details, role: d.role.trim() || item.role, skills: d.skills.trim() || item.skills }),
       (d) => (d.title.trim() && month(d.start) ? { title: d.title.trim(), client: d.client.trim() || "Self", role: d.role.trim(), start: month(d.start)!, end: month(d.end), skills: d.skills.trim(), details: d.details.trim() } : null),
     ),
-    educations: merge<SectionItem<"educations">, NaukriProfileDraft["educations"][number]>(
+    educations: merge<SectionItem<"educations">, FullDraft["educations"][number]>(
       current.educations,
       draft.educations,
       (item) => item,
@@ -156,19 +165,19 @@ export function mergeDraft(current: NaukriEditable, draft: NaukriProfileDraft): 
             }
           : null,
     ),
-    certifications: merge<SectionItem<"certifications">, NaukriProfileDraft["certifications"][number]>(
+    certifications: merge<SectionItem<"certifications">, FullDraft["certifications"][number]>(
       current.certifications,
       draft.certifications,
       (item) => item,
       (d) => (d.name.trim() ? { name: named(d.name), url: /^https?:\/\//.test(d.url) ? d.url.trim() : "", issued: month(d.issued), expires: month(d.expires) } : null),
     ),
-    publications: merge<SectionItem<"publications">, NaukriProfileDraft["publications"][number]>(
+    publications: merge<SectionItem<"publications">, FullDraft["publications"][number]>(
       current.publications,
       draft.publications,
       (item) => item,
       (d) => (d.title.trim() ? { title: d.title.trim().slice(0, 250), url: /^https?:\/\//.test(d.url) ? d.url.trim() : "", description: d.description.trim(), published: month(d.published) } : null),
     ),
-    workSamples: merge<SectionItem<"workSamples">, NaukriProfileDraft["workSamples"][number]>(
+    workSamples: merge<SectionItem<"workSamples">, FullDraft["workSamples"][number]>(
       current.workSamples,
       draft.workSamples,
       (item) => item,
@@ -177,10 +186,20 @@ export function mergeDraft(current: NaukriEditable, draft: NaukriProfileDraft): 
   };
 }
 
-export type TailorNaukriInput = { role: string; notes: string; current: NaukriEditable; profile: ProfileData };
+export type TailorNaukriInput = {
+  role: string;
+  notes: string;
+  current: NaukriEditable;
+  profile: ProfileData;
+  /** Only these parts, for one section; the whole profile when not given. */
+  only?: readonly AiKey[];
+  /** How to change them this time, e.g. "shorter, lead with AWS". */
+  instruction?: string;
+};
 
 /** Suggests the whole Naukri profile for one target role (the answer as the AI gave it; mergeDraft lays it over the profile). */
-export const tailorNaukriProfile: Task<TailorNaukriInput, NaukriProfileDraft> = async (provider, { role, notes, current, profile }, options) => {
+export const tailorNaukriProfile: Task<TailorNaukriInput, NaukriProfileDraft> = async (provider, { role, notes, current, profile, only, instruction }, options) => {
+  const parts = only?.length ? AI_KEYS.filter((key) => only.includes(key)) : null;
   // Personal details stay out of the prompt, as everywhere (PRD §7).
   const { headline, summary, keySkills, employments, itSkills, educations, projects, onlineProfiles, workSamples, publications, presentations, patents, certifications, languages } = current;
   const naukriNow = {
@@ -204,6 +223,8 @@ export const tailorNaukriProfile: Task<TailorNaukriInput, NaukriProfileDraft> = 
         content: [
           `Target role: ${role}`,
           notes && `What the candidate tells you for this:\n${notes}`,
+          parts && `Suggest only: ${parts.join(", ")}. Answer only those keys, and their reasons.`,
+          instruction && `How to change them this time:\n${instruction}`,
           `Their Naukri profile now:\n${JSON.stringify(naukriNow)}`,
           `Their profile:\n${profileForPrompt(profile)}`,
         ]
@@ -211,7 +232,8 @@ export const tailorNaukriProfile: Task<TailorNaukriInput, NaukriProfileDraft> = 
           .join("\n\n"),
       },
     ],
-    schema: answerSchema,
+    // Picked for a section: the same shape, fewer keys.
+    schema: (parts ? schemaFor(parts) : answerSchema) as unknown as typeof answerSchema,
     schemaName: "naukri_profile",
     creativity: options.creativity,
     effort: "medium",

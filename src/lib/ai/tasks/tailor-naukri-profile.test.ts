@@ -47,9 +47,9 @@ describe("cleanDraft", () => {
       }),
     );
     expect(cleaned.headline).toHaveLength(250);
-    expect(cleaned.headline.startsWith("AI Engineer - ")).toBe(true);
+    expect(cleaned.headline?.startsWith("AI Engineer - ")).toBe(true);
     expect(cleaned.summary).toHaveLength(1000);
-    expect(cleaned.keySkills.slice(0, 3)).toEqual(["Node.js", "AWS Lambda", "S0"]);
+    expect(cleaned.keySkills?.slice(0, 3)).toEqual(["Node.js", "AWS Lambda", "S0"]);
     expect(cleaned.keySkills).toHaveLength(50);
     expect(cleaned.desiredRoles).toEqual(["AI Engineer", "FDE", "Backend Developer"]);
   });
@@ -100,5 +100,17 @@ describe("tailorNaukriProfile", () => {
     expect(sent).toContain("React.js");
     expect(sent).not.toContain("Secret street");
     expect(sent).not.toContain("2000-09-14");
+  });
+
+  it("asks for one section only, with its own instruction, and leaves the rest as it is", async () => {
+    const provider = new MockProvider({ reply: () => ({ keySkills: ["AWS", "Python"], reasons: { keySkills: "AWS first." } }) });
+    const { data } = await tailorNaukriProfile(provider, { role: "AI Engineer", notes: "", current, profile: demoProfile(), only: ["keySkills"], instruction: "fewer, AWS first" }, options);
+    const sent = JSON.stringify(provider.calls[0]);
+    expect(sent).toContain("Suggest only: keySkills");
+    expect(sent).toContain("fewer, AWS first");
+    const merged = mergeDraft(current, data);
+    expect(merged.keySkills).toEqual(["AWS", "Python"]);
+    expect(merged.headline).toBe(current.headline);
+    expect(merged.employments).toEqual(current.employments);
   });
 });
