@@ -21,7 +21,7 @@ export default defineConfig({
     // Raise them as tests are added; CI fails when coverage drops below.
     coverage: {
       provider: "v8",
-      include: ["src/**"],
+      include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/generated/**", "src/test/**", "**/*.d.ts"],
       reporter: ["text-summary", "json-summary", "html"],
       reportsDirectory: "coverage",
