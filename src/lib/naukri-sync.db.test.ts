@@ -2,7 +2,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { applyNaukriApplications, statusFromNaukri } from "./naukri-sync";
+import { DEFAULT_NAUKRI_STATUS_MAP } from "./naukri-status";
+import { applyNaukriApplications } from "./naukri-sync";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -26,22 +27,11 @@ const found = (jobId: string, ...words: string[]) => ({
 beforeEach(() => resetDatabase(prisma()));
 afterAll(() => prisma().$disconnect());
 
-describe("Naukri status words", () => {
-  it("map to Dossier's statuses, and unknown ones mean sent", () => {
-    expect(statusFromNaukri("Applied")).toBe("SENT");
-    expect(statusFromNaukri("Recruiter Viewed")).toBe("SCREENING");
-    expect(statusFromNaukri("Shortlisted")).toBe("SCREENING");
-    expect(statusFromNaukri("Not Shortlisted")).toBe("REJECTED");
-    expect(statusFromNaukri("Interview scheduled")).toBe("INTERVIEW");
-    expect(statusFromNaukri(undefined)).toBe("SENT");
-  });
-});
-
 describe("syncing Naukri applications", () => {
   it("creates synced applications once, however often it runs", async () => {
     const list = [found("1", "Applied"), found("2", "Applied", "Viewed")];
-    expect(await applyNaukriApplications(list)).toEqual({ created: 2, updated: 0, total: 2 });
-    expect(await applyNaukriApplications(list)).toEqual({ created: 0, updated: 0, total: 2 });
+    expect(await applyNaukriApplications(list)).toEqual({ created: 2, updated: 0, total: 2, unmapped: [] });
+    expect(await applyNaukriApplications(list)).toEqual({ created: 0, updated: 0, total: 2, unmapped: [] });
     const rows = await prisma().application.findMany({ orderBy: { externalId: "asc" } });
     expect(rows.map((row) => [row.syncedFrom, row.externalId, row.status, row.company])).toEqual([
       ["NAUKRI", "1", "SENT", "Acme"],
@@ -61,7 +51,7 @@ describe("syncing Naukri applications", () => {
     await prisma().posting.create({
       data: { source: "NAUKRI", externalId: "9", title: "T", company: "Acme", application: { connect: { id: own.id } } },
     });
-    expect(await applyNaukriApplications([found("9", "Applied", "Shortlisted")])).toEqual({ created: 0, updated: 1, total: 1 });
+    expect(await applyNaukriApplications([found("9", "Applied", "Shortlisted")])).toEqual({ created: 0, updated: 1, total: 1, unmapped: [] });
     expect(await prisma().application.count()).toBe(1);
     expect(await prisma().application.findUniqueOrThrow({ where: { id: own.id } })).toMatchObject({ status: "SCREENING", syncedFrom: null });
   });
@@ -72,5 +62,13 @@ describe("syncing Naukri applications", () => {
     await prisma().application.update({ where: { id: row.id }, data: { status: "INTERVIEW" } });
     expect(await applyNaukriApplications([found("1", "Applied")])).toMatchObject({ updated: 0 });
     expect((await prisma().application.findFirstOrThrow()).status).toBe("INTERVIEW");
+  });
+
+  it("uses the configured words, and reports the ones nobody listed, creating those as sent", async () => {
+    const map = { ...DEFAULT_NAUKRI_STATUS_MAP, SCREENING: ["Under Review"] };
+    const result = await applyNaukriApplications([found("1", "Applied", "Under Review"), found("2", "Profile Boosted")], new Date(), map);
+    expect(result).toMatchObject({ created: 2, unmapped: ["Profile Boosted"] });
+    const rows = await prisma().application.findMany({ orderBy: { externalId: "asc" } });
+    expect(rows.map((row) => row.status)).toEqual(["SCREENING", "SENT"]);
   });
 });

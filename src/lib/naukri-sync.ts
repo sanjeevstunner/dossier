@@ -7,6 +7,7 @@ import { naukriApplications, type NaukriApplication } from "@/lib/job-search/nau
 import { logServerError } from "@/lib/log";
 import { prisma } from "@/lib/prisma";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
+import { DEFAULT_NAUKRI_STATUS_MAP, statusFromNaukri, type NaukriStatusMap } from "@/lib/naukri-status";
 import { applyStatusChange } from "@/lib/status-changes";
 
 // Naukri's applied-jobs history, kept in Applications. Naukri is the source of
@@ -16,19 +17,9 @@ import { applyStatusChange } from "@/lib/status-changes";
 
 export const SYNCED_FROM = "NAUKRI";
 
-/** Dossier's status for Naukri's latest status word; unknown words mean it was applied for. */
-export function statusFromNaukri(word: string | undefined): ApplicationStatus {
-  const text = (word ?? "").toLowerCase();
-  if (/not\s+shortlist|reject|not\s+selected|declin/.test(text)) return ApplicationStatus.REJECTED;
-  if (/offer/.test(text)) return ApplicationStatus.OFFER;
-  if (/interview/.test(text)) return ApplicationStatus.INTERVIEW;
-  if (/shortlist|viewed|consider|screen|download/.test(text)) return ApplicationStatus.SCREENING;
-  return ApplicationStatus.SENT;
-}
+export type SyncResult = { created: number; updated: number; total: number; unmapped: string[] };
 
-export type SyncResult = { created: number; updated: number; total: number };
-
-export async function applyNaukriApplications(found: readonly NaukriApplication[], now = new Date()): Promise<SyncResult> {
+export async function applyNaukriApplications(found: readonly NaukriApplication[], now = new Date(), map: NaukriStatusMap = DEFAULT_NAUKRI_STATUS_MAP): Promise<SyncResult> {
   const ids = found.map((entry) => entry.jobId);
   const [synced, viaPosting] = await Promise.all([
     prisma.application.findMany({ where: { syncedFrom: SYNCED_FROM, externalId: { in: ids } }, select: { id: true, status: true, externalId: true } }),
@@ -38,9 +29,13 @@ export async function applyNaukriApplications(found: readonly NaukriApplication[
   for (const row of synced) known.set(row.externalId!, row);
   for (const row of viaPosting) known.set(row.posting!.externalId, row);
 
-  const result: SyncResult = { created: 0, updated: 0, total: found.length };
+  const result: SyncResult = { created: 0, updated: 0, total: found.length, unmapped: [] };
   for (const entry of found) {
-    const status = statusFromNaukri(entry.statuses.at(-1)?.value);
+    const word = entry.statuses.at(-1)?.value.trim();
+    const mapped = statusFromNaukri(word, map);
+    // A word nobody listed is reported, and treated as sent.
+    if (!mapped && word && !result.unmapped.includes(word) && result.unmapped.length < 20) result.unmapped.push(word);
+    const status = mapped ?? ApplicationStatus.SENT;
     const existing = known.get(entry.jobId);
     if (existing) {
       // "Applied" is all Naukri knows about an application moved further by hand, so it doesn't pull it back.
@@ -88,8 +83,8 @@ export async function syncNaukriApplications(): Promise<SyncResult | null> {
     const settings = await loadSettings();
     const credentials = credentialsFor(await loadJobSearchConfig(), "NAUKRI");
     const found = await naukriApplications(credentials, { days: settings.naukriSyncDays, limit: settings.naukriSyncLimit }, requestContext("NAUKRI"));
-    const result = await applyNaukriApplications(found);
-    await saveSettings({ naukriLastSyncAt: new Date().toISOString(), naukriSyncProblem: null });
+    const result = await applyNaukriApplications(found, new Date(), settings.naukriStatusMap);
+    await saveSettings({ naukriLastSyncAt: new Date().toISOString(), naukriSyncProblem: null, naukriUnmappedWords: result.unmapped });
     return result;
   } catch (error) {
     logServerError("naukri sync", error);

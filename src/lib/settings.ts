@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DEFAULT_NAUKRI_STATUS_MAP, naukriStatusMapSchema } from "@/lib/naukri-status";
 import { AiProvider, Creativity, DateFormat, PaperSize, Tone } from "@/generated/prisma/enums";
 import { JOB_SOURCES, JSEARCH_HOSTS } from "@/lib/job-search/search";
 import { startupsRefreshSchema } from "@/lib/startups/types";
@@ -180,6 +181,9 @@ export const settingsSchema = z.object({
   naukriVisibility: z.enum(["dossier", "both", "naukri"]).catch("both"),
   naukriSyncHours: z.coerce.number().int().min(1).max(168).catch(6),
   naukriSyncDays: z.coerce.number().int().min(1).max(365).catch(90),
+  /** The Naukri words that mean each status, and the latest words the sync couldn't place (naukri-status.ts). */
+  naukriStatusMap: json(naukriStatusMapSchema).catch(DEFAULT_NAUKRI_STATUS_MAP),
+  naukriUnmappedWords: stringList.catch([]),
   naukriSyncLimit: z.coerce.number().int().min(1).max(500).catch(100),
   /** When the last sync finished, and why the last one failed (null once one works). */
   naukriLastSyncAt: z.iso.datetime().nullable().catch(null),

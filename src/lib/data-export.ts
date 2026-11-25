@@ -62,6 +62,7 @@ export const INSTALL_SETTINGS: readonly string[] = [
   // The Naukri sync's last run and problem (naukri-sync.ts).
   "naukriLastSyncAt",
   "naukriSyncProblem",
+  "naukriUnmappedWords",
   "latestVersion",
   "latestVersionUrl",
   "updateCheckDay",

@@ -63,6 +63,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
               limit: settings.naukriSyncLimit,
               lastSyncAt: settings.naukriLastSyncAt,
               problem: settings.naukriSyncProblem,
+              statusMap: settings.naukriStatusMap,
+              unmapped: settings.naukriUnmappedWords,
             }}
           />
         </>

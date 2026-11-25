@@ -8,8 +8,11 @@ import { toast, toastResult } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { RemovableChip } from "@/components/ui/chip";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SOURCES, type Source } from "@/lib/applications-list";
+import { DEFAULT_NAUKRI_STATUS_MAP, duplicateNaukriWord, NAUKRI_MAPPED_STATUSES, normalizeNaukriWord, type NaukriMappedStatus, type NaukriStatusMap } from "@/lib/naukri-status";
+import { statusInfo } from "@/lib/status";
 
 import { syncNaukriNow } from "../applications/actions";
 import { updateSettings } from "./actions";
@@ -25,6 +28,8 @@ export type NaukriSyncView = {
   limit: number;
   lastSyncAt: string | null;
   problem: string | null;
+  statusMap: NaukriStatusMap;
+  unmapped: string[];
 };
 
 type NumberKey = "hours" | "days" | "limit";
@@ -40,6 +45,7 @@ export function NaukriSyncSection({ initial }: { initial: NaukriSyncView }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [drafts, setDrafts] = useState<Record<NumberKey, string>>({ hours: String(initial.hours), days: String(initial.days), limit: String(initial.limit) });
+  const [typed, setTyped] = useState<Record<NaukriMappedStatus, string>>(() => blank());
   const [syncing, startSync] = useTransition();
 
   const save = (changes: Parameters<typeof updateSettings>[0], rollback: () => void) =>
@@ -76,13 +82,36 @@ export function NaukriSyncSection({ initial }: { initial: NaukriSyncView }) {
     });
   };
 
+  const saveWords = (status: NaukriMappedStatus, list: string[]) => {
+    const before = view.statusMap;
+    const next = { ...before, [status]: list };
+    const duplicate = duplicateNaukriWord(next);
+    if (duplicate) return toast(`“${duplicate}” is already listed under another status.`);
+    setView((current) => ({ ...current, statusMap: next }));
+    save({ naukriStatusMap: next }, () => setView((current) => ({ ...current, statusMap: before })));
+  };
+
+  const addWord = (status: NaukriMappedStatus) => {
+    const word = typed[status].trim();
+    if (!word) return;
+    setTyped((current) => ({ ...current, [status]: "" }));
+    if (view.statusMap[status].some((other) => normalizeNaukriWord(other) === normalizeNaukriWord(word))) return toast(`“${word}” is already in the list.`);
+    saveWords(status, [...view.statusMap[status], word]);
+  };
+
+  const resetWords = () => {
+    const before = view.statusMap;
+    setView((current) => ({ ...current, statusMap: DEFAULT_NAUKRI_STATUS_MAP }));
+    save({ naukriStatusMap: DEFAULT_NAUKRI_STATUS_MAP }, () => setView((current) => ({ ...current, statusMap: before })));
+  };
+
   const sync = () =>
     startSync(async () => {
       const result = toastResult(await syncNaukriNow({}));
       if (result.ok) {
         const { created, updated, total } = result.data;
         toast(`Synced ${total} from Naukri: ${created} new, ${updated} updated.`);
-        setView((current) => ({ ...current, lastSyncAt: new Date().toISOString(), problem: null }));
+        setView((current) => ({ ...current, lastSyncAt: new Date().toISOString(), problem: null, unmapped: result.data.unmapped }));
       }
       router.refresh();
     });
@@ -134,6 +163,55 @@ export function NaukriSyncSection({ initial }: { initial: NaukriSyncView }) {
           </span>
         </div>
       </Card>
+
+      <SettingsSectionIntro title="Naukri status words">
+        The words Naukri uses for an application&apos;s status, as chips under the Dossier status they mean. Matching ignores case and a longer word wins (“Not Shortlisted” over “Shortlisted”), so you can fix a renamed word here.
+      </SettingsSectionIntro>
+      <Card className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5">
+          {NAUKRI_MAPPED_STATUSES.map((status) => (
+            <div key={status} className="flex flex-col gap-2.5">
+              <h4 className="text-lead font-medium">{statusInfo(status).label}</h4>
+              {view.statusMap[status].length > 0 && (
+                <ul className="flex flex-wrap gap-2" aria-label={`Naukri words for ${statusInfo(status).label}`}>
+                  {view.statusMap[status].map((word) => (
+                    <li key={word}>
+                      <RemovableChip removeLabel={`Remove ${word}`} onRemove={() => saveWords(status, view.statusMap[status].filter((other) => other !== word))}>
+                        {word}
+                      </RemovableChip>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Input
+                aria-label={`New Naukri word for ${statusInfo(status).label}`}
+                placeholder="Type a Naukri status word and press Enter"
+                maxLength={60}
+                value={typed[status]}
+                onChange={(event) => setTyped((current) => ({ ...current, [status]: event.target.value }))}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  addWord(status);
+                }}
+                enterKeyHint="done"
+              />
+            </div>
+          ))}
+        </div>
+        {view.unmapped.length > 0 && (
+          <p className="text-meta text-muted">
+            Seen on Naukri but not listed (treated as Sent): {view.unmapped.map((word) => `“${word}”`).join(", ")}. Add them above.
+          </p>
+        )}
+        <div>
+          <Button variant="secondary" onClick={resetWords}>
+            Reset to defaults
+          </Button>
+        </div>
+      </Card>
     </>
   );
 }
+
+const blank = (): Record<NaukriMappedStatus, string> => Object.fromEntries(NAUKRI_MAPPED_STATUSES.map((status) => [status, ""])) as Record<NaukriMappedStatus, string>;

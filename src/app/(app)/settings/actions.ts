@@ -1,5 +1,6 @@
 "use server";
 
+import { duplicateNaukriWord, naukriStatusMapSchema } from "@/lib/naukri-status";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -224,6 +225,7 @@ export const updateSettings = action(
     updateCheck: z.boolean().optional(),
     naukriSync: z.boolean().optional(),
     naukriVisibility: z.enum(["dossier", "both", "naukri"]).optional(),
+    naukriStatusMap: naukriStatusMapSchema.refine((map) => duplicateNaukriWord(map) === null, "A word can only mean one status.").optional(),
     naukriSyncHours: z.number().int().min(1).max(168).optional(),
     naukriSyncDays: z.number().int().min(1).max(365).optional(),
     naukriSyncLimit: z.number().int().min(1).max(500).optional(),
