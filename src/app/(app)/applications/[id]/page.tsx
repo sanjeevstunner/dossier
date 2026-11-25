@@ -65,6 +65,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       prisma.application.findUnique({
         where: { id },
         select: {
+          syncedFrom: true,
           posting: { select: { source: true, via: true } },
           agentCandidate: { select: { source: true, via: true, agent: { select: { name: true } } } },
           startup: { select: { source: true } },

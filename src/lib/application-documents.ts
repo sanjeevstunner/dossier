@@ -28,7 +28,7 @@ export const loadApplication = cache(async (id: string) => {
       documents: { include: { theme: { select: THEME_FIELDS } } },
       messages: { orderBy: { createdAt: "asc" } },
       notes: true,
-      events: { select: { id: true, to: true, at: true } },
+      events: { select: { id: true, to: true, at: true, naukriStatus: true } },
       facts: { select: { id: true, text: true }, orderBy: [{ sort: "asc" }, { createdAt: "asc" }] },
       // The user's own files, without their bytes.
       files: { select: { kind: true, name: true, type: true, size: true } },

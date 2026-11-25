@@ -27,6 +27,11 @@ describe("activityTimeline (E8-9)", () => {
     ]);
   });
 
+  it("carries Naukri's own word for a status change the sync made", () => {
+    const [entry] = activityTimeline({ notes: [], events: [{ id: "e1", to: "SCREENING", at: at(2), naukriStatus: "Recruiter Viewed" }], createdAt: at(1), now: at(5) });
+    expect(entry).toEqual({ kind: "status", id: "e1", status: "SCREENING", date: "2 Oct", naukriStatus: "Recruiter Viewed" });
+  });
+
   it("adds the year to dates from another year", () => {
     const [created] = activityTimeline({ notes: [], events: [], createdAt: new Date(2025, 11, 30), now: at(5) });
     expect(created).toEqual({ kind: "created", id: "created", date: "30 Dec 2025" });

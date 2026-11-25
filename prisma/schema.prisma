@@ -513,6 +513,8 @@ model StatusEvent {
   at                    DateTime          @default(now())
   previousFurthestStage FunnelStage?
   previousSentAt        DateTime?
+  /// Naukri's own word for the status, when the change came from the Naukri sync.
+  naukriStatus          String?
 
   @@index([applicationId, at])
 }

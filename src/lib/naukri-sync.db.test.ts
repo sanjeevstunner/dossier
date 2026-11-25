@@ -38,12 +38,16 @@ describe("syncing Naukri applications", () => {
       ["NAUKRI", "2", "SCREENING", "Acme"],
     ]);
     expect(rows[0]!.sentAt).toEqual(new Date(Date.UTC(2026, 10, 1)));
+    // The Notes tab's history keeps Naukri's own word beside the status.
+    const events = await prisma().statusEvent.findMany({ orderBy: { applicationId: "asc" }, select: { to: true, naukriStatus: true, applicationId: true } });
+    expect(events.map((event) => [event.to, event.naukriStatus]).sort()).toEqual([["SCREENING", "Viewed"], ["SENT", "Applied"]]);
   });
 
   it("takes Naukri's newer status for synced applications", async () => {
     await applyNaukriApplications([found("1", "Applied")]);
     expect(await applyNaukriApplications([found("1", "Applied", "Not Shortlisted")])).toMatchObject({ created: 0, updated: 1 });
     expect((await prisma().application.findFirstOrThrow()).status).toBe("REJECTED");
+    expect((await prisma().statusEvent.findMany({ orderBy: { at: "desc" }, take: 1 }))[0]).toMatchObject({ to: "REJECTED", naukriStatus: "Not Shortlisted" });
   });
 
   it("updates an application Dossier sent itself, matched by job id, without a second one or its badge", async () => {
@@ -54,6 +58,13 @@ describe("syncing Naukri applications", () => {
     expect(await applyNaukriApplications([found("9", "Applied", "Shortlisted")])).toEqual({ created: 0, updated: 1, total: 1, unmapped: [] });
     expect(await prisma().application.count()).toBe(1);
     expect(await prisma().application.findUniqueOrThrow({ where: { id: own.id } })).toMatchObject({ status: "SCREENING", syncedFrom: null });
+  });
+
+  it("adds Naukri's word to a move that was already made without it", async () => {
+    await applyNaukriApplications([found("1", "Applied", "Viewed")]);
+    await prisma().statusEvent.updateMany({ data: { naukriStatus: null } });
+    await applyNaukriApplications([found("1", "Applied", "Viewed")]);
+    expect((await prisma().statusEvent.findMany({ where: { to: "SCREENING" } }))[0]).toMatchObject({ naukriStatus: "Viewed" });
   });
 
   it("doesn't pull an application moved on by hand back to sent", async () => {

@@ -11,8 +11,8 @@ export type NaukriMappedStatus = (typeof NAUKRI_MAPPED_STATUSES)[number];
 export type NaukriStatusMap = Record<NaukriMappedStatus, string[]>;
 
 export const DEFAULT_NAUKRI_STATUS_MAP: NaukriStatusMap = {
-  SENT: ["Applied"],
-  SCREENING: ["Viewed", "Recruiter Viewed", "Shortlisted", "Under Consideration"],
+  SENT: ["Applied", "Application Sent"],
+  SCREENING: ["Viewed", "Application Viewed", "Resume Viewed", "Recruiter Viewed", "Shortlisted", "Under Consideration"],
   INTERVIEW: ["Interview"],
   OFFER: ["Offer"],
   ACCEPTED: [],

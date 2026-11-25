@@ -175,6 +175,8 @@ const statusEvent = z.object({
   at: date,
   previousFurthestStage: z.enum(FunnelStage).nullable(),
   previousSentAt: optionalDate,
+  /** Absent in files from before the Naukri sync. */
+  naukriStatus: z.string().nullish(),
 });
 const document = z.object({
   id: text,

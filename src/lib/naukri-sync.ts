@@ -39,8 +39,16 @@ export async function applyNaukriApplications(found: readonly NaukriApplication[
     const existing = known.get(entry.jobId);
     if (existing) {
       // "Applied" is all Naukri knows about an application moved further by hand, so it doesn't pull it back.
-      if (status === existing.status || status === ApplicationStatus.SENT) continue;
-      if ((await applyStatusChange(prisma, existing.id, status, now)).outcome === "changed") result.updated++;
+      if (status === existing.status) {
+        // Already there (moved by hand or by an earlier sync): the Notes tab still gets Naukri's word on that move.
+        if (word) {
+          const event = await prisma.statusEvent.findFirst({ where: { applicationId: existing.id, to: status }, orderBy: { at: "desc" }, select: { id: true, naukriStatus: true } });
+          if (event && !event.naukriStatus) await prisma.statusEvent.update({ where: { id: event.id }, data: { naukriStatus: word } });
+        }
+        continue;
+      }
+      if (status === ApplicationStatus.SENT) continue;
+      if ((await applyStatusChange(prisma, existing.id, status, now, word)).outcome === "changed") result.updated++;
       continue;
     }
     const sentAt = entry.statuses.find((item) => item.at)?.at ?? now;
@@ -54,9 +62,6 @@ export async function applyNaukriApplications(found: readonly NaukriApplication[
           company: entry.company,
           location: entry.location,
           postingUrl: `https://www.naukri.com/job-listings-${entry.jobId}`,
-          status: ApplicationStatus.SENT,
-          furthestStage: "SENT",
-          sentAt,
         },
         select: { id: true },
       })
@@ -64,7 +69,9 @@ export async function applyNaukriApplications(found: readonly NaukriApplication[
       .catch((error: { code?: string }) => (error.code === "P2002" ? null : Promise.reject(error)));
     if (!created) continue;
     result.created++;
-    if (status !== ApplicationStatus.SENT) await applyStatusChange(prisma, created.id, status, now);
+    // Through the status module, so the Notes tab shows the move with Naukri's word for it.
+    await applyStatusChange(prisma, created.id, status, now, word);
+    await prisma.application.update({ where: { id: created.id }, data: { sentAt } });
   }
   return result;
 }
