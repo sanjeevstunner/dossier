@@ -133,7 +133,7 @@ export function ApplicationsScreen({ params, rows, saved, counts, summary, empty
       />
 
       {empty ? (
-        <FirstApplication />
+        <FirstApplication syncing={syncing} onSync={sync} problem={naukri.problem} />
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3 px-10 pb-[18px]">
@@ -217,7 +217,7 @@ function Nothing({ children }: { children: ReactNode }) {
 }
 
 /** Before the first application: where to start. */
-function FirstApplication() {
+function FirstApplication({ syncing, onSync, problem }: { syncing: boolean; onSync: () => void; problem: string | null }) {
   return (
     <div className="mx-10 mb-16 flex max-w-[640px] flex-col items-start gap-3 rounded-panel border border-line-card bg-card px-7 py-7">
       <h2 className="font-serif text-section">Your first application</h2>
@@ -232,6 +232,14 @@ function FirstApplication() {
         <Link href="/profile" className="text-sm text-muted underline underline-offset-2 hover:text-ink">
           Fill in your profile
         </Link>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 border-t border-line-card pt-4">
+        <Button variant="secondary" size="sm" disabled={syncing} onClick={onSync}>
+          {syncing ? "Syncing…" : "Sync from Naukri"}
+        </Button>
+        <span className={cn("text-meta", problem ? "text-error" : "text-muted")}>
+          {problem ?? "Already applied on Naukri? Bring those applications in."}
+        </span>
       </div>
     </div>
   );
