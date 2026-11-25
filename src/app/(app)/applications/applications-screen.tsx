@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import { useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
 
 import { changeStatus } from "@/components/change-status";
+import { toast, toastResult } from "@/components/toast";
 
 import { PageHeader } from "@/components/page-header";
-import { buttonClassName } from "@/components/ui/button";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { ApplicationStatus } from "@/generated/prisma/enums";
 import type { ApplicationRow, SavedRow } from "@/lib/applications-data";
-import { FILTERS, listHref, statusesIn, type Filter, type ListParams, type View } from "@/lib/applications-list";
+import { FILTERS, listHref, SOURCES, statusesIn, updatedAgo, type Filter, type ListParams, type Source, type View } from "@/lib/applications-list";
 import { cn } from "@/lib/cn";
 
-import { rememberListView } from "./actions";
+import { rememberListView, syncNaukriNow } from "./actions";
 import { Board } from "./board";
 import { Table } from "./table";
 
@@ -31,6 +32,8 @@ export type ApplicationsScreenProps = {
   empty: boolean;
   /** Archived applications, hidden unless shown (E9-5). */
   archivedCount: number;
+  /** Naukri's sync: whether to show its controls, when it last ran, and what went wrong. */
+  naukri: { show: boolean; lastSyncAt: string | null; problem: string | null };
 };
 
 const HINTS: Record<View, string> = {
@@ -46,7 +49,7 @@ const SEARCH_DELAY_MS = 250;
  * and filters. Every change goes into the URL and the server answers with
  * the matching applications.
  */
-export function ApplicationsScreen({ params, rows, saved, counts, summary, empty, archivedCount }: ApplicationsScreenProps) {
+export function ApplicationsScreen({ params, rows, saved, counts, summary, empty, archivedCount, naukri }: ApplicationsScreenProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState(params.q);
@@ -76,13 +79,24 @@ export function ApplicationsScreen({ params, rows, saved, counts, summary, empty
     clearTimeout(typing.current);
     const state = { ...params, q: query.trim(), ...next };
     const href = listHref(state);
-    const remember = "view" in next || "filter" in next || "sort" in next;
+    const remember = "view" in next || "filter" in next || "sort" in next || "source" in next;
     startTransition(async () => {
-      if (remember) await rememberListView({ view: state.view, filter: state.filter, sort: state.sort });
+      if (remember) await rememberListView({ view: state.view, filter: state.filter, sort: state.sort, source: state.source });
       if (replace) router.replace(href, { scroll: false });
       else router.push(href, { scroll: false });
     });
   };
+
+  const [syncing, startSync] = useTransition();
+  const sync = () =>
+    startSync(async () => {
+      const result = toastResult(await syncNaukriNow({}));
+      if (result.ok) {
+        const { created, updated, total } = result.data;
+        toast(`Synced ${total} from Naukri: ${created} new, ${updated} updated.`);
+        router.refresh();
+      }
+    });
 
   const search = (value: string) => {
     setQuery(value);
@@ -149,6 +163,23 @@ export function ApplicationsScreen({ params, rows, saved, counts, summary, empty
                 </button>
               ))}
             </div>
+            {naukri.show && (
+              <>
+                <SegmentedControl<Source>
+                  aria-label="Applications from"
+                  size="sm"
+                  options={SOURCES.map(({ value, label }) => ({ value, label }))}
+                  value={params.source}
+                  onValueChange={(source) => go({ source })}
+                />
+                <Button variant="secondary" size="sm" disabled={syncing} onClick={sync} title={naukri.problem ?? undefined}>
+                  {syncing ? "Syncing…" : "Sync Naukri"}
+                </Button>
+                <span className={cn("text-meta", naukri.problem ? "text-error" : "text-muted")}>
+                  {naukri.problem ?? (naukri.lastSyncAt ? `Naukri synced ${updatedAgo(new Date(naukri.lastSyncAt)).toLowerCase()}` : "Naukri not synced yet")}
+                </span>
+              </>
+            )}
             {archivedCount > 0 && (
               <button
                 type="button"

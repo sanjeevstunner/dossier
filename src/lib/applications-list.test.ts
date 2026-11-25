@@ -41,9 +41,9 @@ describe("the list's URL (E9-1)", () => {
   });
 
   it("leaves defaults out of links", () => {
-    expect(listHref({ view: "board", filter: "all", q: "", sort: DEFAULT_SORT, archived: false })).toBe("/applications");
-    expect(listHref({ view: "table", filter: "active", q: "a b", sort: { key: "role", reversed: true }, archived: true })).toBe(
-      "/applications?view=table&filter=active&q=a+b&sort=-role&archived=1",
+    expect(listHref({ view: "board", filter: "all", q: "", sort: DEFAULT_SORT, archived: false, source: "both" })).toBe("/applications");
+    expect(listHref({ view: "table", filter: "active", q: "a b", sort: { key: "role", reversed: true }, archived: true, source: "naukri" })).toBe(
+      "/applications?view=table&filter=active&q=a+b&sort=-role&archived=1&source=naukri",
     );
   });
 });
@@ -106,7 +106,7 @@ describe("updatedAgo", () => {
 });
 
 describe("resolveListParams (E9-4, LST-7)", () => {
-  const remembered = { applicationsView: "table", applicationsFilter: "closed", applicationsSort: "-match" };
+  const remembered = { applicationsView: "table", applicationsFilter: "closed", applicationsSort: "-match", naukriVisibility: "both" as const };
 
   it("brings back the view, filter and sort last used", () => {
     expect(resolveListParams({}, remembered)).toEqual({
@@ -115,6 +115,7 @@ describe("resolveListParams (E9-4, LST-7)", () => {
       sort: { key: "match", reversed: true },
       q: "",
       archived: false,
+      source: "both",
     });
   });
 
@@ -123,8 +124,9 @@ describe("resolveListParams (E9-4, LST-7)", () => {
   });
 
   it("falls back to the defaults when nothing usable was remembered", () => {
-    expect(resolveListParams({}, { applicationsView: "grid", applicationsFilter: "", applicationsSort: "salary" })).toEqual({
+    expect(resolveListParams({}, { applicationsView: "grid", applicationsFilter: "", applicationsSort: "salary", naukriVisibility: "both" })).toEqual({
       view: "board",
+      source: "both",
       filter: "all",
       sort: DEFAULT_SORT,
       q: "",

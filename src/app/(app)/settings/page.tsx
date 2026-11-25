@@ -28,6 +28,7 @@ import { DocumentsSection } from "./documents-section";
 import { GoogleSection } from "./google-section";
 import { GoogleNotice } from "./google-notice";
 import { JobSearchSection } from "./job-search-section";
+import { NaukriSyncSection } from "./naukri-sync-section";
 import { ProfileSection } from "./profile-section";
 import { AboutSection, type AboutFacts, type UsagePingView } from "./about-section";
 import { ConnectorSection } from "./connector-section";
@@ -51,7 +52,20 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           <CustomPrompts initial={{ customPrompts: settings.customPrompts, promptGlobal: settings.promptGlobal, promptDocs: settings.promptDocs, promptResume: settings.promptResume, promptAgent: settings.promptAgent, promptGlobalOn: settings.promptGlobalOn, promptDocsOn: settings.promptDocsOn, promptResumeOn: settings.promptResumeOn, promptAgentOn: settings.promptAgentOn }} />
         </>
       ) : section === "jobs" ? (
-        <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />
+        <>
+          <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />
+          <NaukriSyncSection
+            initial={{
+              on: settings.naukriSync,
+              visibility: settings.naukriVisibility,
+              hours: settings.naukriSyncHours,
+              days: settings.naukriSyncDays,
+              limit: settings.naukriSyncLimit,
+              lastSyncAt: settings.naukriLastSyncAt,
+              problem: settings.naukriSyncProblem,
+            }}
+          />
+        </>
       ) : section === "google" ? (
         <>
           <GoogleNotice outcome={typeof params.google === "string" ? params.google : null} />

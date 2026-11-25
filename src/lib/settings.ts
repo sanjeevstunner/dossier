@@ -174,6 +174,16 @@ export const settingsSchema = z.object({
   /** The NopeRi server that reaches Naukri, and its API key, encrypted like the others. */
   naukriUrl: z.string().nullable().catch(null),
   naukriKeyEnc: z.string().nullable().catch(null),
+  // Naukri applications synced into Applications (naukri-sync.ts): on/off, which
+  // applications show, how often to fetch, how far back, and how many at most.
+  naukriSync: flag(false),
+  naukriVisibility: z.enum(["dossier", "both", "naukri"]).catch("both"),
+  naukriSyncHours: z.coerce.number().int().min(1).max(168).catch(6),
+  naukriSyncDays: z.coerce.number().int().min(1).max(365).catch(90),
+  naukriSyncLimit: z.coerce.number().int().min(1).max(500).catch(100),
+  /** When the last sync finished, and why the last one failed (null once one works). */
+  naukriLastSyncAt: z.iso.datetime().nullable().catch(null),
+  naukriSyncProblem: z.string().nullable().catch(null),
   // Startups (#222): when the screen was last opened, since the daily refresh
   // only runs while it's in use, and what the last refresh found. They belong
   // to the install, not its data, so exports leave them out (INSTALL_SETTINGS).

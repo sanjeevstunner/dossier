@@ -26,6 +26,7 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
   score: null,
   hasUploadedResume: false,
   agentApply: false,
+  fromNaukri: false,
   sent: "20 Sep",
   updated: "2 days ago",
   updatedAt: Date.UTC(2026, 8, 26),
@@ -38,9 +39,9 @@ const rows = [
   row("brightline", { company: "Brightline Transit", status: "DRAFT", deadline: "3 Oct 2026" }),
   row("oaken", { company: "Oaken Studio", status: "OFFER" }),
 ];
-const params = { view: "board" as const, filter: "all" as const, q: "", sort: DEFAULT_SORT, archived: false };
+const params = { view: "board" as const, filter: "all" as const, q: "", sort: DEFAULT_SORT, archived: false, source: "both" as const };
 const open = (extra = {}) =>
-  render(<ApplicationsScreen params={params} saved={[]} rows={rows} counts={{ all: 4, active: 4, closed: 0 }} summary="4 applications" empty={false} archivedCount={0} {...extra} />);
+  render(<ApplicationsScreen params={params} saved={[]} rows={rows} counts={{ all: 4, active: 4, closed: 0 }} summary="4 applications" empty={false} archivedCount={0} naukri={{ show: false, lastSyncAt: null, problem: null }} {...extra} />);
 const column = (name: string) => screen.getByRole("region", { name: new RegExp(`^${name} `) });
 
 beforeEach(() => vi.mocked(changeStatus).mockClear());

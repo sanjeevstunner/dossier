@@ -466,6 +466,10 @@ model Application {
   /// profile's "Show on resumes" (#224).
   showPhoto           Boolean?
   archivedAt          DateTime?
+  /// Set when the application was created by a sync from another platform ("NAUKRI"); null for Dossier's own.
+  syncedFrom          String?
+  /// That platform's id for the job (Naukri's jobId), with `syncedFrom`.
+  externalId          String?
   /// The Gmail thread the application was sent in, when it went out through Gmail (E15-2).
   emailThreadId       String?
   /// The Google Calendar event of the next interview, and the calendar it's
@@ -493,6 +497,7 @@ model Application {
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
+  @@unique([syncedFrom, externalId])
   @@index([status])
   @@index([updatedAt])
 }
