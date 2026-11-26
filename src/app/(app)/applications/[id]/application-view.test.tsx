@@ -788,7 +788,7 @@ describe("notes and activity (E8-9)", () => {
     { kind: "note" as const, id: "n1", body: "Called John.\nSecond round next week.", date: "3 Oct", edited: false },
     { kind: "status" as const, id: "e2", status: "INTERVIEW" as const, date: "3 Oct" },
     { kind: "note" as const, id: "n2", body: "Sent a thank-you.", date: "1 Oct", edited: true },
-    { kind: "status" as const, id: "e1", status: "SENT" as const, date: "1 Oct" },
+    { kind: "status" as const, id: "e1", status: "SENT" as const, date: "1 Oct", naukriStatus: "Applied" },
     { kind: "created" as const, id: "created" as const, date: "28 Sep" },
   ];
   const open = () => render(<ApplicationView {...props} activity={activity} initialTab="notes" />);
@@ -814,7 +814,7 @@ describe("notes and activity (E8-9)", () => {
       "Called John.\nSecond round next week.3 OctEditDelete",
       "Moved to Interview3 Oct",
       "Sent a thank-you.1 Oct · editedEditDelete",
-      "Moved to Sent1 Oct",
+      "Moved to Sent · Naukri: Applied1 Oct",
       "Created28 Sep",
     ]);
   });

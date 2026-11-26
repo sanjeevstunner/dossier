@@ -41,9 +41,17 @@ export const NATURAL_ORDER: Record<SortKey, "ascending" | "descending"> = {
   updated: "descending",
 };
 
+/** Which applications show: Dossier's own, those and Naukri's together, or only those synced from Naukri (naukri-sync.ts). */
+export const SOURCES = [
+  { value: "dossier", label: "Dossier" },
+  { value: "both", label: "Both" },
+  { value: "naukri", label: "Naukri" },
+] as const;
+export type Source = (typeof SOURCES)[number]["value"];
+
 export const DEFAULT_SORT: Sort = { key: "updated", reversed: false };
 
-export type ListParams = { view: View; filter: Filter; q: string; sort: Sort; archived: boolean };
+export type ListParams = { view: View; filter: Filter; q: string; sort: Sort; archived: boolean; source: Source };
 
 const one = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
@@ -51,11 +59,13 @@ const one = (value: string | string[] | undefined) => (Array.isArray(value) ? va
 export function parseListParams(params: Record<string, string | string[] | undefined>): Partial<ListParams> & { q: string } {
   const view = VIEWS.find((entry) => entry === one(params.view));
   const filter = FILTERS.find((entry) => entry.value === one(params.filter))?.value;
+  const source = SOURCES.find((entry) => entry.value === one(params.source))?.value;
   const rawSort = one(params.sort) ?? "";
   const key = SORT_KEYS.find((entry) => entry === rawSort.replace(/^-/, ""));
   return {
     ...(view ? { view } : {}),
     ...(filter ? { filter } : {}),
+    ...(source ? { source } : {}),
     ...(key ? { sort: { key, reversed: rawSort.startsWith("-") } } : {}),
     ...(one(params.archived) === "1" ? { archived: true } : {}),
     q: (one(params.q) ?? "").trim().slice(0, 200),
@@ -72,20 +82,21 @@ export const sortParam = ({ key, reversed }: Sort) => `${reversed ? "-" : ""}${k
  */
 export function resolveListParams(
   url: Record<string, string | string[] | undefined>,
-  remembered: { applicationsView: string; applicationsFilter: string; applicationsSort: string },
+  remembered: { applicationsView: string; applicationsFilter: string; applicationsSort: string; naukriVisibility: Source },
 ): ListParams {
   const last = parseListParams({ view: remembered.applicationsView, filter: remembered.applicationsFilter, sort: remembered.applicationsSort });
-  return { view: "board", filter: "all", sort: DEFAULT_SORT, archived: false, ...last, ...parseListParams(url) };
+  return { view: "board", filter: "all", sort: DEFAULT_SORT, archived: false, source: remembered.naukriVisibility, ...last, ...parseListParams(url) };
 }
 
 /** The URL for a state; defaults are left out, so the plain page is `/applications`. */
-export function listHref({ view, filter, q, sort, archived }: ListParams): string {
+export function listHref({ view, filter, q, sort, archived, source }: ListParams): string {
   const params = new URLSearchParams();
   if (view !== "board") params.set("view", view);
   if (filter !== "all") params.set("filter", filter);
   if (q) params.set("q", q);
   if (sort.key !== DEFAULT_SORT.key || sort.reversed) params.set("sort", sortParam(sort));
   if (archived) params.set("archived", "1");
+  if (source !== "both") params.set("source", source);
   const query = params.toString();
   return query ? `/applications?${query}` : "/applications";
 }

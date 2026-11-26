@@ -59,6 +59,10 @@ export const INSTALL_SETTINGS: readonly string[] = [
   // When Startups was last opened and what its last refresh found (#222).
   "startupsViewedAt",
   "startupsLastRefresh",
+  // The Naukri sync's last run and problem (naukri-sync.ts).
+  "naukriLastSyncAt",
+  "naukriSyncProblem",
+  "naukriUnmappedWords",
   "latestVersion",
   "latestVersionUrl",
   "updateCheckDay",
@@ -171,6 +175,8 @@ const statusEvent = z.object({
   at: date,
   previousFurthestStage: z.enum(FunnelStage).nullable(),
   previousSentAt: optionalDate,
+  /** Absent in files from before the Naukri sync. */
+  naukriStatus: z.string().nullish(),
 });
 const document = z.object({
   id: text,

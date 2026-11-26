@@ -155,7 +155,10 @@ export function NotesTab({ applicationId, activity }: { applicationId: string; a
                 </div>
               ) : (
                 <p className="flex min-w-0 flex-1 flex-wrap justify-between gap-x-3 text-sm">
-                  <span>{entry.kind === "status" ? `Moved to ${statusInfo(entry.status).label}` : "Created"}</span>
+                  <span>
+                    {entry.kind === "status" ? `Moved to ${statusInfo(entry.status).label}` : "Created"}
+                    {entry.kind === "status" && entry.naukriStatus && <span className="text-muted"> · Naukri: {entry.naukriStatus}</span>}
+                  </span>
                   <span className="text-label text-muted">{entry.date}</span>
                 </p>
               )}

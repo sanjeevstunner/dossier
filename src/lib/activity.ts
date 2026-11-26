@@ -7,7 +7,7 @@ import { formatShortDate } from "@/lib/dates";
 
 export type ActivityEntry =
   | { kind: "note"; id: string; body: string; date: string; edited: boolean }
-  | { kind: "status"; id: string; status: ApplicationStatus; date: string }
+  | { kind: "status"; id: string; status: ApplicationStatus; date: string; /** Naukri's word for it, when the Naukri sync made the change. */ naukriStatus?: string }
   | { kind: "created"; id: "created"; date: string };
 
 /** Saving a new note sets both times a moment apart; only a later save counts as an edit. */
@@ -20,7 +20,7 @@ export function activityTimeline({
   now = new Date(),
 }: {
   notes: { id: string; body: string; createdAt: Date; updatedAt: Date }[];
-  events: { id: string; to: ApplicationStatus; at: Date }[];
+  events: { id: string; to: ApplicationStatus; at: Date; naukriStatus?: string | null }[];
   createdAt: Date;
   now?: Date;
 }): ActivityEntry[] {
@@ -37,7 +37,7 @@ export function activityTimeline({
     })),
     ...events.map((event) => ({
       at: event.at,
-      entry: { kind: "status" as const, id: event.id, status: event.to, date: formatShortDate(event.at, now) },
+      entry: { kind: "status" as const, id: event.id, status: event.to, date: formatShortDate(event.at, now), ...(event.naukriStatus ? { naukriStatus: event.naukriStatus } : {}) },
     })),
     { at: createdAt, entry: { kind: "created" as const, id: "created" as const, date: formatShortDate(createdAt, now) } },
   ];

@@ -297,6 +297,60 @@ export async function naukriHasApplied(credentials: Credentials, jobId: string, 
   return answer.some((item) => item && typeof item === "object" && "jobId" in item && String(item.jobId) === jobId);
 }
 
+/** One of the user's applications on Naukri, as its history lists it. */
+export type NaukriApplication = {
+  jobId: string;
+  title: string;
+  company: string;
+  location: string;
+  /** Naukri's status words for it, oldest first, with when each was set (null when the date can't be read). */
+  statuses: { value: string; at: Date | null }[];
+};
+
+const applicationSchema = z.object({
+  jobId: z.union([z.string(), z.number()]).transform(String),
+  jobTitle: z.string().catch(""),
+  company: z.string().catch(""),
+  location: z.string().catch(""),
+  statuses: z
+    .array(z.object({ statusValue: z.string().catch(""), dateTime: z.union([z.string(), z.number()]).nullish().catch(null) }))
+    .catch([]),
+});
+
+const readDate = (value: string | number | null | undefined): Date | null => {
+  if (value === null || value === undefined || value === "") return null;
+  const date = new Date(typeof value === "string" && /^\d{10,13}$/.test(value) ? Number(value) : value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/**
+ * The user's applications on Naukri from the last `days` days, newest first,
+ * at most `limit` of them, read a page at a time from NopeRi's history.
+ */
+export async function naukriApplications(credentials: Credentials, { days, limit }: { days: number; limit: number }, context: RequestContext = {}): Promise<NaukriApplication[]> {
+  const pageSize = Math.min(100, limit);
+  const found: NaukriApplication[] = [];
+  for (let page = 1; found.length < limit; page++) {
+    const path = `/api/applications?${new URLSearchParams({ pageSize: String(pageSize), days: String(days), pageNumber: String(page) })}`;
+    const answer = await signedIn("NAUKRI", credentials, path, context);
+    if (!Array.isArray(answer)) throw jobSearchError("changed", "NAUKRI", { detail: "/api/applications: unexpected answer" });
+    for (const item of answer) {
+      const parsed = applicationSchema.safeParse(item);
+      if (!parsed.success) continue;
+      const { jobId, jobTitle, company, location, statuses } = parsed.data;
+      found.push({
+        jobId,
+        title: jobTitle,
+        company,
+        location,
+        statuses: statuses.map(({ statusValue, dateTime }) => ({ value: statusValue, at: readDate(dateTime) })).sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)),
+      });
+    }
+    if (answer.length < pageSize) break;
+  }
+  return found.slice(0, limit);
+}
+
 // The Naukri profile itself (the "Naukri profile" screen): its editable
 // fields, an update to some of them, and Naukri's ids for a city or role.
 

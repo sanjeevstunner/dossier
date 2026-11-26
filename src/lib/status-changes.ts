@@ -19,6 +19,8 @@ export async function applyStatusChange(
   applicationId: string,
   to: ApplicationStatus,
   now = new Date(),
+  /** Naukri's own word for the status, when the change comes from the Naukri sync. */
+  naukriStatus?: string,
 ): Promise<StatusChangeResult> {
   return db.$transaction(async (tx) => {
     // Lock the row so two changes to the same application can't interleave.
@@ -33,7 +35,7 @@ export async function applyStatusChange(
     if (!change) return { outcome: "unchanged" };
 
     await tx.application.update({ where: { id: applicationId }, data: change.update });
-    const event = await tx.statusEvent.create({ data: { applicationId, ...change.event } });
+    const event = await tx.statusEvent.create({ data: { applicationId, ...change.event, ...(naukriStatus ? { naukriStatus } : {}) } });
     return { outcome: "changed", event };
   });
 }

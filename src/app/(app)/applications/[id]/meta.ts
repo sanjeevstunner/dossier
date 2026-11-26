@@ -5,7 +5,8 @@ import type { JobSource } from "@/lib/job-search/search";
 type Found = { source: JobSource; via: string };
 
 /** Where the application came from, e.g. "From Find jobs on LinkedIn via JSearch", or "Added by you". */
-export function sourceLine({ posting, agentCandidate, startup }: {
+export function sourceLine({ syncedFrom, posting, agentCandidate, startup }: {
+  syncedFrom?: string | null;
   posting: Found | null;
   agentCandidate: (Found & { agent: { name: string } | null }) | null;
   startup: { source: string } | null;
@@ -14,6 +15,7 @@ export function sourceLine({ posting, agentCandidate, startup }: {
     const name = SOURCE_INFO[source].name;
     return via.trim() && via.trim() !== name ? `${via.trim()} via ${name}` : name;
   };
+  if (syncedFrom === "NAUKRI") return "Synced from Naukri";
   if (agentCandidate) return `From ${agentCandidate.agent?.name ?? "the job agent"} on ${board(agentCandidate)}`;
   if (posting) return `From Find jobs on ${board(posting)}`;
   if (startup) return `From Startups on ${startup.source}`;

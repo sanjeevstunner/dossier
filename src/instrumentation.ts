@@ -30,6 +30,10 @@ export async function register() {
     const { startStartupsSchedule } = await import("@/lib/startups/schedule");
     startStartupsSchedule();
 
+    // Naukri's applied jobs synced into Applications, while that's on.
+    const { startNaukriSchedule } = await import("@/lib/naukri-sync");
+    startNaukriSchedule();
+
     // DOSSIER_JOBS_SOURCE=arbeitsagentur: the log says what that choice means (#223).
     const { arbeitsagenturStartupNotice, loadJobSearchConfig } = await import("@/lib/job-search/config");
     try {

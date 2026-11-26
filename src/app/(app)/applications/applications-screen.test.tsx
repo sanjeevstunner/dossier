@@ -9,7 +9,7 @@ import { rememberListView } from "./actions";
 import { ApplicationsScreen, type ApplicationsScreenProps } from "./applications-screen";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
-vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })), startEasyApplyForApplication: vi.fn() }));
+vi.mock("./actions", () => ({ rememberListView: vi.fn(async () => ({ ok: true, data: null })), startEasyApplyForApplication: vi.fn(), syncNaukriNow: vi.fn() }));
 vi.mock("./[id]/actions", () => ({ startCatchingUp: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => null }));
 
@@ -26,13 +26,14 @@ export const row = (id: string, extra: Partial<ApplicationRow> = {}): Applicatio
   score: null,
   hasUploadedResume: false,
   agentApply: false,
+  fromNaukri: false,
   sent: "20 Sep",
   updated: "2 days ago",
   updatedAt: Date.UTC(2026, 8, 26),
   ...extra,
 });
 
-const params: ListParams = { view: "board", filter: "all", q: "", sort: DEFAULT_SORT, archived: false };
+const params: ListParams = { view: "board", filter: "all", q: "", sort: DEFAULT_SORT, archived: false, source: "both" as const };
 const props: ApplicationsScreenProps = {
   params,
   saved: [],
@@ -41,6 +42,7 @@ const props: ApplicationsScreenProps = {
   summary: "2 applications: 1 waiting to hear back, 1 in conversation. Nice momentum.",
   empty: false,
   archivedCount: 0,
+  naukri: { show: false, lastSyncAt: null, problem: null },
 };
 
 beforeEach(() => {
@@ -114,7 +116,7 @@ describe("the Applications screen (E9-1)", () => {
     const user = userEvent.setup();
     render(<ApplicationsScreen {...props} />);
     await user.click(screen.getByRole("button", { name: "Closed 0" }));
-    expect(rememberListView).toHaveBeenCalledWith({ view: "board", filter: "closed", sort: DEFAULT_SORT });
+    expect(rememberListView).toHaveBeenCalledWith({ view: "board", filter: "closed", sort: DEFAULT_SORT, source: "both" });
   });
 
   it("doesn't remember searches", async () => {
@@ -123,5 +125,12 @@ describe("the Applications screen (E9-1)", () => {
     await user.type(screen.getByRole("searchbox"), "ledg{Enter}");
     expect(router.replace).toHaveBeenCalledWith("/applications?q=ledg", { scroll: false });
     expect(rememberListView).not.toHaveBeenCalled();
+  });
+
+  it("links to the review screen only when something waits for a decision", () => {
+    const { rerender } = render(<ApplicationsScreen {...props} naukri={{ show: true, lastSyncAt: null, problem: null, toReview: 0 }} />);
+    expect(screen.queryByRole("link", { name: /to review/ })).not.toBeInTheDocument();
+    rerender(<ApplicationsScreen {...props} naukri={{ show: true, lastSyncAt: null, problem: null, toReview: 3 }} />);
+    expect(screen.getByRole("link", { name: "3 to review" })).toHaveAttribute("href", "/applications/review");
   });
 });

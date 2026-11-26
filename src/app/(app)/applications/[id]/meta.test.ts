@@ -38,5 +38,6 @@ describe("sourceLine", () => {
     expect(sourceLine({ ...none, agentCandidate: { source: "NAUKRI", via: "Naukri", agent: { name: "Job agent 2" } } })).toBe("From Job agent 2 on Naukri");
     expect(sourceLine({ ...none, agentCandidate: { source: "ADZUNA", via: "", agent: null } })).toBe("From the job agent on Adzuna");
     expect(sourceLine({ ...none, startup: { source: "YC" } })).toBe("From Startups on YC");
+    expect(sourceLine({ ...none, syncedFrom: "NAUKRI" })).toBe("Synced from Naukri");
   });
 });

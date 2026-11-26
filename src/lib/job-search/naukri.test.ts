@@ -6,7 +6,7 @@ const fetchPosting = vi.hoisted(() => vi.fn(async () => ({ ok: false, error: "un
 vi.mock("@/lib/posting-fetch", () => ({ fetchPosting }));
 
 import { JobSearchError } from "./errors";
-import { naukri, naukriAuth, naukriEditableProfile, naukriLookup, naukriUpdateProfile, postedAtFromLabel } from "./naukri";
+import { naukri, naukriApplications, naukriAuth, naukriEditableProfile, naukriLookup, naukriUpdateProfile, postedAtFromLabel } from "./naukri";
 import { EMPTY_QUERY } from "./search";
 
 const credentials = { url: "http://noperi.local:3000/", apiKey: "k".repeat(24) };
@@ -110,5 +110,27 @@ describe("postedAtFromLabel", () => {
     expect(postedAtFromLabel("3 Days Ago", now)).toBe("2026-11-01T12:00:00.000Z");
     expect(postedAtFromLabel("30+ Days Ago", now)).toBe("2026-10-05T12:00:00.000Z");
     expect(postedAtFromLabel("N/A", now)).toBeNull();
+  });
+});
+
+describe("Naukri applications history", () => {
+  const entry = (jobId: string) => ({ jobId, jobTitle: `Role ${jobId}`, company: "Acme", location: "Pune", statuses: [{ statusValue: "Viewed", dateTime: "2026-11-02T10:00:00Z" }, { statusValue: "Applied", dateTime: "2026-11-01T10:00:00Z" }] });
+
+  it("pages through the history with the days and stops at the limit, oldest status first", async () => {
+    const requests = stubFetch(({ url }) => json(Array.from({ length: 100 }, (_, index) => entry(`${url.searchParams.get("pageNumber")}-${index}`))));
+    const found = await naukriApplications(credentials, { days: 30, limit: 150 });
+    expect(found).toHaveLength(150);
+    expect(requests.map(({ url }) => Object.fromEntries(url.searchParams))).toEqual([
+      { pageSize: "100", days: "30", pageNumber: "1" },
+      { pageSize: "100", days: "30", pageNumber: "2" },
+    ]);
+    expect(found[0]).toMatchObject({ jobId: "1-0", title: "Role 1-0", company: "Acme", location: "Pune" });
+    expect(found[0]!.statuses.map((status) => status.value)).toEqual(["Applied", "Viewed"]);
+  });
+
+  it("stops at a short page", async () => {
+    const requests = stubFetch(() => json([entry("1")]));
+    expect(await naukriApplications(credentials, { days: 90, limit: 100 })).toHaveLength(1);
+    expect(requests).toHaveLength(1);
   });
 });

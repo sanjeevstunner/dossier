@@ -27,15 +27,16 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
   score: null,
   hasUploadedResume: false,
   agentApply: false,
+  fromNaukri: false,
   sent: "20 Sep",
   updated: "2 days ago",
   updatedAt: Date.UTC(2026, 8, 26),
   ...extra,
 });
 const rows = [row("kestrel", { company: "Kestrel Maps", role: "Product Designer, Mobile", match: null }), row("draft", { status: "DRAFT", sent: null, location: "" })];
-const params: ListParams = { view: "table", filter: "all", q: "", sort: DEFAULT_SORT, archived: false };
+const params: ListParams = { view: "table", filter: "all", q: "", sort: DEFAULT_SORT, archived: false, source: "both" as const };
 const open = (extra: Partial<ListParams> = {}) =>
-  render(<ApplicationsScreen params={{ ...params, ...extra }} saved={[]} rows={rows} counts={{ all: 2, active: 2, closed: 0 }} summary="2 applications" empty={false} archivedCount={0} />);
+  render(<ApplicationsScreen params={{ ...params, ...extra }} saved={[]} rows={rows} counts={{ all: 2, active: 2, closed: 0 }} summary="2 applications" empty={false} archivedCount={0} naukri={{ show: false, lastSyncAt: null, problem: null }} />);
 
 beforeEach(() => {
   router.push.mockClear();

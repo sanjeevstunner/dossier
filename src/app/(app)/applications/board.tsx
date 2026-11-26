@@ -27,6 +27,7 @@ import { useJob } from "@/hooks/use-job";
 
 import { startCatchingUp } from "./[id]/actions";
 import { startEasyApplyForApplication } from "./actions";
+import { NaukriBadge } from "./naukri-badge";
 import { RowMenu } from "./row-menu";
 
 /**
@@ -224,7 +225,10 @@ function CardFace({ row, lifted = false, onOpen, actions }: { row: ApplicationRo
       )}
     >
       <p className="flex items-baseline justify-between gap-2 text-label text-muted">
-        {row.company || "No company"}
+        <span>
+          {row.company || "No company"}
+          {row.fromNaukri && <NaukriBadge />}
+        </span>
         {row.archived && <span className="rounded-[6px] bg-track px-1.5 text-xs">Archived</span>}
       </p>
       {/* The link covers the card, so clicking anywhere opens it. */}

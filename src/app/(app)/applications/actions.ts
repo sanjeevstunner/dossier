@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { action, ActionError } from "@/lib/action";
@@ -13,8 +14,11 @@ import { prisma } from "@/lib/prisma";
 import { nextSort } from "@/lib/profile-entries";
 import { applyStatusChange } from "@/lib/status-changes";
 import { ApplicationStatus } from "@/generated/prisma/enums";
-import { FILTERS, SORT_KEYS, VIEWS } from "@/lib/applications-list";
+import { FILTERS, SORT_KEYS, SOURCES, VIEWS } from "@/lib/applications-list";
 import { saveSettings } from "@/lib/settings-data";
+import { JobSearchError } from "@/lib/job-search/errors";
+import { syncNaukriApplications } from "@/lib/naukri-sync";
+import { resolveAllConflicts, resolveConflict } from "@/lib/naukri-conflicts";
 import { isNopeRi } from "@/lib/job-search/sources";
 
 /** Remembers how the Applications screen was left (LST-7), for the next visit. */
@@ -23,9 +27,12 @@ export const rememberListView = action(
     view: z.enum(VIEWS),
     filter: z.enum(FILTERS.map((filter) => filter.value)),
     sort: z.object({ key: z.enum(SORT_KEYS), reversed: z.boolean() }),
+    /** Which applications show; the same setting as Settings → Job search. */
+    source: z.enum(SOURCES.map((entry) => entry.value)).optional(),
   }),
-  async ({ view, filter, sort }) => {
+  async ({ view, filter, sort, source }) => {
     await saveSettings({
+      ...(source ? { naukriVisibility: source } : {}),
       applicationsView: view,
       applicationsFilter: filter,
       applicationsSort: `${sort.reversed ? "-" : ""}${sort.key}`,
@@ -33,6 +40,35 @@ export const rememberListView = action(
     return null;
   },
 );
+
+/** "Sync now": reads Naukri's applied jobs into Applications with the fetch settings. */
+export const syncNaukriNow = action(z.object({}), async () => {
+  try {
+    const result = await syncNaukriApplications();
+    if (!result) throw new ActionError("A sync is already running.");
+    revalidatePath("/applications");
+    return result;
+  } catch (error) {
+    if (error instanceof JobSearchError) throw new ActionError(error.message);
+    throw error;
+  }
+});
+
+const choice = z.enum(["naukri", "dossier"]);
+
+/** Review screen: take Naukri's status for one application, or keep the application as it is. */
+export const resolveNaukriConflict = action(z.object({ id: z.string().min(1), choice }), async ({ id, choice }) => {
+  if (!(await resolveConflict(id, choice))) throw new ActionError("That application has nothing to review.");
+  revalidatePath("/applications", "layout");
+  return null;
+});
+
+/** Review screen: the same for everything waiting. */
+export const resolveAllNaukriConflicts = action(z.object({ choice }), async ({ choice }) => {
+  const done = await resolveAllConflicts(choice);
+  revalidatePath("/applications", "layout");
+  return done;
+});
 
 /**
  * "Apply with agent" on a Scored card: the same easy apply as in Find jobs,

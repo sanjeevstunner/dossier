@@ -2,7 +2,7 @@ import "server-only";
 
 import { DocumentKind, type ApplicationStatus } from "@/generated/prisma/enums";
 import { matchSchema, matchScore } from "@/lib/application-data";
-import { sortRows, updatedAgo, type Sort } from "@/lib/applications-list";
+import { sortRows, updatedAgo, type Sort, type Source } from "@/lib/applications-list";
 import { formatCalendarDate, formatShortDate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { isNopeRi } from "@/lib/job-search/sources";
@@ -24,6 +24,8 @@ export type ApplicationRow = {
   score: number | null;
   /** The user uploaded their own resume, which lets a scored application be marked sent. */
   hasUploadedResume: boolean;
+  /** Created by the Naukri sync, not in Dossier. */
+  fromNaukri: boolean;
   /** Came from a Naukri posting, so the job agent can apply for it. */
   agentApply: boolean;
   /** When it was sent, e.g. "18 Aug"; null while never sent. */
@@ -35,9 +37,9 @@ export type ApplicationRow = {
 };
 
 /** Every application, archived ones only when asked for, sorted for the table; agent drafts once approved (#195). */
-export async function loadApplicationRows({ archived, sort }: { archived: boolean; sort: Sort }, now = new Date()) {
+export async function loadApplicationRows({ archived, sort, source = "both" }: { archived: boolean; sort: Sort; source?: Source }, now = new Date()) {
   const applications = await prisma.application.findMany({
-    where: { awaitingReview: false, ...(archived ? {} : { archivedAt: null }) },
+    where: { awaitingReview: false, ...(archived ? {} : { archivedAt: null }), ...(source === "dossier" ? { syncedFrom: null } : source === "naukri" ? { syncedFrom: "NAUKRI" } : {}) },
     select: {
       id: true,
       title: true,
@@ -47,6 +49,7 @@ export async function loadApplicationRows({ archived, sort }: { archived: boolea
       mode: true,
       status: true,
       archivedAt: true,
+      syncedFrom: true,
       deadline: true,
       match: true,
       score: true,
@@ -70,6 +73,7 @@ export async function loadApplicationRows({ archived, sort }: { archived: boolea
       match: match.success && match.data.items.length > 0 ? matchScore(match.data) : null,
       score: application.score,
       hasUploadedResume: application.files.length > 0,
+      fromNaukri: application.syncedFrom === "NAUKRI",
       agentApply: isNopeRi(application.posting?.source),
       sentAt: application.sentAt,
       updatedAt: application.updatedAt,

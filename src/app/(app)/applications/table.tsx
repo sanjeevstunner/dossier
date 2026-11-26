@@ -10,6 +10,7 @@ import { NATURAL_ORDER, type Sort, type SortKey } from "@/lib/applications-list"
 import { cn } from "@/lib/cn";
 import { STATUSES } from "@/lib/status";
 
+import { NaukriBadge } from "./naukri-badge";
 import { RowMenu } from "./row-menu";
 
 const COLUMNS: { key: SortKey; label: string; className: string }[] = [
@@ -93,6 +94,7 @@ export function Table({
                 </Link>
                 <span className="block truncate text-meta text-muted">
                   {row.company}
+                  {row.fromNaukri && <NaukriBadge />}
                   {row.archived && <span className="ml-2 rounded-[6px] bg-track px-1.5 text-xs">Archived</span>}
                 </span>
               </td>

@@ -33,15 +33,16 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
   score: null,
   hasUploadedResume: false,
   agentApply: false,
+  fromNaukri: false,
   sent: "10 Aug",
   updated: "4 weeks ago",
   updatedAt: Date.UTC(2026, 7, 31),
   ...extra,
 });
-const params = { view: "table" as const, filter: "all" as const, q: "", sort: DEFAULT_SORT, archived: false };
+const params = { view: "table" as const, filter: "all" as const, q: "", sort: DEFAULT_SORT, archived: false, source: "both" as const };
 const open = (extra = {}) =>
   render(
-    <ApplicationsScreen params={params} saved={[]} rows={[row("quill")]} counts={{ all: 1, active: 0, closed: 1 }} summary="1 application" empty={false} archivedCount={0} {...extra} />,
+    <ApplicationsScreen params={params} saved={[]} rows={[row("quill")]} counts={{ all: 1, active: 0, closed: 1 }} summary="1 application" empty={false} archivedCount={0} naukri={{ show: false, lastSyncAt: null, problem: null }} {...extra} />,
   );
 const menu = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole("button", { name: "Actions for UX Designer, Quill & Co" }));

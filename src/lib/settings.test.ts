@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_NAUKRI_STATUS_MAP } from "@/lib/naukri-status";
 import { DateFormat } from "@/generated/prisma/enums";
 
 import { DATE_FORMATS, formatDocumentDate, maxPages, pagesInWords, settingsFromRows, settingValue, type SettingsData } from "./settings";
@@ -81,6 +82,15 @@ describe("stored settings", () => {
       arbeitsagenturAcceptedAt: null,
       naukriUrl: null,
       naukriKeyEnc: null,
+      naukriSync: false,
+      naukriVisibility: "both",
+      naukriSyncHours: 6,
+      naukriSyncDays: 90,
+      naukriSyncLimit: 100,
+      naukriStatusMap: DEFAULT_NAUKRI_STATUS_MAP,
+      naukriUnmappedWords: [],
+      naukriLastSyncAt: null,
+      naukriSyncProblem: null,
       startupsViewedAt: null,
       startupsLastRefresh: null,
       updateCheck: true,
