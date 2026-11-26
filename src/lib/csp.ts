@@ -27,7 +27,7 @@ export function contentSecurityPolicy(nonce: string, { dev = false, https = fals
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    "frame-ancestors 'self'",
     ...(https ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
 }

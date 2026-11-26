@@ -34,7 +34,9 @@ export const GET = route<Context>(async (request, context) => {
       "content-type": file.type,
       "content-disposition": download ? disposition : disposition.replace(/^attachment/, "inline"),
       "x-content-type-options": "nosniff",
-      "content-security-policy": "sandbox",
+      // Chrome's PDF viewer won't run inside a sandboxed response, so only
+      // downloads get the sandbox; an inline PDF is validated by its bytes.
+      ...(download ? { "content-security-policy": "sandbox" } : {}),
     },
   });
 });
