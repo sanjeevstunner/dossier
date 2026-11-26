@@ -2,6 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 import { APP_PORT, appEnv, FAKE_AI_PORT, FAKE_GOOGLE_PORT, FAKE_JOBS_PORT, STORAGE_STATE } from "./e2e/support";
 
+// The specs compare times as UTC, and the raw SQL helper reads timestamps in
+// the process zone, so the browser and the workers run in UTC whatever the host.
+process.env.TZ = "UTC";
+
 // End-to-end tests (E11-2): a production build (`yarn build` first) with its
 // own database, a fake AI server and fake job sources, in headless Chromium.
 // See DEVELOPMENT.md → "End-to-end tests".
