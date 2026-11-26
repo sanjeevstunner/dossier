@@ -28,6 +28,7 @@ import { DocumentsSection } from "./documents-section";
 import { GoogleSection } from "./google-section";
 import { GoogleNotice } from "./google-notice";
 import { JobSearchSection } from "./job-search-section";
+import { NaukriApplySection } from "./naukri-apply-section";
 import { NaukriSyncSection } from "./naukri-sync-section";
 import { ProfileSection } from "./profile-section";
 import { AboutSection, type AboutFacts, type UsagePingView } from "./about-section";
@@ -48,12 +49,22 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       {section === "ai" ? (
         <>
           <AiProviderSection initial={await loadAiSettingsView()} />
-          <AiBehaviour initial={{ creativity: settings.creativity, strict: settings.strict, showDiff: settings.showDiff, confirmApplyAnswers: settings.confirmApplyAnswers, confirmApplyResume: settings.confirmApplyResume }} />
+          <AiBehaviour initial={{ creativity: settings.creativity, strict: settings.strict, showDiff: settings.showDiff }} />
           <CustomPrompts initial={{ customPrompts: settings.customPrompts, promptGlobal: settings.promptGlobal, promptDocs: settings.promptDocs, promptResume: settings.promptResume, promptAgent: settings.promptAgent, promptGlobalOn: settings.promptGlobalOn, promptDocsOn: settings.promptDocsOn, promptResumeOn: settings.promptResumeOn, promptAgentOn: settings.promptAgentOn }} />
         </>
       ) : section === "jobs" ? (
         <>
           <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />
+          <NaukriApplySection
+            initial={{
+              easyApplyAnswerQuestions: settings.easyApplyAnswerQuestions,
+              easyApplyTailorResume: settings.easyApplyTailorResume,
+              easyApplySwapResume: settings.easyApplySwapResume,
+              easyApplyAutoSubmit: settings.easyApplyAutoSubmit,
+              confirmApplyAnswers: settings.confirmApplyAnswers,
+              confirmApplyResume: settings.confirmApplyResume,
+            }}
+          />
           <NaukriSyncSection
             initial={{
               on: settings.naukriSync,

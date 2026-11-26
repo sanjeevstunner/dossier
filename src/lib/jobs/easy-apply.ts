@@ -81,16 +81,24 @@ export const easyApplyJob = defineJob({
       const { externalApply, skills } = await naukriApplyInfo(credentials, jobId, context);
       if (externalApply) throw new JobFailure("This job applies on the company site, so the agent can't apply for you. Use “Apply on company site”.");
 
-      await step("Tailoring your resume");
-      const { applicationId, resume, resumeSource } = await tailoredResume(posting, job);
+      const settings = await loadSettings();
+      // Which steps the user lets the agent do (Settings, Job search). Sending the tailored resume needs one.
+      const tailor = settings.easyApplyTailorResume;
+      const swap = tailor && settings.easyApplySwapResume;
+
+      if (tailor) await step("Tailoring your resume");
+      const { applicationId, resume, resumeSource } = await tailoredResume(posting, job, { tailor, swap });
+
+      if (!settings.easyApplyAutoSubmit) {
+        throw new JobFailure("Auto-submit is off, so nothing was sent. It's saved as a draft on your board; apply from there when you're ready.");
+      }
 
       // The first apply sends the resume (and applies, when there are no questions), so it's confirmed before it.
-      const settings = await loadSettings();
-      if (settings.confirmApplyAnswers && settings.confirmApplyResume && !resumeConfirmed) {
+      if (settings.confirmApplyAnswers && settings.confirmApplyResume && resumeSource && !resumeConfirmed) {
         return { applicationId, answered: [], missing: [], review: { questions: [], resume: resumeSource } };
       }
 
-      await step("Applying on Naukri with your tailored resume");
+      await step(resume ? "Applying on Naukri with your tailored resume" : "Applying on Naukri");
       const first = await naukriApply(credentials, jobId, { skills, resume }, context);
       let result = first;
       const answered: { question: string; answer: string }[] = [];
@@ -105,6 +113,9 @@ export const easyApplyJob = defineJob({
             if (problem) throw new JobFailure(`${problem} Nothing was sent.`);
             answers = Object.fromEntries(toAnswer.flatMap((question) => (reviewed[question.id] === undefined ? [] : [[question.id, reviewed[question.id]]])));
           } else {
+            if (!settings.easyApplyAnswerQuestions) {
+              throw new JobFailure(`This job asks ${toAnswer.length === 1 ? "a question" : `${toAnswer.length} questions`} and answering with AI is off, so nothing was sent. Apply on Naukri yourself to finish.`);
+            }
             await step(`Answering ${toAnswer.length === 1 ? "1 question" : `${toAnswer.length} questions`}`);
             const confirming = settings.confirmApplyAnswers;
             const [provider, options, profile, facts] = await Promise.all([getAiProvider(), loadTaskOptions(), loadProfile(), loadFactTexts(applicationId)]);
@@ -171,8 +182,11 @@ export const easyApplyJob = defineJob({
 async function tailoredResume(
   posting: FoundPosting,
   context: JobContext,
-): Promise<{ applicationId: string; resume: NaukriResume; resumeSource: "written" | "uploaded" }> {
+  { tailor, swap }: { tailor: boolean; swap: boolean },
+): Promise<{ applicationId: string; resume?: NaukriResume; resumeSource?: "written" | "uploaded" }> {
   const applicationId = await postingApplication(posting, context);
+  // Not tailoring: the application is drafted, but the resume already on the Naukri profile goes out.
+  if (!tailor) return { applicationId };
   const application = await prisma.application.findUniqueOrThrow({
     where: { id: applicationId },
     select: { company: true, role: true, documents: { where: { kind: DocumentKind.RESUME }, select: { id: true } }, files: { where: { kind: DocumentKind.RESUME } } },
@@ -183,11 +197,14 @@ async function tailoredResume(
     application.documents.push({ id: "written" });
   }
   if (application.documents.length === 0) {
+    if (!swap) return { applicationId };
     // The user's own resume, as they uploaded it, until the AI writes one.
     const own = application.files[0];
     if (own?.type !== PDF_TYPE) throw new JobFailure("This application's resume isn't a PDF, and Naukri takes only PDFs. Write one or upload a PDF, then try again. Nothing was sent.");
     return { applicationId, resumeSource: "uploaded", resume: { data: new Uint8Array(own.data), name: own.name } };
   }
+  // Tailored and kept on the application, but the Naukri profile's own resume goes out.
+  if (!swap) return { applicationId };
   const [name, settings] = await Promise.all([loadProfileName(), loadSettings()]);
   const data = await renderPdf(`/print/resume/${applicationId}`).catch((error: unknown) => {
     logServerError("easy apply resume PDF", error);
