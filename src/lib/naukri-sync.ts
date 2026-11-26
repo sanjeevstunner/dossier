@@ -9,27 +9,31 @@ import { prisma } from "@/lib/prisma";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 import { DEFAULT_NAUKRI_STATUS_MAP, statusFromNaukri, type NaukriStatusMap } from "@/lib/naukri-status";
 import { applyStatusChange } from "@/lib/status-changes";
+import { latestMoves, loadConflicts } from "@/lib/naukri-conflicts";
 
 // Naukri's applied-jobs history, kept in Applications. Naukri is the source of
-// truth for status: the sync creates what Dossier doesn't have and moves the
-// status of what it does (its own too, matched by Naukri's job id). Nothing
-// else on an application is touched.
+// truth for status where Naukri set it last: the sync creates what Dossier
+// doesn't have and follows Naukri on what it brought in. Where the user moved
+// an application themselves (their own included, matched by Naukri's job id)
+// and Naukri disagrees, nothing changes; it waits in the review screen
+// (naukri-conflicts.ts). Nothing else on an application is touched.
 
 export const SYNCED_FROM = "NAUKRI";
 
-export type SyncResult = { created: number; updated: number; total: number; unmapped: string[] };
+export type SyncResult = { created: number; updated: number; total: number; unmapped: string[]; /** Applications waiting for the user's decision after this run. */ conflicts: number };
 
 export async function applyNaukriApplications(found: readonly NaukriApplication[], now = new Date(), map: NaukriStatusMap = DEFAULT_NAUKRI_STATUS_MAP): Promise<SyncResult> {
   const ids = found.map((entry) => entry.jobId);
   const [synced, viaPosting] = await Promise.all([
-    prisma.application.findMany({ where: { syncedFrom: SYNCED_FROM, externalId: { in: ids } }, select: { id: true, status: true, externalId: true } }),
-    prisma.application.findMany({ where: { posting: { source: "NAUKRI", externalId: { in: ids } } }, select: { id: true, status: true, posting: { select: { externalId: true } } } }),
+    prisma.application.findMany({ where: { syncedFrom: SYNCED_FROM, externalId: { in: ids } }, select: { id: true, status: true, externalId: true, naukriWord: true, syncedFrom: true } }),
+    prisma.application.findMany({ where: { posting: { source: "NAUKRI", externalId: { in: ids } } }, select: { id: true, status: true, naukriWord: true, syncedFrom: true, posting: { select: { externalId: true } } } }),
   ]);
-  const known = new Map<string, { id: string; status: ApplicationStatus }>();
+  const known = new Map<string, { id: string; status: ApplicationStatus; naukriWord: string | null; syncedFrom: string | null }>();
   for (const row of synced) known.set(row.externalId!, row);
   for (const row of viaPosting) known.set(row.posting!.externalId, row);
+  const moves = await latestMoves([...known.values()].map((row) => row.id));
 
-  const result: SyncResult = { created: 0, updated: 0, total: found.length, unmapped: [] };
+  const result: SyncResult = { created: 0, updated: 0, total: found.length, unmapped: [], conflicts: 0 };
   for (const entry of found) {
     const word = entry.statuses.at(-1)?.value.trim();
     const mapped = statusFromNaukri(word, map);
@@ -38,16 +42,17 @@ export async function applyNaukriApplications(found: readonly NaukriApplication[
     const status = mapped ?? ApplicationStatus.SENT;
     const existing = known.get(entry.jobId);
     if (existing) {
-      // "Applied" is all Naukri knows about an application moved further by hand, so it doesn't pull it back.
+      if (word && word !== existing.naukriWord) await prisma.application.update({ where: { id: existing.id }, data: { naukriWord: word } });
       if (status === existing.status) {
-        // Already there (moved by hand or by an earlier sync): the Notes tab still gets Naukri's word on that move.
-        if (word) {
+        // Already there: the Notes tab of a synced application still gets Naukri's word on that move.
+        if (word && existing.syncedFrom) {
           const event = await prisma.statusEvent.findFirst({ where: { applicationId: existing.id, to: status }, orderBy: { at: "desc" }, select: { id: true, naukriStatus: true } });
           if (event && !event.naukriStatus) await prisma.statusEvent.update({ where: { id: event.id }, data: { naukriStatus: word } });
         }
         continue;
       }
-      if (status === ApplicationStatus.SENT) continue;
+      // Moved by the user: left as it is, and shown in the review screen.
+      if (moves.get(existing.id)?.byUser ?? true) continue;
       if ((await applyStatusChange(prisma, existing.id, status, now, word)).outcome === "changed") result.updated++;
       continue;
     }
@@ -71,8 +76,9 @@ export async function applyNaukriApplications(found: readonly NaukriApplication[
     result.created++;
     // Through the status module, so the Notes tab shows the move with Naukri's word for it.
     await applyStatusChange(prisma, created.id, status, now, word);
-    await prisma.application.update({ where: { id: created.id }, data: { sentAt } });
+    await prisma.application.update({ where: { id: created.id }, data: { sentAt, naukriWord: word ?? null } });
   }
+  result.conflicts = (await loadConflicts(map)).length;
   return result;
 }
 

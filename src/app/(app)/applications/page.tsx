@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { listSummary, resolveListParams, statusesIn } from "@/lib/applications-list";
 import { loadApplicationRows, loadSavedRows } from "@/lib/applications-data";
+import { loadConflicts } from "@/lib/naukri-conflicts";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 
@@ -15,11 +16,12 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const settings = await loadSettings();
   const params = resolveListParams(await searchParams, settings);
 
-  const [all, archived, savedAll, syncedCount] = await Promise.all([
+  const [all, archived, savedAll, syncedCount, conflicts] = await Promise.all([
     loadApplicationRows({ archived: params.archived, sort: params.sort, source: params.source }),
     prisma.application.count({ where: { archivedAt: { not: null }, awaitingReview: false } }),
     loadSavedRows(),
     prisma.application.count({ where: { syncedFrom: "NAUKRI" } }),
+    loadConflicts(settings.naukriStatusMap),
   ]);
   const q = params.q.toLocaleLowerCase();
   // Saved postings are in progress, so they show on the board under All and In progress.
@@ -41,7 +43,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
       summary={listSummary(current.map((row) => row.status))}
       empty={current.length === 0 && all.length === 0 && archived === 0 && savedAll.length === 0}
       archivedCount={archived}
-      naukri={{ show: settings.naukriSync || syncedCount > 0, lastSyncAt: settings.naukriLastSyncAt, problem: settings.naukriSyncProblem }}
+      naukri={{ show: settings.naukriSync || syncedCount > 0, lastSyncAt: settings.naukriLastSyncAt, toReview: conflicts.length, problem: settings.naukriSyncProblem }}
     />
   );
 }

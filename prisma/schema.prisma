@@ -470,6 +470,10 @@ model Application {
   syncedFrom          String?
   /// That platform's id for the job (Naukri's jobId), with `syncedFrom`.
   externalId          String?
+  /// Naukri's latest status word for this job, as last seen by the sync.
+  naukriWord          String?
+  /// The Naukri word the user already decided on in the review screen; a conflict on that word isn't shown again.
+  naukriResolvedWord  String?
   /// The Gmail thread the application was sent in, when it went out through Gmail (E15-2).
   emailThreadId       String?
   /// The Google Calendar event of the next interview, and the calendar it's

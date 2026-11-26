@@ -126,4 +126,11 @@ describe("the Applications screen (E9-1)", () => {
     expect(router.replace).toHaveBeenCalledWith("/applications?q=ledg", { scroll: false });
     expect(rememberListView).not.toHaveBeenCalled();
   });
+
+  it("links to the review screen only when something waits for a decision", () => {
+    const { rerender } = render(<ApplicationsScreen {...props} naukri={{ show: true, lastSyncAt: null, problem: null, toReview: 0 }} />);
+    expect(screen.queryByRole("link", { name: /to review/ })).not.toBeInTheDocument();
+    rerender(<ApplicationsScreen {...props} naukri={{ show: true, lastSyncAt: null, problem: null, toReview: 3 }} />);
+    expect(screen.getByRole("link", { name: "3 to review" })).toHaveAttribute("href", "/applications/review");
+  });
 });

@@ -33,7 +33,7 @@ export type ApplicationsScreenProps = {
   /** Archived applications, hidden unless shown (E9-5). */
   archivedCount: number;
   /** Naukri's sync: whether to show its controls, when it last ran, and what went wrong. */
-  naukri: { show: boolean; lastSyncAt: string | null; problem: string | null };
+  naukri: { show: boolean; lastSyncAt: string | null; problem: string | null; /** Applications waiting for a decision (review screen). */ toReview?: number };
 };
 
 const HINTS: Record<View, string> = {
@@ -92,8 +92,8 @@ export function ApplicationsScreen({ params, rows, saved, counts, summary, empty
     startSync(async () => {
       const result = toastResult(await syncNaukriNow({}));
       if (result.ok) {
-        const { created, updated, total } = result.data;
-        toast(`Synced ${total} from Naukri: ${created} new, ${updated} updated.`);
+        const { created, updated, total, conflicts } = result.data;
+        toast(`Synced ${total} from Naukri: ${created} new, ${updated} updated${conflicts ? `, ${conflicts} to review` : ""}.`);
         router.refresh();
       }
     });
@@ -175,6 +175,11 @@ export function ApplicationsScreen({ params, rows, saved, counts, summary, empty
                 <Button variant="secondary" size="sm" disabled={syncing} onClick={sync} title={naukri.problem ?? undefined}>
                   {syncing ? "Syncing…" : "Sync Naukri"}
                 </Button>
+                {!!naukri.toReview && (
+                  <Link href="/applications/review" className="text-control font-medium text-primary-text underline underline-offset-2">
+                    {naukri.toReview} to review
+                  </Link>
+                )}
                 <span className={cn("text-meta", naukri.problem ? "text-error" : "text-muted")}>
                   {naukri.problem ?? (naukri.lastSyncAt ? `Naukri synced ${updatedAgo(new Date(naukri.lastSyncAt)).toLowerCase()}` : "Naukri not synced yet")}
                 </span>
