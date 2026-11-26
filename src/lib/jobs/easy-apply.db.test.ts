@@ -246,4 +246,38 @@ describe("Naukri easy apply agent", () => {
   it("keys a posting's easy apply, so a second click follows the first", () => {
     expect(easyApplyJobKey(posting)).toBe("easy-apply:NAUKRI:123");
   });
+
+  describe("steps the user turned off in Settings", () => {
+    const off = (key: string) => prisma().setting.create({ data: { key, value: "false" } });
+
+    it("prepares a draft and sends nothing with auto-submit off", async () => {
+      await off("easyApplyAutoSubmit");
+      await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/Auto-submit is off, so nothing was sent/);
+      expect(fake.applies).toEqual([]);
+    });
+
+    it("applies with the profile's own resume, writing none, with tailoring off", async () => {
+      await off("easyApplyTailorResume");
+      const run = context();
+      await easyApplyJob.run({ posting }, run);
+      expect(run.steps).not.toContain("Tailoring your resume");
+      expect(printed).toEqual([]);
+      expect(fake.resumes).toEqual([undefined]);
+    });
+
+    it("keeps the tailored resume on the application, not sent, with the swap off", async () => {
+      await off("easyApplySwapResume");
+      await easyApplyJob.run({ posting }, context());
+      expect(printed).toEqual([]);
+      expect(fake.resumes).toEqual([undefined]);
+    });
+
+    it("stops at a question the profile doesn't fill, without asking the AI, with answers off", async () => {
+      await off("easyApplyAnswerQuestions");
+      fake.questionnaire = questions;
+      await expect(easyApplyJob.run({ posting }, context())).rejects.toThrow(/answering with AI is off, so nothing was sent/);
+      expect(fake.prompts).toEqual([]);
+      expect(fake.applies).toHaveLength(1);
+    });
+  });
 });

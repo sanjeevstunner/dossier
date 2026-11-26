@@ -117,6 +117,12 @@ export const settingsSchema = z.object({
   confirmApplyAnswers: flag(false),
   /** With that on, the resume that goes with the apply is shown for confirming first too. */
   confirmApplyResume: flag(false),
+  /** Which steps Naukri easy apply with agent may do on its own; all on, as it always did. */
+  easyApplyAnswerQuestions: flag(true),
+  easyApplyTailorResume: flag(true),
+  /** Under tailoring: send the tailored resume with the apply, not the Naukri profile's own. */
+  easyApplySwapResume: flag(true),
+  easyApplyAutoSubmit: flag(true),
   paper: z.enum(PaperSize).catch(PaperSize.A4),
   dateFormat: z.enum(DateFormat).catch(DateFormat.DAY_MONTH_YEAR),
   defaultTone: z.enum(Tone).catch(Tone.WARM),
